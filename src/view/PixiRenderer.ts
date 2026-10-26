@@ -1,7 +1,7 @@
 /**
  * PixiJS v8 2D Top-Down Tactical Renderer ("Cozy Crisp" Art Direction)
- * Layer 4 (view): Coordinates camera, object pools, and delegates feature rendering
- * to modular renderers under `./renderers/`.
+ * Layer 4 (view): Coordinates camera, object pools, Bestiary SpriteAtlas textures,
+ * and delegates feature rendering to modular renderers under `./renderers/`.
  */
 
 import * as PIXI from 'pixi.js';
@@ -9,6 +9,10 @@ import { clamp, lerp, slerpAngle } from '../core/math/vec2';
 import { PALETTE } from '../content/data/catalog';
 import type { BiomeId } from '../content/schema/types';
 import type { Simulation } from '../sim/Simulation';
+import {
+  getSharedSpriteAtlasTextures,
+  type SpriteKey,
+} from './SpriteAtlas';
 import {
   CHUNK_PX,
   CHUNK_SIZE_U,
@@ -60,14 +64,27 @@ export class PixiGameRenderer {
   private decalGraphic = new PIXI.Graphics();
   private telegraphGraphic = new PIXI.Graphics();
   private pickupGraphic = new PIXI.Graphics();
-  private enemyGraphic = new PIXI.Graphics();
-  private heroGraphic = new PIXI.Graphics();
+
+  // Enemy layers: Under-graphics (shadows + animated legs) -> Bestiary Sprites -> Overlays (cheeks/mouth, debuffs, HP)
+  private enemyUnderGraphic = new PIXI.Graphics();
+  private enemySpriteContainer = new PIXI.Container();
+  private enemyOverlayGraphic = new PIXI.Graphics();
+
+  // Hero layers: Under-graphics (shadow, Ember Guard, animated legs, Angel Wings) -> Bestiary Hero Sprite -> Articulated Arm + Weapons
+  private heroUnderGraphic = new PIXI.Graphics();
+  private heroSprite = new PIXI.Sprite();
+  private heroWeaponGraphic = new PIXI.Graphics();
+
   private projectileGraphic = new PIXI.Graphics();
   private fxGraphic = new PIXI.Graphics();
   private particleGraphic = new PIXI.Graphics();
   private floatingTextContainer = new PIXI.Container();
   private screenOverlayGraphic = new PIXI.Graphics();
   private joystickGraphic = new PIXI.Graphics();
+
+  // Shared Bestiary SpriteAtlas textures & Enemy Sprite Pool
+  private atlasTextures = new Map<SpriteKey, PIXI.Texture>();
+  private readonly enemySpritePool: PIXI.Sprite[] = [];
 
   // Camera & Preferences state
   private camX = 0;
@@ -114,14 +131,26 @@ export class PixiGameRenderer {
     hostElement.innerHTML = '';
     hostElement.appendChild(app.canvas);
 
+    // Load Bestiary SpriteAtlas textures
+    this.atlasTextures = getSharedSpriteAtlasTextures();
+    const defaultHeroTex = this.atlasTextures.get('hero_warden');
+    if (defaultHeroTex) {
+      this.heroSprite.texture = defaultHeroTex;
+    }
+    this.heroSprite.anchor.set(0.5, 0.56);
+
     // Assemble Z-ordered scene graph
     this.worldContainer.addChild(
       this.groundChunkContainer,
       this.decalGraphic,
       this.telegraphGraphic,
       this.pickupGraphic,
-      this.enemyGraphic,
-      this.heroGraphic,
+      this.enemyUnderGraphic,
+      this.enemySpriteContainer,
+      this.enemyOverlayGraphic,
+      this.heroUnderGraphic,
+      this.heroSprite,
+      this.heroWeaponGraphic,
       this.projectileGraphic,
       this.fxGraphic,
       this.particleGraphic,
@@ -386,7 +415,6 @@ export class PixiGameRenderer {
     this.decalGraphic.clear();
     this.telegraphGraphic.clear();
     this.pickupGraphic.clear();
-    this.enemyGraphic.clear();
     this.projectileGraphic.clear();
     this.fxGraphic.clear();
 
@@ -398,13 +426,20 @@ export class PixiGameRenderer {
     WeaponEffectsRenderer.drawGroundHazards(this.decalGraphic, sim);
     WeaponEffectsRenderer.drawPickups(this.pickupGraphic, sim);
     EnemyRenderer.drawEnemies(
-      this.enemyGraphic,
+      this.enemyUnderGraphic,
+      this.enemySpriteContainer,
+      this.enemySpritePool,
+      this.enemyOverlayGraphic,
       this.telegraphGraphic,
+      this.atlasTextures,
       sim,
       alpha
     );
     HeroRenderer.drawHero(
-      this.heroGraphic,
+      this.heroUnderGraphic,
+      this.heroSprite,
+      this.heroWeaponGraphic,
+      this.atlasTextures,
       sim,
       alpha,
       this.displayFacingAngle

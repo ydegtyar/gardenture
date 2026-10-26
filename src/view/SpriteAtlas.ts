@@ -359,18 +359,20 @@ function paintHeroWarden(ctx: CanvasRenderingContext2D, includeStaticLegs = true
   drawLeafShape(ctx, 96, 116, Math.PI * 0.92, 42, 18, '#A8E6CF', '#FFFDF0', 5.5);
   drawLeafShape(ctx, 160, 116, Math.PI * 0.08, 42, 18, '#A8E6CF', '#FFFDF0', 5.5);
 
-  // Held Garden Blade (right hand) - luminous emerald leaf blade + pink vine hilt
-  ctx.save();
-  ctx.translate(188, 136);
-  ctx.rotate(-0.48);
-  drawLeafShape(ctx, 0, 0, -Math.PI / 2, 76, 22, '#A8E6CF', '#FFFDF0', 6.5);
-  ctx.beginPath();
-  ctx.roundRect(-16, -6, 32, 10, 5);
-  fillAndStroke(ctx, '#D9A066', 5);
-  ctx.beginPath();
-  ctx.arc(0, 12, 7, 0, Math.PI * 2);
-  fillAndStroke(ctx, '#FFAAA6', 4.5);
-  ctx.restore();
+  // Held Garden Blade (right hand) in static portrait mode; in-game uses HeroRenderer's articulated swinging arm
+  if (includeStaticLegs) {
+    ctx.save();
+    ctx.translate(188, 136);
+    ctx.rotate(-0.48);
+    drawLeafShape(ctx, 0, 0, -Math.PI / 2, 76, 22, '#A8E6CF', '#FFFDF0', 6.5);
+    ctx.beginPath();
+    ctx.roundRect(-16, -6, 32, 10, 5);
+    fillAndStroke(ctx, '#D9A066', 5);
+    ctx.beginPath();
+    ctx.arc(0, 12, 7, 0, Math.PI * 2);
+    fillAndStroke(ctx, '#FFAAA6', 4.5);
+    ctx.restore();
+  }
 
   // Chibi Head & Sage Traveler Hood
   drawCelCircle(ctx, 128, 86, 46, '#88D49E', '#6BB384', '#A8E6CF', 7.5);

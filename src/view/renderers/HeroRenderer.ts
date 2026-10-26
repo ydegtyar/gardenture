@@ -2,22 +2,29 @@ import * as PIXI from 'pixi.js';
 import { PALETTE, PERSONAS, PROFESSIONS, WEAPONS } from '../../content/data/catalog';
 import { clamp, lerp } from '../../core/math/vec2';
 import type { Simulation } from '../../sim/Simulation';
+import { resolveHeroSpriteKey, type SpriteKey } from '../SpriteAtlas';
 import { PPU } from './EnvironmentRenderer';
 
 /**
- * Renders the Hero character, articulated arm + Garden Blade attachment,
+ * Renders the Hero character using the Bestiary sprite from SpriteAtlas,
+ * combined with articulated walking legs, articulated arm + Garden Blade attachment,
  * Halberd, Ember Guard flame barrier, Death Grave collapse animation,
  * and Victory white Angel Wings ascension animation.
  */
 export class HeroRenderer {
   public static drawHero(
-    heroGraphic: PIXI.Graphics,
+    heroUnderGraphic: PIXI.Graphics,
+    heroSprite: PIXI.Sprite,
+    heroWeaponGraphic: PIXI.Graphics,
+    atlasTextures: Map<SpriteKey, PIXI.Texture>,
     sim: Simulation,
     alpha: number,
     displayFacingAngle: number
   ): void {
-    const g = heroGraphic;
-    g.clear();
+    const gUnder = heroUnderGraphic;
+    const gOver = heroWeaponGraphic;
+    gUnder.clear();
+    gOver.clear();
 
     const hx = lerp(sim.heroPrevX, sim.heroX, alpha) * PPU;
     const hy = lerp(sim.heroPrevY, sim.heroY, alpha) * PPU;
@@ -46,15 +53,18 @@ export class HeroRenderer {
 
     // Dash Invisibility Frames visual feedback
     const isDashInvisible = sim.dashIframeTimer > 0 || sim.dashTimer > 0;
-    g.alpha = isDyingSequence
+    const currentAlpha = isDyingSequence
       ? clamp(1 - deathProgress * 0.85, 0.15, 1)
       : isDashInvisible
         ? 0.42 + 0.18 * Math.sin(sim.elapsedSeconds * 45)
         : 1.0;
 
+    gUnder.alpha = currentAlpha;
+    gOver.alpha = currentAlpha;
+
     // Ground contact shadow (shrinks as hero ascends on victory)
     const shadowScale = isWinningAscension ? clamp(1 - winProgress * 0.65, 0.3, 1) : 1.0;
-    g.ellipse(hx, hy + 13, 16 * shadowScale, 8.5 * shadowScale).fill({
+    gUnder.ellipse(hx, hy + 13, 16 * shadowScale, 8.5 * shadowScale).fill({
       color: 0x0f131d,
       alpha: 0.42 * shadowScale,
     });
@@ -62,11 +72,11 @@ export class HeroRenderer {
     if (isWinningAscension) {
       // Golden ascension light pillar & floating white angel feathers
       const beamAlpha = 0.22 + 0.12 * Math.sin(sim.elapsedSeconds * 8);
-      g.ellipse(hx, hy + 10, 28, 13).fill({
+      gUnder.ellipse(hx, hy + 10, 28, 13).fill({
         color: PALETTE.BUTTER_YELLOW,
         alpha: beamAlpha + 0.12,
       });
-      g.rect(hx - 20, hy + flyHeightOffset - 60, 40, 80 - flyHeightOffset).fill({
+      gUnder.rect(hx - 20, hy + flyHeightOffset - 60, 40, 80 - flyHeightOffset).fill({
         color: PALETTE.BUTTER_YELLOW,
         alpha: beamAlpha * 0.55,
       });
@@ -74,7 +84,8 @@ export class HeroRenderer {
         const fPhase = (sim.elapsedSeconds * 1.8 + f * 0.19) % 1;
         const fx = hx + Math.sin(f * 2.1 + sim.elapsedSeconds * 3) * 26;
         const fy = hy + flyHeightOffset + 24 - fPhase * 52;
-        g.ellipse(fx, fy, 4.5, 2.0)
+        gUnder
+          .ellipse(fx, fy, 4.5, 2.0)
           .fill({ color: 0xffffff, alpha: (1 - fPhase) * 0.9 })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 1, alpha: (1 - fPhase) * 0.6 });
       }
@@ -86,7 +97,7 @@ export class HeroRenderer {
         const wPhase = (deathProgress * 1.4 + w * 0.2) % 1;
         const wx = hx + Math.sin(w * 1.7 + sim.elapsedSeconds * 5) * 16;
         const wy = hy - wPhase * 42;
-        g.circle(wx, wy, 3.5 * (1 - wPhase * 0.5)).fill({
+        gOver.circle(wx, wy, 3.5 * (1 - wPhase * 0.5)).fill({
           color: PALETTE.MINT_GREEN,
           alpha: (1 - wPhase) * 0.85,
         });
@@ -95,7 +106,8 @@ export class HeroRenderer {
 
     // Shield Power-Up active bubble
     if (sim.shieldHp > 0) {
-      g.circle(hx, hy + flyHeightOffset, 26)
+      gUnder
+        .circle(hx, hy + flyHeightOffset, 26)
         .fill({ color: PALETTE.SKY_BLUE, alpha: 0.22 })
         .stroke({ color: PALETTE.SKY_BLUE, width: 2.5, alpha: 0.85 });
     }
@@ -104,7 +116,8 @@ export class HeroRenderer {
     if (sim.fireBreathTimer > 0) {
       const egRadiusPx = 2.1 * sim.stats.areaMult * PPU;
       const pulse = 0.85 + 0.15 * Math.sin(sim.elapsedSeconds * 16);
-      g.circle(hx, hy + flyHeightOffset, egRadiusPx * pulse)
+      gUnder
+        .circle(hx, hy + flyHeightOffset, egRadiusPx * pulse)
         .fill({ color: 0xfb923c, alpha: 0.09 })
         .stroke({ color: 0xfb923c, width: 3, alpha: 0.68 });
       const orbCount = 4;
@@ -113,21 +126,24 @@ export class HeroRenderer {
         const ox = hx + Math.cos(a) * egRadiusPx;
         const oy = hy + flyHeightOffset + Math.sin(a) * egRadiusPx;
         const tailA = a - 0.28;
-        g.circle(
-          hx + Math.cos(tailA) * egRadiusPx,
-          hy + flyHeightOffset + Math.sin(tailA) * egRadiusPx,
-          5.5
-        ).fill({ color: 0xf43f5e, alpha: 0.55 });
-        g.circle(ox, oy, 7.5)
+        gUnder
+          .circle(
+            hx + Math.cos(tailA) * egRadiusPx,
+            hy + flyHeightOffset + Math.sin(tailA) * egRadiusPx,
+            5.5
+          )
+          .fill({ color: 0xf43f5e, alpha: 0.55 });
+        gUnder
+          .circle(ox, oy, 7.5)
           .fill({ color: 0xfb923c, alpha: 0.95 })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
-        g.circle(ox, oy, 3.8).fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.95 });
+        gUnder.circle(ox, oy, 3.8).fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.95 });
       }
     }
 
     // Dash phase ring around hero while invisible
     if (isDashInvisible) {
-      g.circle(hx, hy + flyHeightOffset, 22).stroke({
+      gUnder.circle(hx, hy + flyHeightOffset, 22).stroke({
         color: PALETTE.SKY_BLUE,
         width: 2,
         alpha: 0.75,
@@ -152,10 +168,10 @@ export class HeroRenderer {
           ? PALETTE.CREAM_WHITE
           : (customPersona?.accentColor ?? prof.accentColor);
 
-    // Animated legs beneath torso
+    // Animated legs beneath Bestiary hero sprite
     if (!isDyingSequence) {
       HeroRenderer.drawCharacterLegs(
-        g,
+        gUnder,
         hx,
         hy + flyHeightOffset,
         isMoving && !isWinningAscension,
@@ -171,15 +187,56 @@ export class HeroRenderer {
 
     // Draw articulated White Angel Wings behind the hero during Victory sequence!
     if (isWinningAscension) {
-      HeroRenderer.drawHeroAngelWings(g, hx, cy, sim.elapsedSeconds, winProgress);
+      HeroRenderer.drawHeroAngelWings(gUnder, hx, cy, sim.elapsedSeconds, winProgress);
     }
 
-    // Draw attached weapons & articulated hero arm
+    // Update the Hero PIXI.Sprite from Bestiary SpriteAtlas
+    const spriteKey = resolveHeroSpriteKey(sim.professionId);
+    const tex = atlasTextures.get(spriteKey);
+    if (tex && heroSprite.texture !== tex) {
+      heroSprite.texture = tex;
+    }
+    heroSprite.visible = true;
+    heroSprite.anchor.set(0.5, 0.56);
+    heroSprite.position.set(hx, cy);
+    heroSprite.alpha = currentAlpha;
+
+    const baseScale = 58 / 256;
+    const facingCos = Math.cos(displayFacingAngle);
+    const flipX = facingCos < -0.15 ? -1 : 1;
+    const squashX = isMoving
+      ? 1 + Math.sin(walkPhase * 2) * 0.045
+      : 1 + Math.sin(sim.elapsedSeconds * 3.5) * 0.015;
+    const squashY = isDyingSequence
+      ? clamp(1 - deathProgress * 0.45, 0.5, 1)
+      : isMoving
+        ? 1 - Math.sin(walkPhase * 2) * 0.045
+        : 1 - Math.sin(sim.elapsedSeconds * 3.5) * 0.015;
+
+    heroSprite.scale.set(baseScale * squashX * flipX, baseScale * squashY);
+    heroSprite.rotation = isDyingSequence
+      ? deathProgress * 0.65 * flipX
+      : isMoving && !isWinningAscension
+        ? Math.sin(walkPhase) * 0.075
+        : 0;
+
+    if (sim.hitFlashTimer > 0) {
+      heroSprite.tint = 0xffffff;
+      gOver.circle(hx, cy - 4, 18).fill({ color: PALETTE.CREAM_WHITE, alpha: 0.55 });
+    } else if (isDashInvisible) {
+      heroSprite.tint = PALETTE.SKY_BLUE;
+    } else if (customPersona) {
+      heroSprite.tint = customPersona.cloakColor;
+    } else {
+      heroSprite.tint = 0xffffff;
+    }
+
+    // Draw attached weapons & articulated hero arm in front of hero sprite
     if (!isDyingSequence) {
       const swordWpn = sim.weapons.find((w) => w.id === 'garden_blade');
       if (swordWpn) {
         HeroRenderer.drawHeroSword(
-          g,
+          gOver,
           hx,
           cy,
           displayFacingAngle,
@@ -192,7 +249,7 @@ export class HeroRenderer {
       const spearWpn = sim.weapons.find((w) => w.id === 'thorn_spear');
       if (spearWpn) {
         HeroRenderer.drawHeroHalberd(
-          g,
+          gOver,
           hx,
           cy,
           displayFacingAngle,
@@ -201,120 +258,6 @@ export class HeroRenderer {
         );
       }
     }
-
-    const facingCos = Math.cos(displayFacingAngle);
-    const facingSin = Math.sin(displayFacingAngle);
-
-    if (sim.professionId === 'warden') {
-      g.moveTo(hx - facingCos * 6 - 13, cy + 12)
-        .lineTo(hx + 13 - facingCos * 6, cy + 12)
-        .lineTo(hx + 9, cy - 4)
-        .lineTo(hx - 9, cy - 4)
-        .closePath()
-        .fill({ color: accentColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-      g.roundRect(hx - 13, cy - 12, 26, 20, 9)
-        .fill({ color: bodyColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-      g.circle(hx - 12, cy - 5, 6.5)
-        .fill({ color: accentColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-      g.circle(hx + 12, cy - 5, 6.5)
-        .fill({ color: accentColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-
-      g.circle(hx, cy - 11, 10.5)
-        .fill({ color: bodyColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-      g.moveTo(hx, cy - 26)
-        .lineTo(hx - 6, cy - 15)
-        .lineTo(hx + 6, cy - 15)
-        .closePath()
-        .fill({ color: PALETTE.BUTTER_YELLOW })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-    } else if (sim.professionId === 'seeker') {
-      const scarfWave = Math.sin(sim.elapsedSeconds * 12) * 4;
-      g.moveTo(hx - facingCos * 8, cy - 4)
-        .lineTo(hx - facingCos * 24 + scarfWave, cy + 6)
-        .lineTo(hx - facingCos * 18 - scarfWave, cy + 13)
-        .closePath()
-        .fill({ color: PALETTE.BLUSH_ROSE })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-
-      g.roundRect(hx - 11, cy - 10, 22, 19, 8)
-        .fill({ color: accentColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-      g.moveTo(hx, cy - 24)
-        .lineTo(hx + 13, cy - 6)
-        .lineTo(hx - 13, cy - 6)
-        .closePath()
-        .fill({ color: bodyColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-    } else if (sim.professionId === 'herbalist') {
-      g.circle(hx + 9, cy + 1, 8)
-        .fill({ color: 0xd97706 })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-
-      g.roundRect(hx - 12, cy - 10, 24, 20, 10)
-        .fill({ color: bodyColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-      g.ellipse(hx, cy - 15, 17, 7)
-        .fill({ color: accentColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-      g.moveTo(hx, cy - 28)
-        .lineTo(hx + 9, cy - 15)
-        .lineTo(hx - 9, cy - 15)
-        .closePath()
-        .fill({ color: bodyColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-      g.circle(hx + 6, cy - 17, 4)
-        .fill({ color: PALETTE.BLUSH_ROSE })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
-    } else {
-      g.moveTo(hx - 14, cy + 11)
-        .lineTo(hx, cy - 12)
-        .lineTo(hx + 14, cy + 11)
-        .closePath()
-        .fill({ color: accentColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-      g.circle(hx, cy - 9, 11)
-        .fill({ color: bodyColor })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-      const haloAngle = sim.elapsedSeconds * 4;
-      for (let i = 0; i < 3; i++) {
-        const a = haloAngle + (i * Math.PI * 2) / 3;
-        const ox = hx + Math.cos(a) * 16;
-        const oy = cy - 14 + Math.sin(a) * 6;
-        g.circle(ox, oy, 3.8)
-          .fill({ color: PALETTE.BUTTER_YELLOW })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
-      }
-    }
-
-    // Expressive eyes
-    const eyeCenterX = hx + facingCos * 5;
-    const eyeCenterY = cy - 9 + facingSin * 3;
-    const perpX = -facingSin * 3.8;
-    const perpY = facingCos * 3.8;
-    g.circle(eyeCenterX + perpX, eyeCenterY + perpY, 2.3).fill({
-      color: PALETTE.INK_OUTLINE,
-    });
-    g.circle(eyeCenterX - perpX, eyeCenterY - perpY, 2.3).fill({
-      color: PALETTE.INK_OUTLINE,
-    });
-    g.circle(eyeCenterX + perpX - 0.6, eyeCenterY + perpY - 0.6, 0.9).fill({
-      color: PALETTE.CREAM_WHITE,
-    });
-    g.circle(eyeCenterX - perpX - 0.6, eyeCenterY - perpY - 0.6, 0.9).fill({
-      color: PALETTE.CREAM_WHITE,
-    });
   }
 
   /**

@@ -152,7 +152,7 @@ export class WeaponEffectsRenderer {
     const hx = lerp(sim.heroPrevX, sim.heroX, alpha) * PPU;
     const hy = lerp(sim.heroPrevY, sim.heroY, alpha) * PPU;
 
-    // 1. Orbiting Petals
+    // 1. Orbiting Petals (styled after the Bestiary petal_orbit lotus/sakura blades)
     const petalCount = sim.getOrbitPetalCount();
     if (petalCount > 0) {
       const petalWpn = sim.weapons.find((w) => w.id === 'petal_orbit');
@@ -165,21 +165,37 @@ export class WeaponEffectsRenderer {
         const px = hx + Math.cos(a) * orbitR;
         const py = hy + Math.sin(a) * orbitR;
 
-        const wispA = a - 0.16;
-        const wx = hx + Math.cos(wispA) * orbitR;
-        const wy = hy + Math.sin(wispA) * orbitR;
-        g.circle(wx, wy, 4.2).fill({
-          color: PALETTE.CREAM_WHITE,
-          alpha: 0.35,
-        });
+        for (let t = 1; t <= 2; t++) {
+          const wispA = a - t * 0.14;
+          const wx = hx + Math.cos(wispA) * orbitR;
+          const wy = hy + Math.sin(wispA) * orbitR;
+          g.circle(wx, wy, 4.8 - t * 1.3).fill({
+            color: evolved ? PALETTE.BUTTER_YELLOW : PALETTE.CREAM_WHITE,
+            alpha: 0.45 - t * 0.14,
+          });
+        }
 
-        g.circle(px, py, 9.5)
+        const m = new PIXI.Matrix();
+        m.rotate(a + Math.PI * 0.5 + Math.sin(sim.elapsedSeconds * 8 + i) * 0.18);
+        m.translate(px, py);
+
+        // Outer pointed botanical petal blade
+        g.moveTo(12.5, 0)
+          .bezierCurveTo(6, -8.5, -6, -7.5, -10.5, 0)
+          .bezierCurveTo(-6, 7.5, 6, 8.5, 12.5, 0)
+          .closePath()
+          .setTransform(m)
           .fill({ color: col })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-        g.circle(px - 2.2, py - 2.2, 3.2).fill({
-          color: PALETTE.CREAM_WHITE,
-          alpha: 0.9,
-        });
+
+        // Inner cream/gold petal core & midrib
+        g.ellipse(-1.5, 0, 5.2, 2.8)
+          .setTransform(m)
+          .fill({
+            color: evolved ? PALETTE.BUTTER_YELLOW : PALETTE.CREAM_WHITE,
+            alpha: 0.92,
+          });
+        g.setTransform(new PIXI.Matrix());
       }
     }
 
@@ -761,20 +777,49 @@ export class WeaponEffectsRenderer {
           g.circle(px, py, rPx * 0.45).fill({ color: PALETTE.CREAM_WHITE });
         }
       } else {
-        const tipX = px + Math.cos(angle) * (rPx * 1.4);
-        const tipY = py + Math.sin(angle) * (rPx * 1.4);
-        const tailX = px - Math.cos(angle) * (rPx * 1.2);
-        const tailY = py - Math.sin(angle) * (rPx * 1.2);
-        const perpX = -Math.sin(angle) * (rPx * 0.75);
-        const perpY = Math.cos(angle) * (rPx * 0.75);
+        const m = new PIXI.Matrix();
+        m.rotate(angle);
+        m.translate(px, py);
 
-        g.moveTo(tipX, tipY)
-          .lineTo(px + perpX, py + perpY)
-          .lineTo(tailX, tailY)
-          .lineTo(px - perpX, py - perpY)
+        // Winged botanical seed blade dagger matching Seeker Bestiary weapon art
+        const bladeLen = rPx * 1.65;
+        const halfW = rPx * 0.85;
+
+        // Golden pommel & crossguard wings
+        g.moveTo(-bladeLen * 0.55, -halfW * 0.95)
+          .lineTo(-bladeLen * 0.25, 0)
+          .lineTo(-bladeLen * 0.55, halfW * 0.95)
+          .lineTo(-bladeLen * 0.85, 0)
           .closePath()
+          .setTransform(m)
+          .fill({ color: PALETTE.BUTTER_YELLOW })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
+
+        // Leaf-shaped emerald dagger blade
+        g.moveTo(bladeLen, 0)
+          .lineTo(-bladeLen * 0.15, -halfW)
+          .lineTo(-bladeLen * 0.5, 0)
+          .lineTo(-bladeLen * 0.15, halfW)
+          .closePath()
+          .setTransform(m)
           .fill({ color: p.color })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+
+        // Central fuller highlight
+        g.moveTo(-bladeLen * 0.25, 0)
+          .lineTo(bladeLen * 0.72, 0)
+          .setTransform(m)
+          .stroke({ color: PALETTE.CREAM_WHITE, width: 1.6, alpha: 0.9, cap: 'round' });
+
+        // Glowing green venom tip when Seed Blades Lv2+ poison is active
+        const seedWpn = sim.weapons.find((w) => w.id === 'seed_blades');
+        if (seedWpn && (seedWpn.level >= 2 || seedWpn.evolved)) {
+          g.circle(bladeLen * 0.75, 0, Math.max(2.2, rPx * 0.34))
+            .setTransform(m)
+            .fill({ color: 0x22c55e, alpha: 0.95 });
+        }
+
+        g.setTransform(new PIXI.Matrix());
       }
     }
   }

@@ -30,6 +30,7 @@ import {
 } from '../meta/SaveManager';
 import { createPlatformFacade } from '../platform/Adapters';
 import { CARDS, POWER_UPS } from '../content/data/catalog';
+import { isDevelopmentProcess, IS_DEV } from '../app/debug/devGate';
 
 test('Current Daily Streak consecutive-day tracking (updateDailyRunStreak) & milestone highlight rules', () => {
   // 1. First completed run ever -> 1 Day, streakIncremented = true
@@ -1160,6 +1161,12 @@ test('YouTube Playables SDK integration: Dev Mode Stubs, Rewarded Ad outcomes, a
   assert.equal(merged.unlocks.personaAdPips.sunflower_bard, 2);
   assert.equal(merged.unlocks.personaAdPips.frost_alchemist, 3);
   assert.equal(merged.bestScores.allTime, 9500, 'Preserves highest all-time score across both storages');
+});
+
+test('Development process gate (isDevelopmentProcess) enables lazy debug features only in development and disables them in production', () => {
+  assert.equal(isDevelopmentProcess(true), true, 'Debug features should be enabled when DEV is true');
+  assert.equal(isDevelopmentProcess(false), false, 'Debug features must be disabled when DEV is false (production)');
+  assert.equal(typeof IS_DEV, 'boolean');
 });
 
 

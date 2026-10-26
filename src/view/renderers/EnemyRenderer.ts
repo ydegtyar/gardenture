@@ -2,22 +2,33 @@ import * as PIXI from 'pixi.js';
 import { PALETTE } from '../../content/data/catalog';
 import { clamp, lerp } from '../../core/math/vec2';
 import type { SimEnemy, Simulation } from '../../sim/Simulation';
+import { resolveEnemySpriteKey, type SpriteKey } from '../SpriteAtlas';
 import { PPU } from './EnvironmentRenderer';
 
 /**
- * Renders all enemy archetypes, Big Arena Flowers, destructible Hero Graves,
- * Spitter mouth & cheek firing animation, Dasher charge indicator,
- * Golden Sunflower 3-mode telegraphs & yellow charging arrow,
+ * Renders all enemy archetypes using the Bestiary sprites from SpriteAtlas,
+ * alongside Big Arena Flowers, destructible Hero Graves,
+ * articulated walking enemy legs, Spitter mouth & cheek firing animation,
+ * Dasher charge indicator, Golden Sunflower 3-mode telegraphs & yellow charging arrow,
  * Frost Touch blue filter, Petal Orbit spider-web glue, and dropping/regrowing Poison Drop icon.
  */
 export class EnemyRenderer {
   public static drawEnemies(
-    enemyGraphic: PIXI.Graphics,
+    enemyUnderGraphic: PIXI.Graphics,
+    enemySpriteContainer: PIXI.Container,
+    enemySpritePool: PIXI.Sprite[],
+    enemyOverlayGraphic: PIXI.Graphics,
     telegraphGraphic: PIXI.Graphics,
+    atlasTextures: Map<SpriteKey, PIXI.Texture>,
     sim: Simulation,
     alpha: number
   ): void {
-    const g = enemyGraphic;
+    const gUnder = enemyUnderGraphic;
+    const gOver = enemyOverlayGraphic;
+    gUnder.clear();
+    gOver.clear();
+
+    let spritePoolIndex = 0;
 
     for (const e of sim.enemies) {
       const ex = lerp(e.prevX, e.x, alpha) * PPU;
@@ -31,20 +42,20 @@ export class EnemyRenderer {
       const bobY = isMoving ? Math.abs(Math.sin(walkPhase)) * -3.0 : 0;
 
       // Ground contact shadow
-      g.ellipse(ex, ey + rPx * 0.68, rPx * 0.92, rPx * 0.46).fill({
+      gUnder.ellipse(ex, ey + rPx * 0.68, rPx * 0.92, rPx * 0.46).fill({
         color: 0x0f131d,
         alpha: 0.36,
       });
 
       // Stationary Big Arena Flower
       if (e.isArenaFlower) {
-        EnemyRenderer.drawArenaFlowerModel(g, e, ex, ey, rPx, sim.elapsedSeconds);
+        EnemyRenderer.drawArenaFlowerModel(gOver, e, ex, ey, rPx, sim.elapsedSeconds);
         continue;
       }
 
       // Stationary Hero Grave (left behind by Second Wind or Hero Death)
       if (e.isHeroGrave) {
-        EnemyRenderer.drawHeroGraveModel(g, e, ex, ey, rPx, sim.elapsedSeconds);
+        EnemyRenderer.drawHeroGraveModel(gOver, e, ex, ey, rPx, sim.elapsedSeconds);
         continue;
       }
 
@@ -89,7 +100,7 @@ export class EnemyRenderer {
       if (e.isElite || e.isSpecial || e.isMiniBoss || e.isFinalBoss) {
         const ringColor =
           e.isFinalBoss || e.isMiniBoss ? PALETTE.CRIMSON_WARN : PALETTE.GOLD_STAR;
-        g.circle(ex, ey + rPx * 0.2, rPx + 6).stroke({
+        gUnder.circle(ex, ey + rPx * 0.2, rPx + 6).stroke({
           color: ringColor,
           width: 2.5,
           alpha: 0.75,
@@ -97,22 +108,12 @@ export class EnemyRenderer {
       }
 
       const isFrostTouched = e.slowTimer > 0 && e.webSlowTimer <= 0;
-      const bodyColor =
-        e.hitFlashTimer > 0
-          ? PALETTE.CREAM_WHITE
-          : e.freezeTimer > 0
-            ? PALETTE.SKY_BLUE
-            : isFrostTouched
-              ? 0x93c5fd
-              : e.burnTimer > 0
-                ? 0xfb923c
-                : e.color;
       const accentColor = e.hitFlashTimer > 0 ? PALETTE.CREAM_WHITE : e.accentColor;
 
-      // Animated enemy legs beneath body
+      // Animated enemy legs beneath Bestiary sprite
       if (e.archetypeId !== 'splitter') {
         EnemyRenderer.drawEnemyLegs(
-          g,
+          gUnder,
           ex,
           ey,
           rPx,
@@ -123,51 +124,65 @@ export class EnemyRenderer {
         );
       }
 
-      const cy = ey + bobY;
+      let cy = ey + bobY;
+      let renderX = ex;
       const cosA = Math.cos(e.facingAngle);
       const sinA = Math.sin(e.facingAngle);
 
-      // Distinct silhouettes per archetype ( plus bespoke Golden Sunflower )
+      // Acquire or allocate a PIXI.Sprite from the pool for this enemy's Bestiary sprite
+      let sprite = enemySpritePool[spritePoolIndex];
+      if (!sprite) {
+        sprite = new PIXI.Sprite();
+        sprite.anchor.set(0.5, 0.54);
+        enemySpriteContainer.addChild(sprite);
+        enemySpritePool.push(sprite);
+      }
+      spritePoolIndex++;
+
+      const spriteKey = resolveEnemySpriteKey(e);
+      const tex = atlasTextures.get(spriteKey);
+      if (tex && sprite.texture !== tex) {
+        sprite.texture = tex;
+      }
+      sprite.visible = true;
+      sprite.anchor.set(0.5, 0.54);
+
+      const sizeMult =
+        e.isFinalBoss || e.isMiniBoss ? 3.15 : e.isSpecial ? 3.05 : 2.95;
+      const baseScale = (rPx * sizeMult) / 256;
+      const flipX = cosA < -0.15 ? -1 : 1;
+
+      let animScaleX = isMoving ? 1 + Math.sin(walkPhase * 2) * 0.055 : 1.0;
+      let animScaleY = isMoving ? 1 - Math.sin(walkPhase * 2) * 0.055 : 1.0;
+      let animRotation = isMoving ? Math.sin(walkPhase) * 0.075 : 0;
+
+      // Archetype-specific restored sprite animations & overlays:
       if (e.isSpecial && e.specialId === 'bloom_giant') {
-        EnemyRenderer.drawGoldenSunflowerModel(
-          g,
+        // Golden Sunflower (`special_bloom_giant`) 3-attack-mode animations + Bestiary sprite
+        const mode = e.bossAttackMode ?? 'sunflower_charge';
+        if (e.aiState === 'telegraph') {
+          if (mode === 'sunflower_charge') {
+            const jitter = Math.sin(sim.elapsedSeconds * 42) * 2.2;
+            renderX -= Math.cos(e.telegraphAngle) * 7 - jitter;
+            cy -= Math.sin(e.telegraphAngle) * 7;
+            animScaleX = 1.14;
+            animScaleY = 0.88;
+          } else if (mode === 'sunflower_seed_volley') {
+            const swell = 1.12 + Math.sin(sim.elapsedSeconds * 24) * 0.1;
+            animScaleX = swell;
+            animScaleY = swell;
+          } else {
+            animRotation = sim.elapsedSeconds * 7.5;
+          }
+        }
+        EnemyRenderer.drawGoldenSunflowerModeOverlay(
+          gOver,
           e,
-          ex,
+          renderX,
           cy,
           rPx,
-          bodyColor,
           sim.elapsedSeconds
         );
-      } else if (e.archetypeId === 'chaser') {
-        g.circle(ex, cy, rPx)
-          .fill({ color: bodyColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-        const sproutSway = Math.sin(walkPhase) * 3;
-        g.moveTo(ex, cy - rPx + 2)
-          .lineTo(ex - 7 + sproutSway, cy - rPx - 9)
-          .lineTo(ex, cy - rPx - 4)
-          .lineTo(ex + 7 + sproutSway, cy - rPx - 9)
-          .closePath()
-          .fill({ color: accentColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
-      } else if (e.archetypeId === 'dasher') {
-        const tipX = ex + cosA * (rPx * 1.35);
-        const tipY = cy + sinA * (rPx * 1.35);
-        const backLeftX = ex + Math.cos(e.facingAngle + 2.4) * (rPx * 1.15);
-        const backLeftY = cy + Math.sin(e.facingAngle + 2.4) * (rPx * 1.15);
-        const backRightX = ex + Math.cos(e.facingAngle - 2.4) * (rPx * 1.15);
-        const backRightY = cy + Math.sin(e.facingAngle - 2.4) * (rPx * 1.15);
-
-        g.moveTo(tipX, tipY)
-          .lineTo(backLeftX, backLeftY)
-          .lineTo(ex - cosA * (rPx * 0.4), cy - sinA * (rPx * 0.4))
-          .lineTo(backRightX, backRightY)
-          .closePath()
-          .fill({ color: bodyColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-        g.circle(ex, cy, rPx * 0.42).fill({ color: accentColor });
       } else if (e.archetypeId === 'spitter') {
         // Spitter mouth & cheek animation when winding up or recoiling from firing a projectile!
         const isWindingUpToSpit = e.aiTimer < 0.55;
@@ -175,122 +190,84 @@ export class EnemyRenderer {
         const windupNorm = isWindingUpToSpit ? clamp((0.55 - e.aiTimer) / 0.55, 0, 1) : 0;
         const recoilNorm = isSpitRecoil ? clamp((e.aiTimer - 1.75) / 0.45, 0, 1) : 0;
 
-        for (let p = 0; p < 5; p++) {
-          const pa = (p * Math.PI * 2) / 5 + sim.elapsedSeconds * 1.5;
-          g.circle(ex + Math.cos(pa) * (rPx * 0.65), cy + Math.sin(pa) * (rPx * 0.65), rPx * 0.52)
-            .fill({ color: accentColor })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
+        animScaleX *= 1 + windupNorm * 0.18 - recoilNorm * 0.12;
+        animScaleY *= 1 - windupNorm * 0.1 + recoilNorm * 0.16;
+
+        EnemyRenderer.drawSpitterMouthAndCheeksOverlay(
+          gOver,
+          ex,
+          cy,
+          rPx,
+          cosA,
+          sinA,
+          accentColor,
+          windupNorm,
+          recoilNorm
+        );
+      } else if (e.archetypeId === 'dasher') {
+        if (e.aiState === 'telegraph') {
+          animScaleX = 1.15;
+          animScaleY = 0.86;
+          renderX -= cosA * 3.5;
+          cy -= sinA * 3.5;
+        } else if (e.aiState === 'charge') {
+          animScaleX = 1.24;
+          animScaleY = 0.82;
         }
-        g.circle(ex, cy, rPx * 0.78)
-          .fill({ color: bodyColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-        // Swelling cheeks on both sides of the Spitter's face during windup/firing
-        const cheekSwell = 1.0 + windupNorm * 0.85 + recoilNorm * 0.35;
-        const perpX = -sinA;
-        const perpY = cosA;
-        const cheekForward = rPx * 0.28;
-        const cheekSide = rPx * (0.48 + windupNorm * 0.14);
-        const cheekRad = rPx * 0.24 * cheekSwell;
-
-        for (const side of [-1, 1] as const) {
-          const chX = ex + cosA * cheekForward + perpX * cheekSide * side;
-          const chY = cy + sinA * cheekForward + perpY * cheekSide * side;
-          g.circle(chX, chY, cheekRad)
-            .fill({
-              color: windupNorm > 0.2 ? PALETTE.BLUSH_ROSE : accentColor,
-              alpha: 0.95,
-            })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
-        }
-
-        // Animated puckered spitting mouth nozzle at front of Spitter
-        const mouthReach = rPx * (0.55 + windupNorm * 0.22 + recoilNorm * 0.28);
-        const mouthX = ex + cosA * mouthReach;
-        const mouthY = cy + sinA * mouthReach;
-        const mouthOuterR = rPx * (0.22 + windupNorm * 0.12 + recoilNorm * 0.16);
-        const mouthInnerR = mouthOuterR * (0.48 + recoilNorm * 0.28);
-
-        g.circle(mouthX, mouthY, mouthOuterR)
-          .fill({ color: accentColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
-        g.circle(mouthX + cosA * 1.5, mouthY + sinA * 1.5, mouthInnerR).fill({
-          color: recoilNorm > 0.1 || windupNorm > 0.4 ? PALETTE.CRIMSON_WARN : PALETTE.INK_OUTLINE,
-        });
-      } else if (e.archetypeId === 'brute' || e.isMiniBoss || e.isFinalBoss) {
-        g.roundRect(ex - rPx, cy - rPx * 0.92, rPx * 2, rPx * 1.84, rPx * 0.42)
-          .fill({ color: bodyColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 3.5 });
-
-        g.moveTo(ex - rPx * 0.65, cy - rPx * 0.8)
-          .lineTo(ex - rPx * 0.95, cy - rPx * 1.35)
-          .lineTo(ex - rPx * 0.25, cy - rPx * 0.9)
-          .closePath()
-          .fill({ color: accentColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-        g.moveTo(ex + rPx * 0.65, cy - rPx * 0.8)
-          .lineTo(ex + rPx * 0.95, cy - rPx * 1.35)
-          .lineTo(ex + rPx * 0.25, cy - rPx * 0.9)
-          .closePath()
-          .fill({ color: accentColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-
-        if (e.isFinalBoss || e.isMiniBoss) {
-          g.moveTo(ex - rPx * 0.4, cy - rPx * 0.9)
-            .lineTo(ex - rPx * 0.25, cy - rPx * 1.45)
-            .lineTo(ex, cy - rPx * 1.1)
-            .lineTo(ex + rPx * 0.25, cy - rPx * 1.45)
-            .lineTo(ex + rPx * 0.4, cy - rPx * 0.9)
-            .closePath()
-            .fill({ color: PALETTE.GOLD_STAR })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-        }
+      } else if (e.archetypeId === 'splitter') {
+        const jellySquash = Math.sin(walkPhase * 1.5) * 0.12;
+        animScaleX = 1 + jellySquash;
+        animScaleY = 1 - jellySquash * 0.85;
       } else if (e.archetypeId === 'shielded') {
-        g.circle(ex, cy, rPx)
-          .fill({ color: bodyColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
+        // Directional buckler arc showing exact block orientation
         const shieldArc = Math.PI / 2.1;
-        g.arc(ex, cy, rPx + 4, e.facingAngle - shieldArc, e.facingAngle + shieldArc).stroke({
-          color: PALETTE.INK_OUTLINE,
-          width: 8,
-          cap: 'round',
-        });
-        g.arc(ex, cy, rPx + 4, e.facingAngle - shieldArc, e.facingAngle + shieldArc).stroke({
-          color: PALETTE.CREAM_WHITE,
-          width: 4.5,
-          cap: 'round',
-        });
-      } else {
-        const squash = Math.sin(walkPhase * 1.5) * 2.5;
-        g.ellipse(ex, cy, rPx + squash, rPx - squash * 0.7)
-          .fill({ color: bodyColor })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-        g.circle(ex - rPx * 0.3, cy - rPx * 0.2, rPx * 0.25).fill({
-          color: accentColor,
-          alpha: 0.7,
-        });
+        gOver
+          .arc(ex, cy, rPx + 4, e.facingAngle - shieldArc, e.facingAngle + shieldArc)
+          .stroke({
+            color: PALETTE.INK_OUTLINE,
+            width: 7.5,
+            cap: 'round',
+          });
+        gOver
+          .arc(ex, cy, rPx + 4, e.facingAngle - shieldArc, e.facingAngle + shieldArc)
+          .stroke({
+            color: PALETTE.CREAM_WHITE,
+            width: 4.0,
+            cap: 'round',
+          });
       }
 
-      // Enemy eyes
-      const eyeOffset = rPx * 0.32;
-      const eyeX = ex + cosA * eyeOffset;
-      const eyeY = cy - rPx * 0.1 + sinA * (eyeOffset * 0.6);
-      const perpX = -sinA * (rPx * 0.26);
-      const perpY = cosA * (rPx * 0.26);
-      const eyeR = Math.max(2.0, rPx * 0.13);
+      sprite.position.set(renderX, cy);
+      sprite.scale.set(baseScale * animScaleX * flipX, baseScale * animScaleY);
+      sprite.rotation = animRotation;
 
-      g.circle(eyeX + perpX, eyeY + perpY, eyeR).fill({ color: PALETTE.INK_OUTLINE });
-      g.circle(eyeX - perpX, eyeY - perpY, eyeR).fill({ color: PALETTE.INK_OUTLINE });
+      // Status & hit-flash tinting on the Bestiary sprite
+      if (e.hitFlashTimer > 0) {
+        sprite.tint = 0xffffff;
+        gOver.circle(renderX, cy, rPx * 0.92).fill({
+          color: PALETTE.CREAM_WHITE,
+          alpha: 0.62,
+        });
+      } else if (e.freezeTimer > 0) {
+        sprite.tint = PALETTE.SKY_BLUE;
+      } else if (isFrostTouched) {
+        sprite.tint = 0xbae6fd;
+      } else if (e.burnTimer > 0) {
+        sprite.tint = 0xfdba74;
+      } else if (e.poisonTimer > 0) {
+        sprite.tint = 0xbbf7d0;
+      } else {
+        sprite.tint = 0xffffff;
+      }
 
       // Frost Touch slight blue filter overlay (shown ONLY when slowed by Frost Touch, not spider web!)
       if (isFrostTouched) {
-        EnemyRenderer.drawFrostTouchFilter(g, ex, cy, rPx, sim.elapsedSeconds, e.id);
+        EnemyRenderer.drawFrostTouchFilter(gOver, renderX, cy, rPx, sim.elapsedSeconds, e.id);
       }
 
       // Spider-Web Glue slow debuff (shown ONLY when snared by Petal Orbit / Petal Blossom!)
       if (e.webSlowTimer > 0) {
-        EnemyRenderer.drawSpiderWebGlueDebuff(g, ex, cy, rPx, sim.elapsedSeconds, e.id);
+        EnemyRenderer.drawSpiderWebGlueDebuff(gOver, renderX, cy, rPx, sim.elapsedSeconds, e.id);
       }
 
       // Storm Mark Debuff visual indicator
@@ -298,7 +275,7 @@ export class EnemyRenderer {
         const pulse = 0.8 + 0.2 * Math.sin(sim.elapsedSeconds * 14);
         const rot = sim.elapsedSeconds * 3.5;
 
-        g.circle(ex, cy, (rPx + 5) * pulse).stroke({
+        gOver.circle(renderX, cy, (rPx + 5) * pulse).stroke({
           color: PALETTE.SKY_BLUE,
           width: 2.2,
           alpha: 0.85,
@@ -306,20 +283,22 @@ export class EnemyRenderer {
 
         for (let s = 0; s < 3; s++) {
           const sa = rot + (s * Math.PI * 2) / 3;
-          const sx = ex + Math.cos(sa) * (rPx + 5);
+          const sx = renderX + Math.cos(sa) * (rPx + 5);
           const sy = cy + Math.sin(sa) * (rPx + 5);
-          g.circle(sx, sy, 3.0)
+          gOver
+            .circle(sx, sy, 3.0)
             .fill({ color: PALETTE.BUTTER_YELLOW })
             .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
         }
 
         const iconY = cy - rPx - 14 + Math.sin(sim.elapsedSeconds * 8) * 2;
-        g.moveTo(ex + 2, iconY - 7)
-          .lineTo(ex - 4, iconY)
-          .lineTo(ex + 1, iconY)
-          .lineTo(ex - 2, iconY + 7)
-          .lineTo(ex + 5, iconY - 1)
-          .lineTo(ex, iconY - 1)
+        gOver
+          .moveTo(renderX + 2, iconY - 7)
+          .lineTo(renderX - 4, iconY)
+          .lineTo(renderX + 1, iconY)
+          .lineTo(renderX - 2, iconY + 7)
+          .lineTo(renderX + 5, iconY - 1)
+          .lineTo(renderX, iconY - 1)
           .closePath()
           .fill({ color: PALETTE.BUTTER_YELLOW })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
@@ -328,44 +307,54 @@ export class EnemyRenderer {
       // Poison Status: green venom drop grows above the enemy and drops into the enemy on each poison tick!
       if (e.poisonTimer > 0) {
         const sporePulse = 0.85 + 0.15 * Math.sin(sim.elapsedSeconds * 10);
-        g.circle(ex, cy, (rPx + 3.5) * sporePulse).stroke({
+        gOver.circle(renderX, cy, (rPx + 3.5) * sporePulse).stroke({
           color: PALETTE.MINT_GREEN,
           width: 2.2,
           alpha: 0.8,
         });
         for (let b = 0; b < 3; b++) {
           const ba = sim.elapsedSeconds * 3.0 + e.id + (b * Math.PI * 2) / 3;
-          const bx = ex + Math.cos(ba) * (rPx * 0.85);
+          const bx = renderX + Math.cos(ba) * (rPx * 0.85);
           const by =
             cy -
             rPx * 0.3 +
             Math.sin(ba) * (rPx * 0.45) -
             ((sim.elapsedSeconds * 16 + b * 6) % 10);
-          g.circle(bx, by, 2.8)
+          gOver
+            .circle(bx, by, 2.8)
             .fill({ color: PALETTE.MINT_GREEN, alpha: 0.9 })
             .stroke({ color: PALETTE.INK_OUTLINE, width: 1.2 });
         }
 
         const dropBaseY = e.stormMarkTimer > 0 ? cy - rPx - 28 : cy - rPx - 13;
-        EnemyRenderer.drawPoisonDropIcon(g, ex, dropBaseY, cy, rPx, sim.elapsedSeconds, e.id);
+        EnemyRenderer.drawPoisonDropIcon(
+          gOver,
+          renderX,
+          dropBaseY,
+          cy,
+          rPx,
+          sim.elapsedSeconds,
+          e.id
+        );
       }
 
       // Overhead HP Bar & Bestiary Sandbox Indicators (Infinite HP / Respawn on Death / Elites / Specials / Bosses)
       if (e.isInfiniteHp) {
         const bw = Math.max(28, rPx * 2.1);
         const bh = 5;
-        const bx = ex - bw / 2;
+        const bx = renderX - bw / 2;
         const by = cy - rPx - 12;
-        g.rect(bx, by, bw, bh)
+        gOver
+          .rect(bx, by, bw, bh)
           .fill({ color: PALETTE.DEEP_SLATE, alpha: 0.9 })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-        g.rect(bx + 1, by + 1, bw - 2, bh - 2).fill({
+        gOver.rect(bx + 1, by + 1, bw - 2, bh - 2).fill({
           color: PALETTE.GOLD_STAR,
         });
         // Infinity symbol (∞) above bar
         const iy = by - 7;
-        g.circle(ex - 4, iy, 3.2).stroke({ color: PALETTE.GOLD_STAR, width: 1.8 });
-        g.circle(ex + 4, iy, 3.2).stroke({ color: PALETTE.GOLD_STAR, width: 1.8 });
+        gOver.circle(renderX - 4, iy, 3.2).stroke({ color: PALETTE.GOLD_STAR, width: 1.8 });
+        gOver.circle(renderX + 4, iy, 3.2).stroke({ color: PALETTE.GOLD_STAR, width: 1.8 });
       } else if (
         (e.isElite || e.isSpecial || e.isMiniBoss || e.respawnOnDeath) &&
         e.hp < e.maxHp &&
@@ -373,21 +362,119 @@ export class EnemyRenderer {
       ) {
         const bw = Math.max(26, rPx * 2.1);
         const bh = 5;
-        const bx = ex - bw / 2;
+        const bx = renderX - bw / 2;
         const by = cy - rPx - 12;
-        g.rect(bx, by, bw, bh)
+        gOver
+          .rect(bx, by, bw, bh)
           .fill({ color: PALETTE.DEEP_SLATE, alpha: 0.85 })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-        g.rect(bx + 1, by + 1, (bw - 2) * clamp(e.hp / e.maxHp, 0, 1), bh - 2).fill({
+        gOver.rect(bx + 1, by + 1, (bw - 2) * clamp(e.hp / e.maxHp, 0, 1), bh - 2).fill({
           color: e.respawnOnDeath ? PALETTE.MINT_GREEN : PALETTE.CRIMSON_WARN,
         });
       }
       if (e.respawnOnDeath) {
-        g.circle(ex, ey, rPx + 4).stroke({
+        gOver.circle(renderX, ey, rPx + 4).stroke({
           color: PALETTE.MINT_GREEN,
           width: 1.8,
           alpha: 0.65,
         });
+      }
+    }
+
+    // Hide any unused pooled enemy sprites from previous frames
+    for (let i = spritePoolIndex; i < enemySpritePool.length; i++) {
+      enemySpritePool[i]!.visible = false;
+    }
+  }
+
+  /**
+   * Draws the Spitter's swelling cheeks and puckered spitting mouth nozzle
+   * on top of the Bestiary Spitter sprite when winding up or recoiling from firing!
+   */
+  private static drawSpitterMouthAndCheeksOverlay(
+    g: PIXI.Graphics,
+    ex: number,
+    cy: number,
+    rPx: number,
+    cosA: number,
+    sinA: number,
+    accentColor: number,
+    windupNorm: number,
+    recoilNorm: number
+  ): void {
+    if (windupNorm <= 0.02 && recoilNorm <= 0.02) return;
+
+    const cheekSwell = 1.0 + windupNorm * 0.85 + recoilNorm * 0.35;
+    const perpX = -sinA;
+    const perpY = cosA;
+    const cheekForward = rPx * 0.25;
+    const cheekSide = rPx * (0.46 + windupNorm * 0.14);
+    const cheekRad = rPx * 0.24 * cheekSwell;
+
+    for (const side of [-1, 1] as const) {
+      const chX = ex + cosA * cheekForward + perpX * cheekSide * side;
+      const chY = cy + sinA * cheekForward + perpY * cheekSide * side;
+      g.circle(chX, chY, cheekRad)
+        .fill({
+          color: windupNorm > 0.2 ? PALETTE.BLUSH_ROSE : accentColor,
+          alpha: 0.95,
+        })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
+    }
+
+    // Animated puckered spitting mouth nozzle at front of Spitter
+    const mouthReach = rPx * (0.52 + windupNorm * 0.22 + recoilNorm * 0.28);
+    const mouthX = ex + cosA * mouthReach;
+    const mouthY = cy + sinA * mouthReach;
+    const mouthOuterR = rPx * (0.22 + windupNorm * 0.12 + recoilNorm * 0.16);
+    const mouthInnerR = mouthOuterR * (0.48 + recoilNorm * 0.28);
+
+    g.circle(mouthX, mouthY, mouthOuterR)
+      .fill({ color: accentColor })
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+    g.circle(mouthX + cosA * 1.5, mouthY + sinA * 1.5, mouthInnerR).fill({
+      color: recoilNorm > 0.1 || windupNorm > 0.4 ? PALETTE.CRIMSON_WARN : PALETTE.INK_OUTLINE,
+    });
+  }
+
+  /**
+   * Draws mode-specific visual behavior cues on the Golden Sunflower (`bloom_giant`)
+   * on top of its Bestiary sprite so the player can read which attack mode is coming next.
+   */
+  private static drawGoldenSunflowerModeOverlay(
+    g: PIXI.Graphics,
+    e: SimEnemy,
+    sx: number,
+    sy: number,
+    rPx: number,
+    elapsedSeconds: number
+  ): void {
+    if (e.aiState !== 'telegraph') return;
+    const mode = e.bossAttackMode ?? 'sunflower_charge';
+
+    if (mode === 'sunflower_seed_volley') {
+      const coreScale = 1.0 + Math.sin(elapsedSeconds * 24) * 0.18;
+      g.circle(sx, sy, rPx * 0.48 * coreScale)
+        .fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.45 })
+        .stroke({ color: 0xfbbf24, width: 2.2 });
+      for (let d = 0; d < 5; d++) {
+        const da = (d / 5) * Math.PI * 2 + elapsedSeconds * 4;
+        g.circle(
+          sx + Math.cos(da) * (rPx * 0.32 * coreScale),
+          sy + Math.sin(da) * (rPx * 0.32 * coreScale),
+          3.2
+        )
+          .fill({ color: 0x78350f })
+          .stroke({ color: PALETTE.BUTTER_YELLOW, width: 1.5 });
+      }
+    } else if (mode === 'sunflower_leaf_spiral') {
+      for (let p = 0; p < 6; p++) {
+        const pa = elapsedSeconds * 6 + (p / 6) * Math.PI * 2;
+        const px = sx + Math.cos(pa) * (rPx * 0.92);
+        const py = sy + Math.sin(pa) * (rPx * 0.92);
+        g.ellipse(px, py, 5.5, 2.8)
+          .fill({ color: PALETTE.MINT_GREEN, alpha: 0.92 })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
       }
     }
   }
@@ -446,7 +533,13 @@ export class EnemyRenderer {
         .lineTo(tPos + 3, 0)
         .lineTo(tPos - 7, halfW * 0.65)
         .setTransform(m)
-        .stroke({ color: PALETTE.BUTTER_YELLOW, width: 2.6, alpha: chevAlpha, cap: 'round', join: 'round' });
+        .stroke({
+          color: PALETTE.BUTTER_YELLOW,
+          width: 2.6,
+          alpha: chevAlpha,
+          cap: 'round',
+          join: 'round',
+        });
     }
 
     // Pointed vanguard spearhead at the end of the charge lane
@@ -558,73 +651,6 @@ export class EnemyRenderer {
           .fill({ color: PALETTE.MINT_GREEN, alpha: 0.9 })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
       }
-    }
-  }
-
-  /**
-   * Bespoke Golden Sunflower (`bloom_giant`) model with distinct visual behavior per attack mode.
-   */
-  private static drawGoldenSunflowerModel(
-    g: PIXI.Graphics,
-    e: SimEnemy,
-    ex: number,
-    cy: number,
-    rPx: number,
-    bodyColor: number,
-    elapsedSeconds: number
-  ): void {
-    const mode = e.bossAttackMode ?? 'sunflower_charge';
-    const isTelegraph = e.aiState === 'telegraph';
-
-    // Behaviour offset: crouch backward on charge telegraph, swell seed core on seed volley, spin petals on leaf spiral
-    let offsetX = 0;
-    let offsetY = 0;
-    let coreScale = 1.0;
-    let petalRot = elapsedSeconds * 1.8;
-
-    if (isTelegraph) {
-      if (mode === 'sunflower_charge') {
-        const jitter = Math.sin(elapsedSeconds * 42) * 2.2;
-        offsetX = -Math.cos(e.telegraphAngle) * 7 + jitter;
-        offsetY = -Math.sin(e.telegraphAngle) * 7;
-      } else if (mode === 'sunflower_seed_volley') {
-        coreScale = 1.25 + Math.sin(elapsedSeconds * 24) * 0.16;
-      } else {
-        petalRot = e.facingAngle * 1.6;
-      }
-    }
-
-    const sx = ex + offsetX;
-    const sy = cy + offsetY;
-
-    // 10 Golden Sunflower Petals around the rim
-    const petalCount = 10;
-    for (let p = 0; p < petalCount; p++) {
-      const pa = petalRot + (p / petalCount) * Math.PI * 2;
-      const px = sx + Math.cos(pa) * (rPx * 0.88);
-      const py = sy + Math.sin(pa) * (rPx * 0.88);
-      const petalCol =
-        isTelegraph && mode === 'sunflower_leaf_spiral' && p % 2 === 0
-          ? PALETTE.MINT_GREEN
-          : 0xfbbf24;
-      g.circle(px, py, rPx * 0.38)
-        .fill({ color: petalCol })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
-    }
-
-    // Dark brown/amber sunflower seed disk center
-    g.circle(sx, sy, rPx * 0.72 * coreScale)
-      .fill({ color: e.hitFlashTimer > 0 ? bodyColor : 0x78350f })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-
-    // Golden seed pattern dots on the disk
-    for (let d = 0; d < 5; d++) {
-      const da = (d / 5) * Math.PI * 2 + elapsedSeconds;
-      g.circle(
-        sx + Math.cos(da) * (rPx * 0.34 * coreScale),
-        sy + Math.sin(da) * (rPx * 0.34 * coreScale),
-        2.6 * coreScale
-      ).fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.9 });
     }
   }
 
