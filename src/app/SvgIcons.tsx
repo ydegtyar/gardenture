@@ -11,7 +11,7 @@ export function TitleLockupSvg({ className = 'w-full max-w-md' }: { className?: 
       viewBox="0 0 520 150"
       className={className}
       role="img"
-      aria-label="Verdant Swipe: Mystic Garden Roguelite"
+      aria-label="Gardenture: Mystic Garden Roguelite"
     >
       {/* Decorative Botanical Vine & Rosebud Plaque Backing */}
       <path
@@ -53,21 +53,21 @@ export function TitleLockupSvg({ className = 'w-full max-w-md' }: { className?: 
         strokeWidth="4"
       />
 
-      {/* Main Display Lettering: VERDANT SWIPE */}
+      {/* Main Display Lettering: GARDENTURE */}
       <text
         x="260"
         y="82"
         textAnchor="middle"
         fontFamily="Fraunces, Georgia, serif"
         fontWeight="900"
-        fontSize="42"
+        fontSize="44"
         fill="#FFFDF0"
         stroke="#2D1E2F"
         strokeWidth="9"
         paintOrder="stroke fill"
-        letterSpacing="1.5"
+        letterSpacing="2"
       >
-        VERDANT SWIPE
+        GARDENTURE
       </text>
 
       {/* Subtitle Ribbon */}

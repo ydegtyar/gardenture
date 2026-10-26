@@ -1,5 +1,5 @@
 /**
- * Verdant Swipe: Mystic Garden Roguelite
+ * Gardenture: Mystic Garden Roguelite
  * Layer 7 (app): Main Game Shell wiring PixiJS v8 View, 60Hz Deterministic Simulation,
  * Floating Joystick / Flick-Dash Input, Procedural WebAudio, and YouTube Playables SDK v1 Ports.
  */

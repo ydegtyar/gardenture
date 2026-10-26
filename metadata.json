@@ -1,5 +1,5 @@
 {
-  "name": "Verdant Swipe: Mystic Garden Roguelite",
+  "name": "Gardenture: Mystic Garden Roguelite",
   "description": "A fast-paced 2D pastel botanical survival roguelite with one-thumb floating joystick & flick-dash controls, 30 synergy cards, weapon evolutions, and a Devil May Cry style rank meter.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
