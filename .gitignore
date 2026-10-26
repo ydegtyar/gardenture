@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# AI Studio
+.aistudio/**/*.png
+.aistudio/*.png
+.aistuido/**/*.png
+.aistuido/*.png
