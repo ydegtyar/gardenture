@@ -35,9 +35,9 @@ export function HudDebugButton({ onOpen }: { onOpen: () => void }) {
         e.currentTarget.blur();
         onOpen();
       }}
-      className="px-2.5 h-8 sm:h-10 rounded-xl bg-[#2B1F2D]/95 border-2 border-[#FDFFB6]/70 text-[#FDFFB6] font-bold text-xs flex items-center justify-center hover:bg-[#3B2B3E] hover:border-[#FDFFB6] transition-colors whitespace-nowrap shrink-0"
+      className="btn-herbarium-seal shrink-0 text-[#EDE6D0] text-xs font-bold"
     >
-      Debug
+      DBG
     </button>
   );
 }
@@ -54,7 +54,7 @@ export function ModalDebugCardsButton({
       <button
         type="button"
         onClick={onOpen}
-        className="px-3 py-1.5 rounded-xl bg-[#3B2B3E] text-[#FDFFB6] font-bold text-xs border-2 border-[#FDFFB6]/50 hover:bg-[#4D3851] transition-colors whitespace-nowrap shrink-0"
+        className="btn-herbarium-secondary-compact px-3 py-1.5 text-[#E8B64A] text-xs font-bold whitespace-nowrap shrink-0"
       >
         Debug Cards
       </button>
@@ -64,7 +64,7 @@ export function ModalDebugCardsButton({
     <button
       type="button"
       onClick={onOpen}
-      className="px-3.5 py-2 rounded-lg bg-[#3B2B3E] text-[#FDFFB6] font-bold text-sm border-2 border-[#FDFFB6]/40 hover:bg-[#4B374E] transition-colors whitespace-nowrap shrink-0"
+      className="btn-herbarium-secondary-compact px-3.5 py-2 text-[#E8B64A] text-sm font-bold whitespace-nowrap shrink-0"
     >
       Debug Cards
     </button>
@@ -81,7 +81,7 @@ export function SanctuaryHeaderDebugGoldButton({
       type="button"
       data-testid="debug-add-gold-btn"
       onClick={() => onAddDebugGold(100)}
-      className="px-2.5 py-1 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] font-sans text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#fbbf24] active:translate-y-0.5 transition-all whitespace-nowrap shrink-0"
+      className="btn-herbarium-secondary-compact px-2.5 py-1 text-xs whitespace-nowrap shrink-0 text-[#E8B64A]"
     >
       +100 Gold (Debug)
     </button>
@@ -105,7 +105,7 @@ export function StoreDebugTreasuryPanel({
         type="button"
         data-testid="store-debug-add-100-gold"
         onClick={() => onAddDebugGold(100)}
-        className="px-3.5 py-1.5 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#fbbf24] active:translate-y-0.5 transition-all whitespace-nowrap shrink-0"
+        className="btn-herbarium-secondary-compact px-3.5 py-1.5 text-xs text-[#E8B64A] whitespace-nowrap shrink-0"
       >
         +100 Gold
       </button>
@@ -123,7 +123,7 @@ export function PersonaDebugAllButton({
       type="button"
       data-testid="debug-persona-ad-all"
       onClick={onIncrementAllPersonaAdPips}
-      className="px-2.5 py-1 rounded-lg bg-[#DED2F9] text-[#2D1E2F] text-[11px] font-extrabold border-2 border-[#2D1E2F] hover:bg-[#c4b5fd] transition-colors whitespace-nowrap"
+      className="btn-herbarium-secondary-compact px-2.5 py-1 text-[11px] whitespace-nowrap text-[#E8B64A]"
     >
       +1 Watched Ad (All Personas)
     </button>
@@ -142,7 +142,7 @@ export function PersonaDebugSingleButton({
       type="button"
       data-testid={`debug-persona-ad-${personaId}`}
       onClick={() => onIncrementPersonaAdPip(personaId)}
-      className="px-2 py-1.5 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-extrabold border border-[#2D1E2F] hover:bg-[#fbbf24] transition-colors whitespace-nowrap"
+      className="btn-herbarium-secondary-compact px-2 py-1.5 text-xs text-[#E8B64A] whitespace-nowrap min-h-[38px]"
       title="Increase watched ad count to unlock persona"
     >
       +1 Ad
@@ -181,10 +181,10 @@ export function YouTubeDevStubControls({
             type="button"
             data-testid={testId}
             onClick={() => onSetDevAdOutcomeMode?.(mode)}
-            className={`px-2 py-0.5 rounded font-bold transition-colors whitespace-nowrap ${
+            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
               adMode === mode
-                ? 'bg-[#DED2F9] text-[#2D1E2F]'
-                : 'bg-[#2B1F2D] text-[#FFFDF0]/75 hover:text-[#FFFDF0]'
+                ? 'bg-[#E8B64A] text-[#201A09]'
+                : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
             }`}
           >
             {label}
@@ -205,10 +205,10 @@ export function YouTubeDevStubControls({
             type="button"
             data-testid={testId}
             onClick={() => onSetDevCloudStorageMode?.(mode)}
-            className={`px-2 py-0.5 rounded font-bold transition-colors whitespace-nowrap ${
+            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
               cloudMode === mode
-                ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                : 'bg-[#2B1F2D] text-[#FFFDF0]/75 hover:text-[#FFFDF0]'
+                ? 'bg-[#6FA36B] text-[#101F12]'
+                : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
             }`}
           >
             {label}
@@ -219,7 +219,7 @@ export function YouTubeDevStubControls({
             type="button"
             data-testid="yt-stub-audio-toggle"
             onClick={onSimulateYtAudioToggle}
-            className="px-2 py-0.5 rounded bg-[#2B1F2D] text-[#FDFFB6] font-bold hover:bg-[#3B2B3E] whitespace-nowrap"
+            className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#E8B64A] font-bold hover:border-[#E8B64A] whitespace-nowrap"
           >
             YT Audio: {ytDiagnostics.simulatedAudioEnabled ? 'ON' : 'MUTED'}
           </button>
@@ -229,7 +229,7 @@ export function YouTubeDevStubControls({
             type="button"
             data-testid="yt-stub-sync-score"
             onClick={onSyncScoreNow}
-            className="px-2 py-0.5 rounded bg-[#2B1F2D] text-[#A8E6CF] font-bold hover:bg-[#3B2B3E] whitespace-nowrap"
+            className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#6FA36B] font-bold hover:border-[#6FA36B] whitespace-nowrap"
           >
             Send Score
           </button>
@@ -255,8 +255,8 @@ export function BestiaryEnemyDebugBadge({
       onClick={onToggle}
       className={`px-2 py-0.5 rounded text-[10px] font-extrabold border transition-colors shrink-0 ${
         isHighlighted
-          ? 'bg-[#FDFFB6] text-[#2D1E2F] border-[#2D1E2F]'
-          : 'bg-[#2B1F2D] text-[#FDFFB6] border-[#FDFFB6]/50 hover:bg-[#3B2B3E]'
+          ? 'bg-[#E8B64A] text-[#201A09] border-[#8F691C]'
+          : 'btn-herbarium-secondary-compact'
       }`}
     >
       Debug
@@ -287,7 +287,7 @@ export function BestiaryEnemyDebugSpawner({
         type="button"
         data-testid={`bestiary-spawn-infinite-${enemyKey}`}
         onClick={() => onSpawnBestiaryEnemy(enemyKey, 'infinite_hp')}
-        className="flex-1 py-1 px-2 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-[10px] font-extrabold border border-[#2D1E2F] hover:bg-[#fbbf24] transition-colors whitespace-nowrap"
+        className="flex-1 py-1 px-2 btn-herbarium-secondary-compact text-[#E8B64A] text-[10px] whitespace-nowrap"
       >
         ∞ Infinite HP
       </button>
@@ -295,7 +295,7 @@ export function BestiaryEnemyDebugSpawner({
         type="button"
         data-testid={`bestiary-spawn-swarm-${enemyKey}`}
         onClick={() => onSpawnBestiaryEnemy(enemyKey, 'swarm')}
-        className="flex-1 py-1 px-2 rounded-lg bg-[#FFAAA6] text-[#2D1E2F] text-[10px] font-extrabold border border-[#2D1E2F] hover:bg-[#f88b86] transition-colors whitespace-nowrap"
+        className="flex-1 py-1 px-2 btn-herbarium-danger-compact text-[10px] whitespace-nowrap"
       >
         Spawn Lot (Swarm)
       </button>
@@ -303,7 +303,7 @@ export function BestiaryEnemyDebugSpawner({
         type="button"
         data-testid={`bestiary-spawn-respawn-${enemyKey}`}
         onClick={() => onSpawnBestiaryEnemy(enemyKey, 'respawn_on_death')}
-        className="flex-1 py-1 px-2 rounded-lg bg-[#A8E6CF] text-[#2D1E2F] text-[10px] font-extrabold border border-[#2D1E2F] hover:bg-[#88D49E] transition-colors whitespace-nowrap"
+        className="flex-1 py-1 px-2 btn-herbarium-lichen text-[10px] min-h-[30px] whitespace-nowrap"
       >
         1× Respawn on Death
       </button>
@@ -393,7 +393,7 @@ export function DebugCardModal({
             <button
               type="button"
               onClick={onResetAllCards}
-              className="px-3 py-1.5 rounded-lg bg-[#3B2B3E] text-[#FFAAA6] text-xs font-bold border border-[#FFAAA6]/40 hover:bg-[#4D3851] transition-colors whitespace-nowrap shrink-0"
+              className="btn-herbarium-danger-compact px-3 py-1.5 text-xs whitespace-nowrap shrink-0"
             >
               Reset Cards
             </button>
@@ -401,7 +401,7 @@ export function DebugCardModal({
               type="button"
               data-testid="close-debug-card-modal"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg bg-[#A8E6CF] text-[#2D1E2F] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#88D49E] transition-colors whitespace-nowrap shrink-0"
+              className="btn-herbarium-primary px-4 py-1.5 text-xs whitespace-nowrap shrink-0 min-h-[38px]"
             >
               Close & Resume
             </button>
@@ -410,7 +410,7 @@ export function DebugCardModal({
 
         {/* Filter Bar & Search Input */}
         <div className="px-5 py-3 bg-[#241926] border-b border-[#FFFDF0]/10 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1 p-1 bg-[#1E1520] rounded-lg">
+          <div className="flex flex-wrap items-center gap-1 p-1 bg-[#1E1C0E] border border-[#3D392A] rounded-xl">
             {(
               [
                 ['all', 'All (36)'],
@@ -426,10 +426,10 @@ export function DebugCardModal({
                 key={key}
                 type="button"
                 onClick={() => setFilter(key)}
-                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
                   filter === key
-                    ? 'bg-[#FDFFB6] text-[#2D1E2F]'
-                    : 'text-[#FFFDF0]/75 hover:text-[#FFFDF0]'
+                    ? 'bg-[#E8B64A] text-[#201A09] shadow-sm'
+                    : 'text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
                 }`}
               >
                 {label}
@@ -496,7 +496,7 @@ export function DebugCardModal({
                           type="button"
                           data-testid={`debug-powerup-drop-${pDef.id}`}
                           onClick={() => onSpawnPowerUpDrop?.(pDef.id)}
-                          className="flex-1 py-1 px-2 rounded bg-[#2B1F2D] hover:bg-[#3B2B3E] text-[#FFFDF0] text-[11px] font-bold transition-colors whitespace-nowrap"
+                          className="flex-1 py-1 px-2 btn-herbarium-secondary-compact text-[11px] whitespace-nowrap min-h-[30px]"
                         >
                           Drop Item
                         </button>
@@ -504,7 +504,7 @@ export function DebugCardModal({
                           type="button"
                           data-testid={`debug-powerup-equip-${pDef.id}`}
                           onClick={() => onGivePowerUp?.(pDef.id)}
-                          className="flex-1 py-1 px-2 rounded bg-[#A8E6CF] hover:bg-[#88D49E] text-[#2D1E2F] text-[11px] font-bold transition-colors whitespace-nowrap"
+                          className="flex-1 py-1 px-2 btn-herbarium-lichen text-[11px] whitespace-nowrap min-h-[30px]"
                         >
                           Equip [Q/E]
                         </button>
@@ -512,7 +512,7 @@ export function DebugCardModal({
                           type="button"
                           data-testid={`debug-powerup-use-${pDef.id}`}
                           onClick={() => onTriggerPowerUp?.(pDef.id)}
-                          className="flex-1 py-1 px-2 rounded bg-[#FB923C] hover:bg-[#F97316] text-[#2D1E2F] text-[11px] font-extrabold transition-colors whitespace-nowrap"
+                          className="flex-1 py-1 px-2 btn-herbarium-primary text-[11px] whitespace-nowrap min-h-[30px]"
                         >
                           Use Now
                         </button>
@@ -537,7 +537,7 @@ export function DebugCardModal({
                     type="button"
                     data-testid="debug-spawn-arena-flower"
                     onClick={() => onSpawnArenaFlower?.()}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#FFAAA6] text-[#2D1E2F] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#f88b86] transition-colors whitespace-nowrap"
+                    className="px-2.5 py-1.5 btn-herbarium-danger-compact text-xs whitespace-nowrap min-h-[34px]"
                   >
                     + Spawn Big Arena Flower
                   </button>
@@ -545,7 +545,7 @@ export function DebugCardModal({
                     type="button"
                     data-testid="debug-spawn-final-boss-arena"
                     onClick={() => onSpawnFinalBossArena?.()}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#F43F5E] text-[#FFFDF0] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#e11d48] transition-colors whitespace-nowrap"
+                    className="px-2.5 py-1.5 btn-herbarium-danger text-xs text-[#EDE6D0] whitespace-nowrap min-h-[34px]"
                   >
                     Start Final Boss Thorn Arena
                   </button>
@@ -553,7 +553,7 @@ export function DebugCardModal({
                     type="button"
                     data-testid="debug-heal-small"
                     onClick={() => onTestHealHero?.(4)}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#A8E6CF] text-[#2D1E2F] text-xs font-bold border-2 border-[#2D1E2F] hover:bg-[#88D49E] transition-colors whitespace-nowrap"
+                    className="px-2.5 py-1.5 btn-herbarium-lichen text-xs whitespace-nowrap min-h-[34px]"
                   >
                     Heal +4 HP
                   </button>
@@ -561,7 +561,7 @@ export function DebugCardModal({
                     type="button"
                     data-testid="debug-heal-big"
                     onClick={() => onTestHealHero?.(35)}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#88D49E] text-[#2D1E2F] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#4ade80] transition-colors whitespace-nowrap"
+                    className="px-2.5 py-1.5 btn-herbarium-lichen text-xs whitespace-nowrap min-h-[34px]"
                   >
                     Heal +35 HP
                   </button>
@@ -615,8 +615,8 @@ export function DebugCardModal({
                           onClick={() => onSetWeaponLevel(wDef.id, 0, false)}
                           className={`px-2 py-1 rounded text-[11px] font-mono-tabular font-bold transition-colors whitespace-nowrap ${
                             currentLv === 0
-                              ? 'bg-[#FFAAA6] text-[#2D1E2F]'
-                              : 'bg-[#2B1F2D] text-[#FFFDF0]/70 hover:text-[#FFFDF0]'
+                              ? 'bg-[#8E2B3A] text-[#EDE6D0]'
+                              : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
                           }`}
                         >
                           Off
@@ -629,8 +629,8 @@ export function DebugCardModal({
                             onClick={() => onSetWeaponLevel(wDef.id, lv, false)}
                             className={`px-2 py-1 rounded text-[11px] font-mono-tabular font-bold transition-colors whitespace-nowrap ${
                               currentLv === lv && !isEvolved
-                                ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                                : 'bg-[#2B1F2D] text-[#FFFDF0]/85 hover:bg-[#3B2B3E]'
+                                ? 'bg-[#6FA36B] text-[#101F12]'
+                                : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/85 hover:border-[#6FA36B]'
                             }`}
                           >
                             {lv}
@@ -642,8 +642,8 @@ export function DebugCardModal({
                           onClick={() => onSetWeaponLevel(wDef.id, 8, true)}
                           className={`px-2.5 py-1 rounded text-[11px] font-mono-tabular font-extrabold transition-colors whitespace-nowrap ${
                             isEvolved
-                              ? 'bg-[#FDFFB6] text-[#2D1E2F]'
-                              : 'bg-[#2B1F2D] text-[#FDFFB6] hover:bg-[#3B2B3E]'
+                              ? 'bg-[#E8B64A] text-[#201A09]'
+                              : 'bg-[#1E1C0E] border border-[#3D392A] text-[#E8B64A] hover:border-[#E8B64A]'
                           }`}
                         >
                           Evo
@@ -707,8 +707,8 @@ export function DebugCardModal({
                           onClick={() => onSetCardLevel(card.id, 0)}
                           className={`flex-1 py-1 rounded text-[11px] font-mono-tabular font-bold transition-colors whitespace-nowrap ${
                             currentLv === 0
-                              ? 'bg-[#FFAAA6] text-[#2D1E2F]'
-                              : 'bg-[#2B1F2D] text-[#FFFDF0]/70 hover:text-[#FFFDF0]'
+                              ? 'bg-[#8E2B3A] text-[#EDE6D0]'
+                              : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
                           }`}
                         >
                           Off
@@ -721,8 +721,8 @@ export function DebugCardModal({
                             onClick={() => onSetCardLevel(card.id, lv)}
                             className={`flex-1 py-1 rounded text-[11px] font-mono-tabular font-bold transition-colors whitespace-nowrap ${
                               currentLv === lv
-                                ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                                : 'bg-[#2B1F2D] text-[#FFFDF0]/85 hover:bg-[#3B2B3E]'
+                                ? 'bg-[#6FA36B] text-[#101F12]'
+                                : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/85 hover:border-[#6FA36B]'
                             }`}
                           >
                             Lv {lv}
@@ -735,8 +735,8 @@ export function DebugCardModal({
                             onClick={() => onSetCardLevel(card.id, card.maxLevel + 1)}
                             className={`px-2 py-1 rounded text-[11px] font-mono-tabular font-extrabold transition-colors whitespace-nowrap ${
                               isCardEvolved
-                                ? 'bg-[#FDFFB6] text-[#2D1E2F]'
-                                : 'bg-[#2B1F2D] text-[#FDFFB6] hover:bg-[#3B2B3E]'
+                                ? 'bg-[#E8B64A] text-[#201A09]'
+                                : 'bg-[#1E1C0E] border border-[#3D392A] text-[#E8B64A] hover:border-[#E8B64A]'
                             }`}
                           >
                             Evo

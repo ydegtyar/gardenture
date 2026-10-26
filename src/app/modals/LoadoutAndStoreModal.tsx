@@ -139,7 +139,7 @@ export function LoadoutAndStoreModal({
                 data-testid="watch-sanctuary-reward-ad"
                 disabled={isAdLoading}
                 onClick={onWatchSanctuaryRewardAd}
-                className="px-3 py-1.5 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#fbbf24] disabled:opacity-50 transition-colors whitespace-nowrap"
+                className="btn-herbarium-lichen px-3 py-1.5 text-xs whitespace-nowrap min-h-[38px]"
               >
                 {isAdLoading ? 'Playing Ad...' : 'Watch Ad (+120 Coins & +2 Seeds)'}
               </button>
@@ -149,7 +149,7 @@ export function LoadoutAndStoreModal({
                 type="button"
                 data-testid="yt-sdk-save-now-btn"
                 onClick={onSavePlayerStateNow}
-                className="px-2.5 py-1.5 rounded-lg bg-[#A8E6CF] text-[#2D1E2F] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#88D49E] transition-colors whitespace-nowrap"
+                className="btn-herbarium-secondary-compact px-2.5 py-1.5 text-xs whitespace-nowrap min-h-[38px] text-[#A8E6CF]"
               >
                 Save Player State
               </button>
@@ -159,7 +159,7 @@ export function LoadoutAndStoreModal({
                 type="button"
                 data-testid="yt-sdk-load-cloud-btn"
                 onClick={onReloadAndReconcileSave}
-                className="px-2.5 py-1.5 rounded-lg bg-[#3B2B3E] text-[#FFFDF0] text-xs font-bold border border-[#FFFDF0]/25 hover:bg-[#4D3851] transition-colors whitespace-nowrap"
+                className="btn-herbarium-secondary-compact px-2.5 py-1.5 text-xs whitespace-nowrap min-h-[38px]"
               >
                 Load & Reconcile Save
               </button>
@@ -183,10 +183,10 @@ export function LoadoutAndStoreModal({
                 type="button"
                 data-testid={testId}
                 onClick={() => onSetDevAdOutcomeMode?.(mode)}
-                className={`px-2 py-0.5 rounded font-bold transition-colors whitespace-nowrap ${
+                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
                   adMode === mode
-                    ? 'bg-[#DED2F9] text-[#2D1E2F]'
-                    : 'bg-[#2B1F2D] text-[#FFFDF0]/75 hover:text-[#FFFDF0]'
+                    ? 'bg-[#E8B64A] text-[#201A09]'
+                    : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
                 }`}
               >
                 {label}
@@ -207,10 +207,10 @@ export function LoadoutAndStoreModal({
                 type="button"
                 data-testid={testId}
                 onClick={() => onSetDevCloudStorageMode?.(mode)}
-                className={`px-2 py-0.5 rounded font-bold transition-colors whitespace-nowrap ${
+                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
                   cloudMode === mode
-                    ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                    : 'bg-[#2B1F2D] text-[#FFFDF0]/75 hover:text-[#FFFDF0]'
+                    ? 'bg-[#6FA36B] text-[#101F12]'
+                    : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
                 }`}
               >
                 {label}
@@ -221,7 +221,7 @@ export function LoadoutAndStoreModal({
                 type="button"
                 data-testid="yt-stub-audio-toggle"
                 onClick={onSimulateYtAudioToggle}
-                className="px-2 py-0.5 rounded bg-[#2B1F2D] text-[#FDFFB6] font-bold hover:bg-[#3B2B3E] whitespace-nowrap"
+                className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#E8B64A] font-bold hover:border-[#E8B64A] whitespace-nowrap"
               >
                 YT Audio: {ytDiagnostics.simulatedAudioEnabled ? 'ON' : 'MUTED'}
               </button>
@@ -231,7 +231,7 @@ export function LoadoutAndStoreModal({
                 type="button"
                 data-testid="yt-stub-sync-score"
                 onClick={onSyncScoreNow}
-                className="px-2 py-0.5 rounded bg-[#2B1F2D] text-[#A8E6CF] font-bold hover:bg-[#3B2B3E] whitespace-nowrap"
+                className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#6FA36B] font-bold hover:border-[#6FA36B] whitespace-nowrap"
               >
                 Send Score
               </button>
@@ -262,7 +262,7 @@ export function LoadoutAndStoreModal({
             type="button"
             data-testid="debug-persona-ad-all"
             onClick={onIncrementAllPersonaAdPips}
-            className="px-2.5 py-1 rounded-lg bg-[#DED2F9] text-[#2D1E2F] text-[11px] font-extrabold border-2 border-[#2D1E2F] hover:bg-[#c4b5fd] transition-colors whitespace-nowrap"
+            className="btn-herbarium-secondary-compact px-2.5 py-1 text-[11px] whitespace-nowrap text-[#E8B64A]"
           >
             +1 Watched Ad (All Personas)
           </button>
@@ -304,10 +304,10 @@ export function LoadoutAndStoreModal({
                   type="button"
                   data-testid={`wear-persona-${persona.id}`}
                   onClick={() => onSelectLoadout({ personaId: persona.id })}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors ${
                     selected
-                      ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                      : 'bg-[#3B2B3E] text-[#FFFDF0] hover:bg-[#4D3851]'
+                      ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
+                      : 'btn-herbarium-secondary-compact'
                   }`}
                 >
                   {selected ? 'Wearing' : 'Wear'}
@@ -318,7 +318,7 @@ export function LoadoutAndStoreModal({
                     type="button"
                     data-testid={`watch-persona-ad-${persona.id}`}
                     onClick={() => onWatchPersonaPipAd(persona.id)}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#DED2F9] text-[#2D1E2F] text-xs font-bold hover:bg-[#c4b5fd] transition-colors whitespace-nowrap"
+                    className="btn-herbarium-lichen px-2.5 py-1.5 text-xs whitespace-nowrap min-h-[38px]"
                   >
                     Watch Ad ({pips}/{persona.adPipsRequired})
                   </button>
@@ -327,7 +327,7 @@ export function LoadoutAndStoreModal({
                       type="button"
                       data-testid={`debug-persona-ad-${persona.id}`}
                       onClick={() => onIncrementPersonaAdPip(persona.id)}
-                      className="px-2 py-1.5 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-extrabold border border-[#2D1E2F] hover:bg-[#fbbf24] transition-colors whitespace-nowrap"
+                      className="btn-herbarium-secondary-compact px-2 py-1.5 text-xs text-[#E8B64A] whitespace-nowrap min-h-[38px]"
                       title="Increase watched ad count to unlock persona"
                     >
                       +1 Ad
@@ -356,17 +356,17 @@ export function LoadoutAndStoreModal({
             <h2 id="sanctuary-modal-title" className="text-xl font-display font-bold">
               Garden Sanctuary
             </h2>
-            <div className="flex items-center gap-1 p-1 bg-[#2B1F2D] rounded-lg">
+            <div className="flex items-center gap-1 p-1 bg-[#1E1C0E] border border-[#3D392A] rounded-xl">
               {(['loadout', 'store', 'quests', 'bestiary'] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
                   data-testid={`sanctuary-tab-${t}`}
                   onClick={() => setTab(t)}
-                  className={`px-3 py-1 rounded-md text-xs font-bold capitalize transition-colors whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors whitespace-nowrap ${
                     tab === t
-                      ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                      : 'text-[#FFFDF0]/75 hover:text-[#FFFDF0]'
+                      ? 'bg-[#E8B64A] text-[#201A09] shadow-sm'
+                      : 'text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
                   }`}
                 >
                   {t}
@@ -387,7 +387,7 @@ export function LoadoutAndStoreModal({
               type="button"
               data-testid="debug-add-gold-btn"
               onClick={() => onAddDebugGold(100)}
-              className="px-2.5 py-1 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] font-sans text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#fbbf24] active:translate-y-0.5 transition-all whitespace-nowrap shrink-0"
+              className="btn-herbarium-secondary-compact px-2.5 py-1 text-xs whitespace-nowrap shrink-0 text-[#E8B64A]"
             >
               +100 Gold (Debug)
             </button>
@@ -398,7 +398,7 @@ export function LoadoutAndStoreModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1 rounded-lg bg-[#3B2B3E] font-sans text-xs font-bold hover:bg-[#4E3952]"
+              className="btn-herbarium-secondary-compact px-3 py-1 text-xs whitespace-nowrap"
             >
               Close
             </button>
@@ -467,10 +467,10 @@ export function LoadoutAndStoreModal({
                                   startingWeaponId: prof.startingWeaponId,
                                 })
                               }
-                              className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap ${
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
                                 isSelected
-                                  ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                                  : 'bg-[#3B2B3E] text-[#FFFDF0] hover:bg-[#4D3851]'
+                                  ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
+                                  : 'btn-herbarium-secondary-compact'
                               }`}
                             >
                               {isSelected ? 'Equipped' : 'Select'}
@@ -480,7 +480,7 @@ export function LoadoutAndStoreModal({
                               type="button"
                               disabled={currencies.coins < prof.unlockCostCoins}
                               onClick={() => onUnlockProfession(profId, prof.unlockCostCoins)}
-                              className="px-3 py-1 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-bold disabled:opacity-40 whitespace-nowrap"
+                              className="btn-herbarium-secondary-compact px-3 py-1.5 text-xs text-[#E8B64A] disabled:opacity-40 whitespace-nowrap"
                             >
                               Unlock ({prof.unlockCostCoins} Coins)
                             </button>
@@ -514,8 +514,8 @@ export function LoadoutAndStoreModal({
                           onClick={() => onSelectLoadout({ biomeId: bId })}
                           className={`min-w-0 overflow-hidden p-2.5 rounded-xl border-2 text-left transition-colors ${
                             active
-                              ? 'bg-[#36493E] border-[#A8E6CF]'
-                              : 'bg-[#1E1520] border-[#FFFDF0]/15'
+                              ? 'bg-[#12302B] border-[#6FA36B] shadow-[0_0_10px_rgba(111,163,107,0.3)]'
+                              : 'btn-herbarium-secondary-compact'
                           }`}
                         >
                           <div className="text-xs font-bold truncate">{t.name}</div>
@@ -539,8 +539,8 @@ export function LoadoutAndStoreModal({
                     }
                     className={`w-full p-2.5 rounded-xl border-2 text-left transition-colors ${
                       loadout.isDailySeedMode
-                        ? 'bg-[#3B2B3E] border-[#FDFFB6]'
-                        : 'bg-[#1E1520] border-[#FFFDF0]/15'
+                        ? 'bg-[#12302B] border-[#E8B64A] shadow-[0_0_10px_rgba(232,182,74,0.3)]'
+                        : 'btn-herbarium-secondary-compact'
                     }`}
                   >
                     <div className="text-xs font-bold flex items-center justify-between">
@@ -573,7 +573,7 @@ export function LoadoutAndStoreModal({
                   type="button"
                   data-testid="store-debug-add-100-gold"
                   onClick={() => onAddDebugGold(100)}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#fbbf24] active:translate-y-0.5 transition-all whitespace-nowrap shrink-0"
+                  className="btn-herbarium-secondary-compact px-3.5 py-1.5 text-xs text-[#E8B64A] whitespace-nowrap shrink-0"
                 >
                   +100 Gold
                 </button>
@@ -608,10 +608,10 @@ export function LoadoutAndStoreModal({
                                   : [...loadout.trinketIds, trinket.id].slice(-3);
                                 onSelectLoadout({ trinketIds: next });
                               }}
-                              className={`px-3 py-1 rounded-lg text-xs font-bold ${
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                                 equipped
-                                  ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                                  : 'bg-[#3B2B3E] text-[#FFFDF0]'
+                                  ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
+                                  : 'btn-herbarium-secondary-compact'
                               }`}
                             >
                               {equipped ? 'Equipped' : 'Equip'}
@@ -621,7 +621,7 @@ export function LoadoutAndStoreModal({
                               type="button"
                               disabled={currencies.coins < trinket.costCoins}
                               onClick={() => onUnlockTrinket(trinket.id, trinket.costCoins)}
-                              className="px-3 py-1 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-bold disabled:opacity-40"
+                              className="btn-herbarium-secondary-compact px-3 py-1.5 text-xs text-[#E8B64A] disabled:opacity-40"
                             >
                               Buy ({trinket.costCoins} Coins)
                             </button>
@@ -660,10 +660,10 @@ export function LoadoutAndStoreModal({
                                   : [...loadout.curseIds, curse.id];
                                 onSelectLoadout({ curseIds: next });
                               }}
-                              className={`px-3 py-1 rounded-lg text-xs font-bold ${
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                                 active
-                                  ? 'bg-[#FFAAA6] text-[#2D1E2F]'
-                                  : 'bg-[#3B2B3E] text-[#FFFDF0]'
+                                  ? 'bg-[#8E2B3A] text-[#EDE6D0] shadow-sm'
+                                  : 'btn-herbarium-secondary-compact'
                               }`}
                             >
                               {active ? 'Active Curse' : 'Activate'}
@@ -673,7 +673,7 @@ export function LoadoutAndStoreModal({
                               type="button"
                               disabled={currencies.coins < curse.costCoins}
                               onClick={() => onUnlockCurse(curse.id, curse.costCoins)}
-                              className="px-3 py-1 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-bold disabled:opacity-40"
+                              className="btn-herbarium-secondary-compact px-3 py-1.5 text-xs text-[#E8B64A] disabled:opacity-40"
                             >
                               Unlock ({curse.costCoins} Coins)
                             </button>
@@ -711,7 +711,13 @@ export function LoadoutAndStoreModal({
                       type="button"
                       disabled={!done || q.claimed}
                       onClick={() => onClaimQuest(q.id)}
-                      className="px-4 py-1.5 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] font-bold text-xs disabled:opacity-40 whitespace-nowrap"
+                      className={`px-4 py-2 text-xs font-bold whitespace-nowrap ${
+                        q.claimed
+                          ? 'btn-herbarium-secondary-compact opacity-40 cursor-not-allowed'
+                          : done
+                          ? 'btn-herbarium-primary shadow-md'
+                          : 'btn-herbarium-secondary-compact opacity-50 cursor-not-allowed'
+                      }`}
                     >
                       {q.claimed ? 'Claimed' : done ? 'Claim Reward' : 'In Progress'}
                     </button>
@@ -789,8 +795,8 @@ export function LoadoutAndStoreModal({
                                   }
                                   className={`px-2 py-0.5 rounded text-[10px] font-extrabold border transition-colors shrink-0 ${
                                     isDebugHighlighted
-                                      ? 'bg-[#FDFFB6] text-[#2D1E2F] border-[#2D1E2F]'
-                                      : 'bg-[#2B1F2D] text-[#FDFFB6] border-[#FDFFB6]/50 hover:bg-[#3B2B3E]'
+                                      ? 'bg-[#E8B64A] text-[#201A09] border-[#8F691C]'
+                                      : 'btn-herbarium-secondary-compact'
                                   }`}
                                 >
                                   Debug
@@ -814,7 +820,7 @@ export function LoadoutAndStoreModal({
                               type="button"
                               data-testid={`bestiary-spawn-infinite-${key}`}
                               onClick={() => onSpawnBestiaryEnemy(key, 'infinite_hp')}
-                              className="flex-1 py-1 px-2 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-[10px] font-extrabold border border-[#2D1E2F] hover:bg-[#fbbf24] transition-colors whitespace-nowrap"
+                              className="flex-1 py-1 px-2 btn-herbarium-secondary-compact text-[#E8B64A] text-[10px] whitespace-nowrap"
                             >
                               ∞ Infinite HP
                             </button>
@@ -822,7 +828,7 @@ export function LoadoutAndStoreModal({
                               type="button"
                               data-testid={`bestiary-spawn-swarm-${key}`}
                               onClick={() => onSpawnBestiaryEnemy(key, 'swarm')}
-                              className="flex-1 py-1 px-2 rounded-lg bg-[#FFAAA6] text-[#2D1E2F] text-[10px] font-extrabold border border-[#2D1E2F] hover:bg-[#f88b86] transition-colors whitespace-nowrap"
+                              className="flex-1 py-1 px-2 btn-herbarium-danger-compact text-[10px] whitespace-nowrap"
                             >
                               Spawn Lot (Swarm)
                             </button>
@@ -830,7 +836,7 @@ export function LoadoutAndStoreModal({
                               type="button"
                               data-testid={`bestiary-spawn-respawn-${key}`}
                               onClick={() => onSpawnBestiaryEnemy(key, 'respawn_on_death')}
-                              className="flex-1 py-1 px-2 rounded-lg bg-[#A8E6CF] text-[#2D1E2F] text-[10px] font-extrabold border border-[#2D1E2F] hover:bg-[#88D49E] transition-colors whitespace-nowrap"
+                              className="flex-1 py-1 px-2 btn-herbarium-lichen text-[10px] min-h-[30px] whitespace-nowrap"
                             >
                               1× Respawn on Death
                             </button>
@@ -904,7 +910,7 @@ export function LoadoutAndStoreModal({
             type="button"
             data-start="true"
             onClick={onStartRun}
-            className="px-6 py-2.5 rounded-xl bg-[#A8E6CF] text-[#2D1E2F] font-bold text-sm border-2 border-[#2D1E2F] hover:bg-[#88D49E] transition-colors whitespace-nowrap"
+            className="btn-herbarium-primary px-6 text-sm tracking-wide whitespace-nowrap shadow-lg min-h-[50px]"
           >
             Start Run Now
           </button>

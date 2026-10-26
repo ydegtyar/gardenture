@@ -124,6 +124,6 @@ export interface YtGameSdk {
 
 declare global {
   interface Window {
-    ytgame?: YtGameSdk;
+    ytgame?: YtGameSdk | (typeof ytgame & { __IS_DEV_STUB__?: boolean });
   }
 }

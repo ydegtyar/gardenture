@@ -52,7 +52,7 @@ export function PauseModal({
             <button
               type="button"
               onClick={onOpenDebugCards}
-              className="px-3 py-1.5 rounded-xl bg-[#3B2B3E] text-[#FDFFB6] font-bold text-xs border-2 border-[#FDFFB6]/50 hover:bg-[#4D3851] transition-colors whitespace-nowrap shrink-0"
+              className="btn-herbarium-secondary-compact px-3 py-1.5 text-[#E8B64A] text-xs font-bold whitespace-nowrap shrink-0"
             >
               Debug Cards
             </button>
@@ -62,33 +62,63 @@ export function PauseModal({
           Your mid-run progress is automatically checkpointed.
         </p>
 
-        {/* Equipped Weapons Summary */}
-        <div className="mb-4 p-3 rounded-xl bg-[#1E1520] border border-[#FFFDF0]/10">
-          <p className="text-xs font-bold text-[#FDFFB6] mb-2">ACTIVE WEAPONS</p>
-          <div className="flex flex-wrap gap-3 text-sm">
-            {weapons.map((w) => {
-              const def = WEAPONS[w.id];
-              return (
-                <div key={w.id} className="font-semibold text-[#FFFDF0]">
-                  {w.evolved ? def?.evolvedName : def?.name}{' '}
-                  <span className="font-mono-tabular text-xs text-[#A8E6CF]">
-                    Lv {w.level}
-                  </span>
-                </div>
-              );
-            })}
+        {/* Equipped Weapons & Synergy Cards Summary */}
+        <div className="mb-4 p-3 rounded-xl bg-[#1E1520] border border-[#FFFDF0]/10 max-h-56 overflow-y-auto">
+          <p className="text-xs font-bold text-[#FDFFB6] mb-2 tracking-wider">ACTIVE WEAPONS</p>
+          <div className="space-y-2 mb-3">
+            {weapons.length === 0 ? (
+              <p className="text-xs text-[#FFFDF0]/50 italic">No weapons equipped.</p>
+            ) : (
+              weapons.map((w) => {
+                const def = WEAPONS[w.id];
+                const currentName = w.evolved ? def?.evolvedName : def?.name;
+                const desc = w.evolved
+                  ? def?.evolvedDescription
+                  : def?.levelUpDescriptions?.[w.level - 1] ?? def?.description;
+                return (
+                  <div
+                    key={w.id}
+                    className="p-2 rounded-lg bg-[#2B1F2D]/80 border border-[#FFFDF0]/10 flex flex-col gap-0.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-sm font-bold ${w.evolved ? 'text-[#FDFFB6]' : 'text-[#FFFDF0]'}`}>
+                        {currentName}
+                        {w.evolved && (
+                          <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-[#FDFFB6]/20 text-[#FDFFB6] font-extrabold uppercase">
+                            Evolved
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-mono-tabular text-xs font-bold text-[#A8E6CF] shrink-0">
+                        Lv {w.level}
+                      </span>
+                    </div>
+                    {desc && (
+                      <p className="text-[11px] text-[#FFFDF0]/70 leading-snug">
+                        {desc}
+                      </p>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
           {Object.keys(ownedCards).length > 0 && (
-            <div className="mt-2 pt-2 border-t border-[#FFFDF0]/10 text-xs text-[#FFFDF0]/80">
-              {Object.entries(ownedCards)
-                .map(([cid, lv]) => {
-                  const c = CARDS.find((item) => item.id === cid);
-                  if (c?.evolvedName && lv > c.maxLevel) {
-                    return `${c.evolvedName} (Evo)`;
-                  }
-                  return `${c?.name ?? cid} Lv ${lv}`;
-                })
-                .join(' · ')}
+            <div className="pt-2 border-t border-[#FFFDF0]/10">
+              <p className="text-[10px] font-bold text-[#A8E6CF] mb-1 tracking-wider uppercase">
+                Synergy Cards
+              </p>
+              <div className="text-xs text-[#FFFDF0]/80">
+                {Object.entries(ownedCards)
+                  .map(([cid, lv]) => {
+                    const c = CARDS.find((item) => item.id === cid);
+                    if (c?.evolvedName && lv > c.maxLevel) {
+                      return `${c.evolvedName} (Evo)`;
+                    }
+                    return `${c?.name ?? cid} Lv ${lv}`;
+                  })
+                  .join(' · ')}
+              </div>
             </div>
           )}
         </div>
@@ -156,14 +186,14 @@ export function PauseModal({
           <button
             type="button"
             onClick={onResume}
-            className="py-2.5 px-3 rounded-xl bg-[#A8E6CF] text-[#2D1E2F] font-bold text-xs sm:text-sm border-2 border-[#2D1E2F] hover:bg-[#88D49E] transition-colors whitespace-nowrap"
+            className="btn-herbarium-primary px-3 text-xs sm:text-sm whitespace-nowrap min-h-[48px] sm:min-h-[52px]"
           >
             Resume Run
           </button>
           <button
             type="button"
             onClick={onRestart}
-            className="py-2.5 px-3 rounded-xl bg-[#FDFFB6] text-[#2D1E2F] font-bold text-xs sm:text-sm border-2 border-[#2D1E2F] hover:bg-[#fbbf24] transition-colors whitespace-nowrap"
+            className="btn-herbarium-lichen px-3 text-xs sm:text-sm whitespace-nowrap min-h-[48px] sm:min-h-[52px]"
           >
             Restart
           </button>
@@ -171,14 +201,14 @@ export function PauseModal({
             type="button"
             data-testid="pause-end-run-btn"
             onClick={onEndRunAndSummary}
-            className="py-2.5 px-3 rounded-xl bg-[#FFAAA6] text-[#2D1E2F] font-bold text-xs sm:text-sm border-2 border-[#2D1E2F] hover:bg-[#f88b86] transition-colors whitespace-nowrap"
+            className="btn-herbarium-danger-compact px-3 text-xs sm:text-sm whitespace-nowrap min-h-[48px] sm:min-h-[52px]"
           >
             End Run
           </button>
           <button
             type="button"
             onClick={onReturnToTitle}
-            className="py-2.5 px-3 rounded-xl bg-[#3B2B3E] text-[#FFFDF0] font-semibold text-xs sm:text-sm border-2 border-[#FFFDF0]/20 hover:border-[#FFFDF0]/50 transition-colors whitespace-nowrap"
+            className="btn-herbarium-secondary-compact px-3 text-xs sm:text-sm whitespace-nowrap min-h-[48px] sm:min-h-[52px]"
           >
             Title Screen
           </button>

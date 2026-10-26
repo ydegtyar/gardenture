@@ -91,7 +91,7 @@ export function TitleLockupSvg({ className = 'w-full max-w-md' }: { className?: 
         fill="#2D1E2F"
         letterSpacing="2.5"
       >
-        MYSTIC GARDEN ROGUELITE
+        Mystic Garden Adventure
       </text>
     </svg>
   );

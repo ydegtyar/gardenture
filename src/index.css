@@ -209,4 +209,271 @@
   animation: tarot-flip-in 0.55s cubic-bezier(0.2, 0.8, 0.25, 1) both;
 }
 
+/* ==========================================================================
+   Living Herbarium Button Component Specification System
+   ========================================================================== */
+
+:root {
+  --btn-radius-primary: 24px 10px 24px 10px;
+  --btn-radius-secondary: 14px 12px 14px 12px;
+  --btn-radius-pill: 9999px;
+  --btn-min-height: 56px;
+
+  --btn-pollen-gold: #E8B64A;
+  --btn-pollen-dark: #8F691C;
+  --btn-lichen-green: #6FA36B;
+  --btn-lichen-dark: #3F5E3D;
+  --btn-bone-text: #EDE6D0;
+  --btn-spore-cyan: #5FE0C8;
+  --btn-thorn-crimson: #8E2B3A;
+  --btn-night-soil: #0E1A17;
+  --btn-deep-teal: #12302B;
+}
+
+/* 3.1 Primary Seed-Pod Action Button (Hero CTA) */
+.btn-herbarium-primary {
+  min-height: 58px;
+  border-radius: var(--btn-radius-primary);
+  background: linear-gradient(180deg, #F0C462 0%, #DFA83E 100%);
+  border: 1.5px solid var(--btn-pollen-dark);
+  box-shadow: 0 4px 16px rgba(232, 182, 74, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  color: #201A09;
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s ease, filter 0.12s ease;
+}
+
+.btn-herbarium-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  box-shadow: 0 6px 20px rgba(232, 182, 74, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.btn-herbarium-primary:active:not(:disabled) {
+  transform: scale(0.975);
+  box-shadow: 0 2px 6px rgba(232, 182, 74, 0.2);
+}
+
+.btn-herbarium-primary:disabled {
+  opacity: 0.42;
+  filter: grayscale(30%);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 3.2 Restorative / Utility Primary (Lichen Green) */
+.btn-herbarium-lichen {
+  min-height: 56px;
+  border-radius: 16px 24px 16px 24px;
+  background: linear-gradient(180deg, #78B074 0%, #60915C 100%);
+  border: 1.5px solid #456942;
+  box-shadow: 0 4px 14px rgba(111, 163, 107, 0.26), inset 0 1px 0 rgba(237, 230, 208, 0.35);
+  color: #101F12;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s ease, filter 0.12s ease;
+}
+
+.btn-herbarium-lichen:hover:not(:disabled) {
+  filter: brightness(1.05);
+  box-shadow: 0 6px 18px rgba(111, 163, 107, 0.35);
+}
+
+.btn-herbarium-lichen:active:not(:disabled) {
+  transform: scale(0.975);
+  box-shadow: 0 2px 6px rgba(111, 163, 107, 0.2);
+}
+
+.btn-herbarium-lichen:disabled {
+  opacity: 0.42;
+  filter: grayscale(30%);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 3.3 Secondary Pressed-Parchment Button */
+.btn-herbarium-secondary {
+  min-height: 54px;
+  border-radius: var(--btn-radius-secondary);
+  background: linear-gradient(180deg, #1E1C0E 0%, #161307 100%);
+  border: 1.5px solid #3D392A;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(237, 230, 208, 0.08);
+  color: var(--btn-bone-text);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.btn-herbarium-secondary:hover:not(:disabled) {
+  border-color: var(--btn-lichen-green);
+  box-shadow: 0 0 12px rgba(111, 163, 107, 0.28), inset 0 1px 0 rgba(237, 230, 208, 0.12);
+  color: #FFFDF0;
+}
+
+.btn-herbarium-secondary:active:not(:disabled) {
+  transform: scale(0.975);
+}
+
+.btn-herbarium-secondary:disabled {
+  opacity: 0.42;
+  border-style: dashed;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Compact variant for compact cards / sub-bars */
+.btn-herbarium-secondary-compact {
+  min-height: 40px;
+  border-radius: 12px 10px 12px 10px;
+  background: linear-gradient(180deg, #1E1C0E 0%, #161307 100%);
+  border: 1.5px solid #3D392A;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  color: var(--btn-bone-text);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.btn-herbarium-secondary-compact:hover:not(:disabled) {
+  border-color: var(--btn-lichen-green);
+  box-shadow: 0 0 10px rgba(111, 163, 107, 0.25);
+  color: #FFFDF0;
+}
+
+.btn-herbarium-secondary-compact:active:not(:disabled) {
+  transform: scale(0.975);
+}
+
+.btn-herbarium-secondary-compact:disabled {
+  opacity: 0.42;
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+/* 3.4 Concede / Danger Action Button (Thorn & Ash) */
+.btn-herbarium-danger {
+  min-height: 52px;
+  border-radius: 14px 10px 14px 10px;
+  background: rgba(22, 19, 7, 0.85);
+  border: 1.5px dashed #4A2E35;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  color: #A89F91;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.12s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-herbarium-danger:hover:not(:disabled) {
+  border-color: var(--btn-thorn-crimson);
+  border-style: solid;
+  color: #EDE6D0;
+  box-shadow: 0 0 12px rgba(142, 43, 58, 0.35);
+}
+
+.btn-herbarium-danger:active:not(:disabled) {
+  transform: scale(0.975);
+  background: rgba(46, 20, 26, 0.9);
+  border-color: #C44359;
+}
+
+.btn-herbarium-danger:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* Compact Danger Variant */
+.btn-herbarium-danger-compact {
+  min-height: 40px;
+  border-radius: 12px 8px 12px 8px;
+  background: rgba(22, 19, 7, 0.85);
+  border: 1.5px dashed #4A2E35;
+  color: #A89F91;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.12s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-herbarium-danger-compact:hover:not(:disabled) {
+  border-color: var(--btn-thorn-crimson);
+  border-style: solid;
+  color: #EDE6D0;
+  box-shadow: 0 0 10px rgba(142, 43, 58, 0.3);
+}
+
+.btn-herbarium-danger-compact:active:not(:disabled) {
+  transform: scale(0.975);
+}
+
+/* 3.5 Wax Seal Rank & Icon Buttons */
+.btn-herbarium-seal {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #3D331B 0%, #201A09 75%, #141106 100%);
+  border: 1.5px solid #8F691C;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 235, 170, 0.35);
+  color: var(--btn-bone-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+
+@media (min-width: 640px) {
+  .btn-herbarium-seal {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+.btn-herbarium-seal:hover:not(:disabled) {
+  border-color: var(--btn-pollen-gold);
+  filter: brightness(1.1);
+  box-shadow: 0 0 12px rgba(232, 182, 74, 0.35), inset 0 1px 2px rgba(255, 235, 170, 0.5);
+}
+
+.btn-herbarium-seal:active:not(:disabled) {
+  transform: scale(0.94);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+/* Focused / Spore Cyan Auto-Target Halo */
+.btn-herbarium-target-focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--btn-spore-cyan), 0 0 14px rgba(95, 224, 200, 0.45) !important;
+}
+
 

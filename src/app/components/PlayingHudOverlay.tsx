@@ -42,61 +42,76 @@ export function PlayingHudOverlay() {
   const clockText = `${runMins}:${runSecs.toString().padStart(2, '0')}`;
 
   return (
-    <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5">
-      {/* TOP PERIMETER ROW: 3 Compact Corner Clusters */}
-      <div className="flex items-start justify-between gap-1.5 sm:gap-3 w-full">
-        {/* Cluster 1 (Top-Left): Vitality Bar, Trailing Damage Bar, Level & Dash Charges */}
-        <div className="w-36 sm:w-60 p-2 sm:p-2.5 rounded-xl bg-[#2B1F2D]/92 border-2 border-[#2D1E2F] shadow-md shrink-0">
-          <div className="flex items-center justify-between gap-1 mb-1">
-            <div className="flex items-center gap-1">
-              <HeartSocketIcon
-                state={hpRatio > 0.5 ? 'full' : hpRatio > 0.25 ? 'damaged' : 'empty'}
-              />
-              <span className="hidden sm:inline text-[10px] font-extrabold tracking-wider text-[#FFAAA6]">
-                VITALITY
+    <>
+      {/* FULL-SCREEN TOP XP BAR */}
+      <div className="fixed top-0 inset-x-0 z-20 pointer-events-none h-2.5 sm:h-3.5 bg-[#18111A]/90 border-b border-[#2D1E2F] shadow-sm flex items-center">
+        <div
+          className="h-full bg-gradient-to-r from-[#88D49E] via-[#FDFFB6] to-[#FDFFB6] transition-all duration-150 ease-out shadow-[0_0_8px_#FDFFB6]"
+          style={{ width: `${Math.round(xpRatio * 100)}%` }}
+        />
+        <div className="absolute top-1 left-2 sm:left-3 px-1.5 py-0.2 rounded bg-[#2B1F2D]/90 border border-[#FDFFB6]/40 text-[9px] sm:text-[10px] font-mono-tabular font-extrabold text-[#FDFFB6] shadow">
+          LV {hud.level}
+        </div>
+      </div>
+
+      <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5 pt-5 sm:pt-6">
+        {/* TOP PERIMETER ROW: 3 Compact Corner Clusters */}
+        <div className="flex items-start justify-between gap-1.5 sm:gap-3 w-full">
+          {/* Cluster 1 (Top-Left): Vitality Bar, Trailing Damage Bar, Dash Charges */}
+          <div className="w-36 sm:w-60 p-2 sm:p-2.5 rounded-xl bg-[#2B1F2D]/92 border-2 border-[#2D1E2F] shadow-md shrink-0">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <div className="flex items-center gap-1">
+                <HeartSocketIcon
+                  state={hpRatio > 0.5 ? 'full' : hpRatio > 0.25 ? 'damaged' : 'empty'}
+                />
+                <span className="hidden sm:inline text-[10px] font-extrabold tracking-wider text-[#FFAAA6]">
+                  VITALITY
+                </span>
+              </div>
+              <span className="text-xs sm:text-sm font-mono-tabular font-bold text-[#FFFDF0] whitespace-nowrap">
+                {hud.hp}/{hud.maxHp}
+                {hud.shieldHp > 0 ? ` +${hud.shieldHp}` : ''}
               </span>
             </div>
-            <span className="text-xs sm:text-sm font-mono-tabular font-bold text-[#FFFDF0] whitespace-nowrap">
-              {hud.hp}/{hud.maxHp}
-              {hud.shieldHp > 0 ? ` +${hud.shieldHp}` : ''}
-            </span>
-          </div>
 
-          {/* Health Bar with Delayed Trailing Damage Ghost Bar */}
-          <div className="relative h-2.5 sm:h-3 w-full rounded-full bg-[#18111A] border border-[#2D1E2F] overflow-hidden mb-1.5">
-            <div
-              className="absolute inset-y-0 left-0 bg-[#FFD3B6]/60 transition-all duration-300"
-              style={{ width: `${Math.round(trailingHpRatio * 100)}%` }}
-            />
-            <div
-              className="absolute inset-y-0 left-0 bg-[#88D49E] transition-all duration-75"
-              style={{
-                width: `${Math.round(hpRatio * 100)}%`,
-                backgroundColor: hpRatio <= 0.3 ? '#F43F5E' : '#88D49E',
-              }}
-            />
-          </div>
+            {/* Health Bar with Delayed Trailing Damage Ghost Bar */}
+            <div className="relative h-2.5 sm:h-3 w-full rounded-full bg-[#18111A] border border-[#2D1E2F] overflow-hidden mb-1.5">
+              <div
+                className="absolute inset-y-0 left-0 bg-[#FFD3B6]/60 transition-all duration-300"
+                style={{ width: `${Math.round(trailingHpRatio * 100)}%` }}
+              />
+              <div
+                className="absolute inset-y-0 left-0 bg-[#88D49E] transition-all duration-75"
+                style={{
+                  width: `${Math.round(hpRatio * 100)}%`,
+                  backgroundColor: hpRatio <= 0.3 ? '#F43F5E' : '#88D49E',
+                }}
+              />
+            </div>
 
-          {/* Level, XP Progress & Dash Charge Pips */}
-          <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold text-[#A8E6CF] mb-1 whitespace-nowrap">
-            <span>LV {hud.level}</span>
-            <span
-              className={`font-mono-tabular ${
-                hud.isDashInvisible ? 'text-[#A0C4FF]' : ''
-              }`}
-            >
-              {hud.isDashInvisible
-                ? 'I-FRAME'
-                : `DASH ${hud.dashCharges}/${hud.maxDashCharges}`}
-            </span>
+            {/* Dash Charges Status & Ready Pips */}
+            <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold text-[#A8E6CF] whitespace-nowrap">
+              <span
+                className={`font-mono-tabular ${
+                  hud.isDashInvisible ? 'text-[#A0C4FF]' : ''
+                }`}
+              >
+                {hud.isDashInvisible
+                  ? 'I-FRAME'
+                  : `DASH ${hud.dashCharges}/${hud.maxDashCharges}`}
+              </span>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: hud.maxDashCharges }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={`inline-block w-2 h-2 rounded-full border border-[#2D1E2F] ${
+                      i < hud.dashCharges ? 'bg-[#A8E6CF]' : 'bg-[#18111A]'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-[#18111A] overflow-hidden">
-            <div
-              className="h-full bg-[#FDFFB6] transition-all duration-100"
-              style={{ width: `${Math.round(xpRatio * 100)}%` }}
-            />
-          </div>
-        </div>
 
         {/* Cluster 2 (Top-Center): Devil May Cry Style Rank Badge & Decaying SP Bar with Rank-Up Aura */}
         <div className="relative flex flex-col items-center shrink-0">
@@ -177,7 +192,7 @@ export function PlayingHudOverlay() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
             <button
               type="button"
               tabIndex={-1}
@@ -186,7 +201,7 @@ export function PlayingHudOverlay() {
                 e.currentTarget.blur();
                 toggleMute();
               }}
-              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#2B1F2D]/95 border-2 border-[#2D1E2F] flex items-center justify-center hover:border-[#A8E6CF] transition-colors shrink-0"
+              className="btn-herbarium-seal shrink-0 text-[#EDE6D0]"
             >
               <MuteSvgIcon muted={userMuted} />
             </button>
@@ -199,7 +214,7 @@ export function PlayingHudOverlay() {
                 e.currentTarget.blur();
                 pauseRun();
               }}
-              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#2B1F2D]/95 border-2 border-[#2D1E2F] flex items-center justify-center hover:border-[#FDFFB6] transition-colors shrink-0"
+              className="btn-herbarium-seal shrink-0 text-[#EDE6D0]"
             >
               <PauseSvgIcon />
             </button>
@@ -215,7 +230,7 @@ export function PlayingHudOverlay() {
                 e.currentTarget.blur();
                 startNewOrResumedRun(false);
               }}
-              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#2B1F2D]/95 border-2 border-[#2D1E2F] flex items-center justify-center hover:border-[#A8E6CF] transition-colors shrink-0"
+              className="btn-herbarium-seal shrink-0 text-[#EDE6D0]"
             >
               <RestartSvgIcon />
             </button>
@@ -241,44 +256,9 @@ export function PlayingHudOverlay() {
           </div>
         ) : null}
 
-        <div className="flex items-end justify-between gap-2 w-full">
-          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#2B1F2D]/90 border-2 border-[#2D1E2F] text-[11px] sm:text-xs font-semibold text-[#FFFDF0] whitespace-nowrap overflow-hidden max-w-[54vw] sm:max-w-none">
-            {hud.weapons.map((w, idx) => {
-              const def = WEAPONS[w.id];
-              return (
-                <React.Fragment key={w.id}>
-                  {idx > 0 && <span aria-hidden="true">·</span>}
-                  <span className={`truncate ${w.evolved ? 'text-[#FDFFB6] font-bold' : ''}`}>
-                    {w.evolved ? def?.evolvedName : def?.name}{' '}
-                    <span className="font-mono-tabular text-[#A8E6CF]">Lv{w.level}</span>
-                  </span>
-                </React.Fragment>
-              );
-            })}
-            {Object.keys(hud.ownedCards).length > 0 && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="text-[#FDFFB6] font-mono-tabular">
-                  {Object.entries(hud.ownedCards)
-                    .slice(0, 3)
-                    .map(([cid, lv]) => {
-                      const cDef = CARDS.find((c) => c.id === cid);
-                      if (cDef?.evolvedName && lv > cDef.maxLevel) {
-                        return `${cDef.evolvedName} (Evo)`;
-                      }
-                      return `${cDef?.name ?? cid} Lv${lv}`;
-                    })
-                    .join(' · ')}
-                  {Object.keys(hud.ownedCards).length > 3
-                    ? ` +${Object.keys(hud.ownedCards).length - 3}`
-                    : ''}
-                </span>
-              </>
-            )}
-          </div>
-
-          {/* Held One-Time Power-Up Slots [Q] and [E] */}
-          <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto shrink-0">
+        <div className="flex items-end justify-end gap-2 w-full">
+          {/* Held One-Time Usable Items / Power-Up Slots [Q] and [E] */}
+          <div className="flex items-center gap-2 pointer-events-auto shrink-0 p-1.5 sm:p-2 rounded-2xl bg-[#2B1F2D]/90 border-2 border-[#2D1E2F] shadow-xl">
             {[0, 1].map((slotIdx) => {
               const pId = hud.heldPowerUps[slotIdx];
               const pDef = pId ? POWER_UPS[pId] : null;
@@ -296,15 +276,25 @@ export function PlayingHudOverlay() {
                     e.currentTarget.blur();
                     usePowerUpSlot(slotIdx);
                   }}
-                  className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border-2 border-[#2D1E2F] text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 whitespace-nowrap shrink-0 ${
+                  className={`relative flex flex-col items-center justify-center rounded-xl border-2 transition-all active:scale-95 whitespace-nowrap shrink-0 p-2 sm:p-2.5 min-w-[70px] sm:min-w-[84px] cursor-pointer ${
                     pDef
-                      ? 'bg-[#2B1F2D] text-[#FFFDF0] shadow-md hover:border-[#FDFFB6]'
-                      : 'bg-[#2B1F2D]/60 text-[#FFFDF0]/40'
+                      ? 'bg-gradient-to-b from-[#251E12] to-[#161307] border-[#8F691C] text-[#EDE6D0] shadow-md hover:border-[#E8B64A] hover:shadow-[0_0_10px_rgba(232,182,74,0.3)]'
+                      : 'bg-[#0E1A17]/60 border-[#3D392A]/40 text-[#EDE6D0]/30 cursor-not-allowed'
                   }`}
                 >
-                  <span className="font-mono-tabular text-[#A8E6CF]">[{keyBind}]</span>
-                  {pDef && <PowerUpAbilityIcon powerUpId={pDef.id} className="w-5 h-5" />}
-                  <span>{pDef ? pDef.name : 'Empty'}</span>
+                  <span className="portrait:hidden absolute -top-2 -right-2 px-1.5 py-0.2 rounded-full bg-[#2B1F2D] border border-[#A8E6CF] font-mono-tabular text-[10px] font-bold text-[#A8E6CF] shadow">
+                    {keyBind}
+                  </span>
+                  <div className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center mb-1">
+                    {pDef ? (
+                      <PowerUpAbilityIcon powerUpId={pDef.id} className="w-8 h-8 sm:w-10 sm:h-10" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border border-dashed border-[#FFFDF0]/20" />
+                    )}
+                  </div>
+                  <span className="text-[10px] sm:text-xs font-bold truncate max-w-[68px] sm:max-w-[80px]">
+                    {pDef ? pDef.name : 'Empty'}
+                  </span>
                 </button>
               );
             })}
@@ -312,5 +302,6 @@ export function PlayingHudOverlay() {
         </div>
       </div>
     </div>
+    </>
   );
 }

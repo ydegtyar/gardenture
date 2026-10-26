@@ -3036,13 +3036,6 @@ export class Simulation {
         magnetized: false,
         pullSpeed: 0,
       });
-      this.events.emit('FloatingText', {
-        x: enemy.x,
-        y: enemy.y - 0.65,
-        text: 'ITEM DROP!',
-        color: PALETTE.BUTTER_YELLOW,
-        scale: 1.2,
-      });
       return;
     }
 

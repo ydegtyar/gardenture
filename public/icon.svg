@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#2a3d34"/>
+      <stop offset="100%" stop-color="#121b16"/>
+    </radialGradient>
+    <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A8E6CF"/>
+      <stop offset="100%" stop-color="#4E937A"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FDFFB6"/>
+      <stop offset="100%" stop-color="#88D49E"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#334D41" stroke-width="6" opacity="0.6"/>
+  <!-- Mystic Sprout / Flower Motif -->
+  <g transform="translate(256, 260)">
+    <!-- Aura glow -->
+    <circle cx="0" cy="-20" r="110" fill="#88D49E" opacity="0.15" filter="blur(20px)"/>
+    <!-- Left Leaf -->
+    <path d="M 0,20 C -70,20 -130,-40 -110,-120 C -50,-100 -20,-40 0,20 Z" fill="url(#leafGrad)"/>
+    <!-- Right Leaf -->
+    <path d="M 0,20 C 70,20 130,-40 110,-120 C 50,-100 20,-40 0,20 Z" fill="url(#leafGrad)"/>
+    <!-- Central Crystal Seed -->
+    <path d="M 0,-140 C 45,-70 40,20 0,70 C -40,20 -45,-70 0,-140 Z" fill="url(#glowGrad)"/>
+    <circle cx="0" cy="-35" r="14" fill="#FFFDF0"/>
+    <!-- Magic sparkles -->
+    <polygon points="0,-175 6,-160 21,-160 9,-150 14,-135 0,-145 -14,-135 -9,-150 -21,-160 -6,-160" fill="#FDFFB6"/>
+    <circle cx="-70" cy="-145" r="6" fill="#FDFFB6" opacity="0.8"/>
+    <circle cx="75" cy="-135" r="5" fill="#FDFFB6" opacity="0.8"/>
+  </g>
+</svg>

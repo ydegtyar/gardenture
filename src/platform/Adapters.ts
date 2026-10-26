@@ -491,7 +491,7 @@ export function createPlatformFacade(options?: {
   // Install Development Mode ytgame SDK stub onto window.ytgame when outside the live Playables host
   const { sdk, controls } = createDevModeYtGameStub(options);
   if (typeof window !== 'undefined') {
-    window.ytgame = sdk;
+    (window as unknown as { ytgame: unknown }).ytgame = sdk;
   }
   return new YouTubePlatformAdapter(sdk, controls);
 }
