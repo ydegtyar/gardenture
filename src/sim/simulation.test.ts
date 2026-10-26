@@ -21,7 +21,14 @@ import {
 } from './rules/formulas';
 import { generateCardDraftOffers } from './systems/cardDraft';
 import { Simulation } from './Simulation';
-import { getDailyStreakHighlight, updateDailyRunStreak } from '../meta/SaveManager';
+import {
+  SaveManager,
+  createDefaultSaveData,
+  getDailyStreakHighlight,
+  reconcileSaveData,
+  updateDailyRunStreak,
+} from '../meta/SaveManager';
+import { createPlatformFacade } from '../platform/Adapters';
 import { CARDS, POWER_UPS } from '../content/data/catalog';
 
 test('Current Daily Streak consecutive-day tracking (updateDailyRunStreak) & milestone highlight rules', () => {
@@ -988,16 +995,171 @@ test('Echo Swing spawns doubled isEcho visual effect, Golden Sunflower uses 3 at
   assert.equal(sim.runEnded, true);
   assert.equal(sim.runOutcome, 'victory');
 
-  // 4. Death Sequence (leaving a grave before fading to Game Over)
+  // 4. Death Sequence & Sudden Death on End Run (bypasses extra lives, leaves a grave, and awards run rewards)
   const simDefeat = new Simulation({ seed: 1111, professionId: 'warden' });
-  simDefeat.declineReviveAndEndRun();
-  assert.ok(simDefeat.deathSequenceTimer > 1.4, 'Declining revive should start deathSequenceTimer');
+  simDefeat.debugSetCardLevel('second_wind', 1);
+  simDefeat.debugTriggerPowerUp('shield');
+  simDefeat.reviveUsed = false;
+  simDefeat.kills = 25;
+  simDefeat.bonusCoinsCollected = 12;
+  simDefeat.elapsedTicks = 60 * 40; // 40s survived
+  simDefeat.elapsedSeconds = 40;
+
+  let runEndedPayload: { coinsEarned: number; gemsEarned: number; score: number; outcome: string } | null = null;
+  simDefeat.events.on('RunEnded', (ev) => {
+    runEndedPayload = ev;
+  });
+
+  simDefeat.triggerSuddenDeath();
+  assert.equal(simDefeat.currentHp, 0, 'Sudden death should set hero HP to 0 even with extra lives');
+  assert.equal(simDefeat.shieldHp, 0, 'Sudden death should clear shield HP');
+  assert.equal(simDefeat.secondWindUsed, true, 'Sudden death should bypass Second Wind extra life');
+  assert.equal(simDefeat.reviveUsed, true, 'Sudden death should bypass Rescue Revive extra life');
+  assert.ok(simDefeat.deathSequenceTimer > 1.4, 'Sudden death should start deathSequenceTimer');
   assert.ok(
     simDefeat.enemies.some((e) => e.isHeroGrave),
-    'Hero death sequence should leave a Hero Grave at the hero position'
+    'Sudden death sequence should leave a Hero Grave at the hero position'
   );
   assert.equal(simDefeat.runEnded, false, 'Run should wait for death grave animation before ending');
   for (let i = 0; i < 110; i++) simDefeat.tick();
   assert.equal(simDefeat.runEnded, true);
   assert.equal(simDefeat.runOutcome, 'defeat');
+  assert.ok(runEndedPayload, 'RunEnded event should be emitted with run rewards');
+  assert.ok((runEndedPayload as { coinsEarned: number }).coinsEarned >= 30, 'Player should receive coins according to run performance');
+  assert.ok((runEndedPayload as { score: number }).score >= 2000, 'Player should receive score according to run performance');
 });
+
+test('Bestiary debug spawner supports infinite_hp, swarm, and respawn_on_death modes on the arena with hero', () => {
+  const sim = new Simulation({ seed: 2222, professionId: 'warden' });
+  sim.enemies.length = 0;
+
+  // 1. Infinite HP mode ('infinite_hp'): spawns an enemy with isInfiniteHp = true whose HP never drops below maxHp
+  const spawnedInf = sim.debugSpawnBestiaryEnemy('enemy_brute_norm', 'infinite_hp');
+  assert.equal(spawnedInf.length, 1);
+  const infBrute = sim.enemies.find((e) => e.bestiaryKey === 'enemy_brute_norm' && e.isInfiniteHp)!;
+  assert.ok(infBrute, 'Should spawn an infinite-HP Bramble Brute near the hero');
+  assert.equal(infBrute.archetypeId, 'brute');
+  assert.equal(infBrute.isInfiniteHp, true);
+
+  // Deal massive direct damage & Regrowth Evolution full-HP damage -> HP stays at maxHp
+  (sim as any).applyDamageToEnemy(infBrute, 99999, true, 0.5, ['slash']);
+  assert.equal(infBrute.hp, infBrute.maxHp, 'Infinite HP enemy should immediately restore HP to maxHp when damaged');
+  sim.debugSetCardLevel('regrowth', 6);
+  sim.currentHp = sim.maxHp;
+  sim.healHero(50);
+  assert.equal(infBrute.hp, infBrute.maxHp, 'Infinite HP enemy should also survive Regrowth Evolution map-wide damage');
+
+  // 2. Swarm mode ('swarm'): spawns a large group of enemies around the hero
+  sim.enemies.length = 0;
+  const swarmUnits = sim.debugSpawnBestiaryEnemy('enemy_chaser_norm', 'swarm');
+  assert.equal(swarmUnits.length, 14, 'Swarm mode should spawn 14 regular enemies around the hero');
+  assert.equal(
+    sim.enemies.filter((e) => e.bestiaryKey === 'enemy_chaser_norm').length,
+    14,
+    'All 14 spawned swarm enemies should be present on the arena'
+  );
+
+  // Special monster swarm spawns 8 units
+  const specialSwarmUnits = sim.debugSpawnBestiaryEnemy('special_bloom_giant', 'swarm');
+  assert.equal(specialSwarmUnits.length, 8, 'Swarm mode for special monsters should spawn 8 units');
+
+  // 3. Single Respawn on Death mode ('respawn_on_death'): killing the enemy automatically spawns a fresh replacement on the arena
+  sim.enemies.length = 0;
+  const respawnUnits = sim.debugSpawnBestiaryEnemy('boss_thornheart_p2', 'respawn_on_death');
+  assert.equal(respawnUnits.length, 1);
+  const firstBoss = sim.enemies.find((e) => e.bestiaryKey === 'boss_thornheart_p2' && e.respawnOnDeath)!;
+  assert.ok(firstBoss, 'Should spawn a respawning Thornheart Phase 2 boss');
+  const firstBossId = firstBoss.id;
+
+  // Kill the respawning boss -> should NOT end the run in victory, and should immediately spawn a new replacement copy
+  (sim as any).applyDamageToEnemy(firstBoss, firstBoss.hp + 5000, false, 0, ['slash']);
+  assert.equal(sim.victorySequenceTimer, 0, 'Killing a respawnOnDeath boss should not trigger the run victory sequence');
+  const replacementBoss = sim.enemies.find(
+    (e) => e.bestiaryKey === 'boss_thornheart_p2' && e.respawnOnDeath && e.hp > 0 && e.id !== firstBossId
+  );
+  assert.ok(replacementBoss, 'Killing a respawnOnDeath enemy should immediately respawn a new copy on the arena with the hero');
+});
+
+test('YouTube Playables SDK integration: Dev Mode Stubs, Rewarded Ad outcomes, and Dual-Storage Player State Reconciliation', async () => {
+  const platform = createPlatformFacade({ adDelayMs: 0 });
+  const saveManager = new SaveManager(platform);
+
+  // 1. Lifecycle signaling sets firstFrameReadyCalled and gameReadyCalled on dev stub
+  platform.lifecycle.notifyFirstFrameReady();
+  platform.lifecycle.notifyGameReady();
+  const diagInit = platform.devStub.getDiagnostics();
+  assert.equal(diagInit.isDevStub, true);
+  assert.equal(diagInit.firstFrameReadyCalled, true);
+  assert.equal(diagInit.gameReadyCalled, true);
+
+  // 2. Rewarded Ad stub modes: 'grant', 'skip', and 'error'
+  platform.devStub.setAdOutcomeMode('grant');
+  const granted = await platform.ads.requestRewardedAd('reward_sanctuary_grant_v1');
+  assert.equal(granted, true, 'Grant mode should resolve true');
+  assert.equal(platform.devStub.getDiagnostics().lastAdResult, 'granted');
+  assert.equal(platform.devStub.getDiagnostics().totalAdsGranted, 1);
+
+  const reward = saveManager.claimSanctuaryAdReward(120, 2);
+  assert.equal(reward.coinsAdded, 120);
+  assert.equal(reward.gemsAdded, 2);
+  assert.equal(saveManager.getState().currencies.coins, 280);
+  assert.equal(saveManager.getState().currencies.gems, 7);
+  assert.equal(saveManager.getState().currencies.adWatchCountToday, 1);
+
+  platform.devStub.setAdOutcomeMode('skip');
+  const skipped = await platform.ads.requestRewardedAd('reward_persona_pip_v1');
+  assert.equal(skipped, false, 'Skip mode should resolve false without granting reward');
+  assert.equal(platform.devStub.getDiagnostics().lastAdResult, 'skipped');
+
+  platform.devStub.setAdOutcomeMode('error');
+  const errored = await platform.ads.requestRewardedAd('reward_revive_run_v1');
+  assert.equal(errored, false, 'Error mode should gracefully resolve false without throwing');
+  assert.equal(platform.devStub.getDiagnostics().lastAdResult, 'error');
+
+  // 3. Saving Player State to YouTube Cloud & LocalStorage Backup + Offline Fallback
+  platform.devStub.setCloudStorageMode('synced');
+  const saveOk = await saveManager.flushImmediate();
+  assert.equal(saveOk, true, 'Saving in synced cloud mode should succeed');
+  assert.ok(
+    platform.devStub.getDiagnostics().lastSavedCloudBytes > 100,
+    'Cloud payload byte length should be recorded'
+  );
+
+  // Switch cloud stub to 'offline' -> saveRaw returns false (cloud error) while still writing LocalStorage backup
+  platform.devStub.setCloudStorageMode('offline');
+  saveManager.getState().currencies.coins = 555;
+  const offlineSaveOk = await saveManager.flushImmediate();
+  assert.equal(offlineSaveOk, false, 'Offline cloud stub should report cloud save failure');
+  assert.ok(
+    platform.storage.loadLocalBackupRaw().includes('555'),
+    'Local backup must still be written when YouTube Cloud is offline'
+  );
+
+  // 4. Dual-Storage Reconciliation merges unlocks, highest personaAdPips, and highest allTime score
+  const olderCloud = createDefaultSaveData();
+  olderCloud.updatedAtEpochMs = 1_000_000;
+  olderCloud.unlocks.personas = ['adventurer_default', 'sunflower_bard'];
+  olderCloud.unlocks.personaAdPips = { sunflower_bard: 2, frost_alchemist: 1 };
+  olderCloud.bestScores.allTime = 9500;
+
+  const newerLocal = createDefaultSaveData();
+  newerLocal.updatedAtEpochMs = 2_000_000;
+  newerLocal.currencies.coins = 777;
+  newerLocal.unlocks.professions = ['warden', 'stormcaller'];
+  newerLocal.unlocks.personaAdPips = { frost_alchemist: 3 };
+  newerLocal.bestScores.allTime = 4200;
+
+  const { state: merged, source } = reconcileSaveData(
+    JSON.stringify(olderCloud),
+    JSON.stringify(newerLocal)
+  );
+  assert.equal(source, 'merged');
+  assert.equal(merged.currencies.coins, 777, 'Uses newer snapshot currencies');
+  assert.ok(merged.unlocks.personas.includes('sunflower_bard'), 'Preserves cloud unlocked personas');
+  assert.ok(merged.unlocks.professions.includes('stormcaller'), 'Preserves local unlocked professions');
+  assert.equal(merged.unlocks.personaAdPips.sunflower_bard, 2);
+  assert.equal(merged.unlocks.personaAdPips.frost_alchemist, 3);
+  assert.equal(merged.bestScores.allTime, 9500, 'Preserves highest all-time score across both storages');
+});
+
+

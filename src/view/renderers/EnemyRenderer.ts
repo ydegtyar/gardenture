@@ -350,9 +350,28 @@ export class EnemyRenderer {
         EnemyRenderer.drawPoisonDropIcon(g, ex, dropBaseY, cy, rPx, sim.elapsedSeconds, e.id);
       }
 
-      // Overhead HP Bar for damaged Elites / Specials / Mini-Boss
-      if ((e.isElite || e.isSpecial || e.isMiniBoss) && e.hp < e.maxHp && e.hp > 0) {
-        const bw = rPx * 2.1;
+      // Overhead HP Bar & Bestiary Sandbox Indicators (Infinite HP / Respawn on Death / Elites / Specials / Bosses)
+      if (e.isInfiniteHp) {
+        const bw = Math.max(28, rPx * 2.1);
+        const bh = 5;
+        const bx = ex - bw / 2;
+        const by = cy - rPx - 12;
+        g.rect(bx, by, bw, bh)
+          .fill({ color: PALETTE.DEEP_SLATE, alpha: 0.9 })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
+        g.rect(bx + 1, by + 1, bw - 2, bh - 2).fill({
+          color: PALETTE.GOLD_STAR,
+        });
+        // Infinity symbol (∞) above bar
+        const iy = by - 7;
+        g.circle(ex - 4, iy, 3.2).stroke({ color: PALETTE.GOLD_STAR, width: 1.8 });
+        g.circle(ex + 4, iy, 3.2).stroke({ color: PALETTE.GOLD_STAR, width: 1.8 });
+      } else if (
+        (e.isElite || e.isSpecial || e.isMiniBoss || e.respawnOnDeath) &&
+        e.hp < e.maxHp &&
+        e.hp > 0
+      ) {
+        const bw = Math.max(26, rPx * 2.1);
         const bh = 5;
         const bx = ex - bw / 2;
         const by = cy - rPx - 12;
@@ -360,7 +379,14 @@ export class EnemyRenderer {
           .fill({ color: PALETTE.DEEP_SLATE, alpha: 0.85 })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
         g.rect(bx + 1, by + 1, (bw - 2) * clamp(e.hp / e.maxHp, 0, 1), bh - 2).fill({
-          color: PALETTE.CRIMSON_WARN,
+          color: e.respawnOnDeath ? PALETTE.MINT_GREEN : PALETTE.CRIMSON_WARN,
+        });
+      }
+      if (e.respawnOnDeath) {
+        g.circle(ex, ey, rPx + 4).stroke({
+          color: PALETTE.MINT_GREEN,
+          width: 1.8,
+          alpha: 0.65,
         });
       }
     }

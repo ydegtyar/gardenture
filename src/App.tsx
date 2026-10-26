@@ -97,9 +97,28 @@ export default function App() {
   const [awaitingRevive, setAwaitingRevive] = useState(false);
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [runSummary, setRunSummary] = useState<RunSummarySnapshot | null>(null);
+  const [lastEndedRunRewards, setLastEndedRunRewards] = useState<{
+    coinsEarned: number;
+    gemsEarned: number;
+    score: number;
+    kills: number;
+    elapsedSeconds: number;
+  } | null>(null);
+  const exitToTitleAfterEndRunRef = useRef(false);
   const [userMuted, setUserMuted] = useState(false);
   const [debugMenuOpen, setDebugMenuOpen] = useState(false);
   const debugMenuOpenRef = useRef(false);
+  const [ytDiagnostics, setYtDiagnostics] = useState(() =>
+    platformRef.current.devStub.getDiagnostics()
+  );
+  const [ytSdkBanner, setYtSdkBanner] = useState<string | null>(null);
+
+  const refreshYtDiagnostics = useCallback((banner?: string | null) => {
+    setYtDiagnostics(platformRef.current.devStub.getDiagnostics());
+    if (banner !== undefined) {
+      setYtSdkBanner(banner);
+    }
+  }, []);
 
   const openDebugMenu = useCallback(() => {
     inputRef.current.clearAllIntents();
@@ -388,7 +407,7 @@ export default function App() {
           });
         }
 
-        setRunSummary({
+        const summarySnapshot: RunSummarySnapshot = {
           outcome: ev.outcome,
           score: ev.score,
           bestScore: Math.max(prevBest, ev.score),
@@ -403,8 +422,23 @@ export default function App() {
           doubleCoinsClaimed: false,
           dailyStreakDays: streakUpdate.streakDays,
           dailyStreakIncremented: streakUpdate.streakIncremented,
-        });
-        updateShellState('gameover');
+        };
+
+        if (exitToTitleAfterEndRunRef.current) {
+          exitToTitleAfterEndRunRef.current = false;
+          setLastEndedRunRewards({
+            coinsEarned: ev.coinsEarned,
+            gemsEarned: ev.gemsEarned,
+            score: ev.score,
+            kills: ev.kills,
+            elapsedSeconds: ev.elapsedSeconds,
+          });
+          setRunSummary(null);
+          updateShellState('title');
+        } else {
+          setRunSummary(summarySnapshot);
+          updateShellState('gameover');
+        }
       });
     },
     [syncHudFromSim, updateShellState]
@@ -456,6 +490,8 @@ export default function App() {
       simRef.current = sim;
       clockRef.current.reset();
       inputRef.current.clearAllIntents();
+      exitToTitleAfterEndRunRef.current = false;
+      setLastEndedRunRewards(null);
       setSanctuaryTab(null);
       setRunSummary(null);
       setAwaitingRevive(false);
@@ -541,6 +577,7 @@ export default function App() {
 
       // 3. Signal Game Ready [F]
       platform.lifecycle.notifyGameReady();
+      refreshYtDiagnostics();
 
       // Support ?autostart=1 (and optional ?autodraft=1 / ?biome=...) to jump directly to 'playing' / CardDraftModal
       const params = new URLSearchParams(window.location.search);
@@ -554,7 +591,12 @@ export default function App() {
         loadedSave.loadout.biomeId = biomeParam;
         saveDataRef.current = loadedSave;
         setSaveData({ ...loadedSave });
-        renderer.setPreferences({ biome: biomeParam });
+        renderer.setPreferences({
+          reducedMotion: loadedSave.settings.reducedMotion,
+          showDamageNumbers: loadedSave.settings.showDamageNumbers,
+          bloomIntensity: loadedSave.settings.bloomIntensity,
+          biome: biomeParam,
+        });
       }
       if (params.get('autostart') === '1') {
         startNewOrResumedRun(false);
@@ -674,7 +716,12 @@ export default function App() {
         }
 
         if (code === 'Escape' || code === 'KeyP') {
-          if (state === 'playing' && draftOffers.length === 0 && !awaitingRevive) {
+          if (
+            state === 'playing' &&
+            draftOffers.length === 0 &&
+            !awaitingRevive &&
+            (!sim || (sim.deathSequenceTimer <= 0 && sim.victorySequenceTimer <= 0))
+          ) {
             inputRef.current.clearAllIntents();
             if (sim) {
               saveDataRef.current.activeRun = sim.serializeCheckpoint();
@@ -877,6 +924,22 @@ export default function App() {
             >
               Drag to glide through the mystic garden, flick to dash through telegraphed swarms, draft 30 botanical synergies, and climb to Style Rank SSS.
             </p>
+
+            {lastEndedRunRewards && (
+              <div
+                data-testid="last-run-rewards-banner"
+                className="w-full max-w-md mb-3 px-4 py-2.5 rounded-xl bg-[#2B1F2D]/95 border-2 border-[#A8E6CF] text-xs font-bold text-[#FFFDF0] shadow-lg flex items-center justify-between gap-2"
+              >
+                <span className="text-[#A8E6CF] uppercase tracking-wider">Run Ended · Rewards</span>
+                <span className="font-mono-tabular text-[#FDFFB6] flex items-center gap-2">
+                  <span>+{lastEndedRunRewards.coinsEarned} Coins</span>
+                  <span>·</span>
+                  <span className="text-[#DED2F9]">+{lastEndedRunRewards.gemsEarned} Seeds</span>
+                  <span>·</span>
+                  <span>{lastEndedRunRewards.score.toLocaleString()} PTS</span>
+                </span>
+              </div>
+            )}
 
             {/* Primary Start CTA + Optional Mid-Run Eviction Resume */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md mb-3">
@@ -1090,11 +1153,14 @@ export default function App() {
                   aria-label="Pause Game [P]"
                   onClick={(e) => {
                     e.currentTarget.blur();
-                    if (shellStateRef.current === 'playing') {
+                    const sim = simRef.current;
+                    if (
+                      shellStateRef.current === 'playing' &&
+                      (!sim || (sim.deathSequenceTimer <= 0 && sim.victorySequenceTimer <= 0))
+                    ) {
                       inputRef.current.clearAllIntents();
-                      if (simRef.current) {
-                        saveDataRef.current.activeRun =
-                          simRef.current.serializeCheckpoint();
+                      if (sim) {
+                        saveDataRef.current.activeRun = sim.serializeCheckpoint();
                         void saveManagerRef.current.flushImmediate();
                       }
                       updateShellState('paused');
@@ -1254,7 +1320,11 @@ export default function App() {
           isAdLoading={isAdLoading}
           onWatchAdRevive={handleWatchAdRevive}
           onSpendCoinsRevive={handleSpendCoinsRevive}
-          onDeclineRevive={() => simRef.current?.declineReviveAndEndRun()}
+          onDeclineRevive={() => {
+            setAwaitingRevive(false);
+            clockRef.current.reset();
+            simRef.current?.declineReviveAndEndRun();
+          }}
         />
       )}
 
@@ -1282,7 +1352,19 @@ export default function App() {
           }}
           onRestart={() => startNewOrResumedRun(false)}
           onEndRunAndSummary={() => {
-            simRef.current?.declineReviveAndEndRun();
+            const sim = simRef.current;
+            if (!sim) return;
+            exitToTitleAfterEndRunRef.current = true;
+            inputRef.current.clearAllIntents();
+            clockRef.current.reset();
+            setAwaitingRevive(false);
+            setDraftOffers([]);
+            saveDataRef.current.activeRun = null;
+            setSaveData({ ...saveDataRef.current });
+            void saveManagerRef.current.flushImmediate();
+            sim.triggerSuddenDeath();
+            syncHudFromSim(sim, 'SUDDEN DEATH · ENDING RUN & CLAIMING REWARDS...');
+            updateShellState('playing');
           }}
           onReturnToTitle={() => updateShellState('title')}
           onOpenDebugCards={openDebugMenu}
@@ -1388,6 +1470,10 @@ export default function App() {
         <LoadoutAndStoreModal
           saveData={saveData}
           initialTab={sanctuaryTab}
+          ytDiagnostics={ytDiagnostics}
+          lastSyncSource={saveManagerRef.current.lastSyncSource}
+          statusBannerText={ytSdkBanner}
+          isAdLoading={isAdLoading}
           onClose={() => setSanctuaryTab(null)}
           onSelectLoadout={(partial) => {
             const sd = saveDataRef.current;
@@ -1403,7 +1489,7 @@ export default function App() {
               simRef.current.personaId = sd.loadout.personaId;
               simRef.current.professionId = sd.loadout.professionId;
             }
-            void saveManagerRef.current.flushImmediate();
+            void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
           }}
           onUnlockProfession={(profId: ProfessionId, cost: number) => {
             const sd = saveDataRef.current;
@@ -1415,7 +1501,7 @@ export default function App() {
             sd.loadout.professionId = profId;
             sd.loadout.startingWeaponId = PROFESSIONS[profId]?.startingWeaponId ?? 'garden_blade';
             setSaveData({ ...sd });
-            void saveManagerRef.current.flushImmediate();
+            void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
           }}
           onUnlockTrinket={(trinketId: string, cost: number) => {
             const sd = saveDataRef.current;
@@ -1425,7 +1511,7 @@ export default function App() {
               sd.unlocks.trinkets.push(trinketId);
             }
             setSaveData({ ...sd });
-            void saveManagerRef.current.flushImmediate();
+            void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
           }}
           onUnlockCurse={(curseId: string, cost: number) => {
             const sd = saveDataRef.current;
@@ -1435,13 +1521,18 @@ export default function App() {
               sd.unlocks.curses.push(curseId);
             }
             setSaveData({ ...sd });
-            void saveManagerRef.current.flushImmediate();
+            void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
           }}
           onWatchPersonaPipAd={async (personaId: string) => {
-            const earned = await platformRef.current.ads.requestRewardedAd(
-              'reward_persona_pip_v1'
-            );
-            if (!earned) return;
+            setIsAdLoading(true);
+            audioRef.current.setAdPlaying(true);
+            const earned = await platformRef.current.ads.requestRewardedAd('reward_persona_pip_v1');
+            audioRef.current.setAdPlaying(false);
+            setIsAdLoading(false);
+            if (!earned) {
+              refreshYtDiagnostics('Ad skipped or unavailable — no Persona pip awarded.');
+              return;
+            }
             saveManagerRef.current.recordAdWatched();
             const sd = saveDataRef.current;
             const currentPips = (sd.unlocks.personaAdPips[personaId] ?? 0) + 1;
@@ -1452,9 +1543,125 @@ export default function App() {
                 sd.unlocks.personas.push(personaId);
               }
               sd.loadout.personaId = personaId;
+              if (simRef.current) {
+                simRef.current.personaId = personaId;
+              }
             }
             setSaveData({ ...sd });
-            void saveManagerRef.current.flushImmediate();
+            await saveManagerRef.current.flushImmediate();
+            refreshYtDiagnostics(
+              `Rewarded Ad completed (${pDef?.name ?? personaId}: ${currentPips}/${pDef?.adPipsRequired ?? 1} watched ads).`
+            );
+          }}
+          onWatchSanctuaryRewardAd={async () => {
+            setIsAdLoading(true);
+            audioRef.current.setAdPlaying(true);
+            const earned = await platformRef.current.ads.requestRewardedAd(
+              'reward_sanctuary_grant_v1'
+            );
+            audioRef.current.setAdPlaying(false);
+            setIsAdLoading(false);
+            if (!earned) {
+              refreshYtDiagnostics('Ad skipped or unavailable — no Sanctuary reward granted.');
+              return;
+            }
+            const { coinsAdded, gemsAdded } =
+              saveManagerRef.current.claimSanctuaryAdReward(120, 2);
+            const sd = saveDataRef.current;
+            setSaveData({ ...sd });
+            await saveManagerRef.current.flushImmediate();
+            refreshYtDiagnostics(
+              `Ad Reward Granted: +${coinsAdded} Coins & +${gemsAdded} Rare Seeds saved to player state!`
+            );
+          }}
+          onIncrementPersonaAdPip={(personaId: string) => {
+            const sd = saveDataRef.current;
+            const currentPips = (sd.unlocks.personaAdPips[personaId] ?? 0) + 1;
+            sd.unlocks.personaAdPips[personaId] = currentPips;
+            const pDef = PERSONAS.find((p) => p.id === personaId);
+            if (pDef && currentPips >= pDef.adPipsRequired) {
+              if (!sd.unlocks.personas.includes(personaId)) {
+                sd.unlocks.personas.push(personaId);
+              }
+              sd.loadout.personaId = personaId;
+              if (simRef.current) {
+                simRef.current.personaId = personaId;
+              }
+            }
+            setSaveData({ ...sd });
+            void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
+          }}
+          onIncrementAllPersonaAdPips={() => {
+            const sd = saveDataRef.current;
+            for (const pDef of PERSONAS) {
+              if (pDef.adPipsRequired <= 0) continue;
+              const nextPips = (sd.unlocks.personaAdPips[pDef.id] ?? 0) + 1;
+              sd.unlocks.personaAdPips[pDef.id] = nextPips;
+              if (nextPips >= pDef.adPipsRequired && !sd.unlocks.personas.includes(pDef.id)) {
+                sd.unlocks.personas.push(pDef.id);
+              }
+            }
+            setSaveData({ ...sd });
+            void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
+          }}
+          onSavePlayerStateNow={async () => {
+            const ok = await saveManagerRef.current.flushImmediate();
+            const diag = platformRef.current.devStub.getDiagnostics();
+            setSaveData({ ...saveDataRef.current });
+            refreshYtDiagnostics(
+              ok
+                ? `Saved player state to YouTube Cloud & LocalStorage (${diag.lastSavedCloudBytes} B).`
+                : 'YouTube Cloud offline — player state saved to LocalStorage backup.'
+            );
+          }}
+          onReloadAndReconcileSave={async () => {
+            const reconciled = await saveManagerRef.current.loadAndReconcile();
+            saveDataRef.current = reconciled;
+            setSaveData({ ...reconciled });
+            if (simRef.current) {
+              simRef.current.personaId = reconciled.loadout.personaId;
+              simRef.current.professionId = reconciled.loadout.professionId;
+            }
+            refreshYtDiagnostics(
+              `Reconciled player state from ${saveManagerRef.current.lastSyncSource.toUpperCase()} storage.`
+            );
+          }}
+          onSetDevAdOutcomeMode={(mode) => {
+            platformRef.current.devStub.setAdOutcomeMode(mode);
+            refreshYtDiagnostics(`Dev Stub Ad Outcome set to: ${mode.toUpperCase()}`);
+          }}
+          onSetDevCloudStorageMode={(mode) => {
+            platformRef.current.devStub.setCloudStorageMode(mode);
+            refreshYtDiagnostics(`Dev Stub Cloud Storage set to: ${mode.toUpperCase()}`);
+          }}
+          onSimulateYtAudioToggle={() => {
+            const enabled = platformRef.current.devStub.simulateAudioToggle();
+            refreshYtDiagnostics(
+              `Simulated ytgame.system.onAudioEnabledChange(${enabled})`
+            );
+          }}
+          onSyncScoreNow={async () => {
+            const scoreToSend = Math.max(saveDataRef.current.bestScores.allTime, 1500);
+            const ok = await platformRef.current.engagement.sendScore(scoreToSend);
+            refreshYtDiagnostics(
+              ok
+                ? `Sent score ${scoreToSend.toLocaleString()} via ytgame.engagement.sendScore()`
+                : 'Score sync failed.'
+            );
+          }}
+          onSpawnBestiaryEnemy={(bestiaryKey, mode) => {
+            startNewOrResumedRun(false);
+            const sim = simRef.current;
+            if (!sim) return;
+            const spawned = sim.debugSpawnBestiaryEnemy(bestiaryKey, mode);
+            const unitName = spawned[0]?.name ?? bestiaryKey;
+            const modeLabel =
+              mode === 'infinite_hp'
+                ? '∞ Infinite Health'
+                : mode === 'swarm'
+                  ? `Swarm ×${spawned.length}`
+                  : 'Respawns After Death';
+            syncHudFromSim(sim, `BESTIARY SANDBOX · ${unitName} (${modeLabel})`);
           }}
           onClaimQuest={(questId: string) => {
             const sd = saveDataRef.current;

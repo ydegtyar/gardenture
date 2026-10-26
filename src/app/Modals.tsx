@@ -19,6 +19,11 @@ import {
 import type { PowerUpId, ProfessionId } from '../content/schema/types';
 import type { DraftOfferItem } from '../sim/systems/cardDraft';
 import { getDailyStreakHighlight, type SaveDataV1 } from '../meta/SaveManager';
+import type {
+  DevStubAdOutcomeMode,
+  DevStubStorageMode,
+  YtSdkDiagnosticsState,
+} from '../platform/ports/PlatformFacade';
 import {
   CATALOG_SPRITE_PROMPTS,
   getSpritePortraitDataUrl,
@@ -465,6 +470,7 @@ export function PauseModal({
           </button>
           <button
             type="button"
+            data-testid="pause-end-run-btn"
             onClick={onEndRunAndSummary}
             className="py-2.5 px-3 rounded-xl bg-[#FFAAA6] text-[#2D1E2F] font-bold text-xs sm:text-sm border-2 border-[#2D1E2F] hover:bg-[#f88b86] transition-colors whitespace-nowrap"
           >
@@ -661,30 +667,307 @@ export function RunSummaryModal({
 export function LoadoutAndStoreModal({
   saveData,
   initialTab,
+  ytDiagnostics,
+  lastSyncSource = 'default',
+  statusBannerText = null,
+  isAdLoading = false,
   onClose,
   onSelectLoadout,
   onUnlockProfession,
   onUnlockTrinket,
   onUnlockCurse,
   onWatchPersonaPipAd,
+  onWatchSanctuaryRewardAd,
+  onIncrementPersonaAdPip,
+  onIncrementAllPersonaAdPips,
+  onSavePlayerStateNow,
+  onReloadAndReconcileSave,
+  onSetDevAdOutcomeMode,
+  onSetDevCloudStorageMode,
+  onSimulateYtAudioToggle,
+  onSyncScoreNow,
+  onSpawnBestiaryEnemy,
   onClaimQuest,
   onAddDebugGold,
   onStartRun,
 }: {
   saveData: SaveDataV1;
   initialTab: 'loadout' | 'store' | 'quests' | 'bestiary';
+  ytDiagnostics?: YtSdkDiagnosticsState;
+  lastSyncSource?: 'cloud' | 'local' | 'merged' | 'default';
+  statusBannerText?: string | null;
+  isAdLoading?: boolean;
   onClose: () => void;
   onSelectLoadout: (partial: Partial<SaveDataV1['loadout']>) => void;
   onUnlockProfession: (profId: ProfessionId, cost: number) => void;
   onUnlockTrinket: (trinketId: string, cost: number) => void;
   onUnlockCurse: (curseId: string, cost: number) => void;
   onWatchPersonaPipAd: (personaId: string) => void;
+  onWatchSanctuaryRewardAd?: () => void;
+  onIncrementPersonaAdPip?: (personaId: string) => void;
+  onIncrementAllPersonaAdPips?: () => void;
+  onSavePlayerStateNow?: () => void;
+  onReloadAndReconcileSave?: () => void;
+  onSetDevAdOutcomeMode?: (mode: DevStubAdOutcomeMode) => void;
+  onSetDevCloudStorageMode?: (mode: DevStubStorageMode) => void;
+  onSimulateYtAudioToggle?: () => void;
+  onSyncScoreNow?: () => void;
+  onSpawnBestiaryEnemy?: (
+    bestiaryKey: string,
+    mode: 'infinite_hp' | 'swarm' | 'respawn_on_death'
+  ) => void;
   onClaimQuest: (questId: string) => void;
   onAddDebugGold: (amount: number) => void;
   onStartRun: () => void;
 }) {
   const [tab, setTab] = useState<'loadout' | 'store' | 'quests' | 'bestiary'>(initialTab);
+  const [activeDebugEnemyKey, setActiveDebugEnemyKey] = useState<string | null>(null);
   const { loadout, unlocks, currencies, retention } = saveData;
+
+  const renderYouTubeSdkPanel = () => {
+    if (!ytDiagnostics) return null;
+    const adMode = ytDiagnostics.adOutcomeMode;
+    const cloudMode = ytDiagnostics.cloudStorageMode;
+    return (
+      <div
+        data-testid="yt-sdk-panel"
+        className="p-3.5 rounded-xl bg-[#1E1520] border-2 border-[#A8E6CF]/45 space-y-3"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[#A8E6CF] uppercase tracking-wider">
+                YouTube Playables SDK · Ad Rewards, Cloud Save & Dev Stubs
+              </span>
+              <span
+                data-testid="yt-sdk-env-badge"
+                className={`px-2 py-0.5 rounded text-[10px] font-mono-tabular font-bold ${
+                  ytDiagnostics.isPlayablesEnv
+                    ? 'bg-[#A8E6CF] text-[#2D1E2F]'
+                    : 'bg-[#DED2F9] text-[#2D1E2F]'
+                }`}
+              >
+                {ytDiagnostics.isPlayablesEnv
+                  ? `YT Host (${ytDiagnostics.sdkVersion})`
+                  : `Dev Mode Stub (${ytDiagnostics.sdkVersion})`}
+              </span>
+            </div>
+            <div className="text-[11px] text-[#FFFDF0]/75 mt-0.5 font-mono-tabular">
+              Ads Today: {currencies.adWatchCountToday}/6 · Ad Tokens: {currencies.adTokensToday} · Cloud Payload: {ytDiagnostics.lastSavedCloudBytes} / 16,384 B · Sync: {lastSyncSource.toUpperCase()}
+              {ytDiagnostics.lastSubmittedScore !== null &&
+                ` · Synced Score: ${ytDiagnostics.lastSubmittedScore}`}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {onWatchSanctuaryRewardAd && (
+              <button
+                type="button"
+                data-testid="watch-sanctuary-reward-ad"
+                disabled={isAdLoading}
+                onClick={onWatchSanctuaryRewardAd}
+                className="px-3 py-1.5 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#fbbf24] disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                {isAdLoading ? 'Playing Ad...' : 'Watch Ad (+120 Coins & +2 Seeds)'}
+              </button>
+            )}
+            {onSavePlayerStateNow && (
+              <button
+                type="button"
+                data-testid="yt-sdk-save-now-btn"
+                onClick={onSavePlayerStateNow}
+                className="px-2.5 py-1.5 rounded-lg bg-[#A8E6CF] text-[#2D1E2F] text-xs font-extrabold border-2 border-[#2D1E2F] hover:bg-[#88D49E] transition-colors whitespace-nowrap"
+              >
+                Save Player State
+              </button>
+            )}
+            {onReloadAndReconcileSave && (
+              <button
+                type="button"
+                data-testid="yt-sdk-load-cloud-btn"
+                onClick={onReloadAndReconcileSave}
+                className="px-2.5 py-1.5 rounded-lg bg-[#3B2B3E] text-[#FFFDF0] text-xs font-bold border border-[#FFFDF0]/25 hover:bg-[#4D3851] transition-colors whitespace-nowrap"
+              >
+                Load & Reconcile Save
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Dev Mode Stub Controls */}
+        <div className="pt-2 border-t border-[#FFFDF0]/10 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[#DED2F9] font-bold">Ad Stub Mode:</span>
+            {(
+              [
+                ['grant', 'Grant Reward', 'yt-stub-ad-grant'],
+                ['skip', 'Skip Ad', 'yt-stub-ad-skip'],
+                ['error', 'Ad Error', 'yt-stub-ad-error'],
+              ] as const
+            ).map(([mode, label, testId]) => (
+              <button
+                key={mode}
+                type="button"
+                data-testid={testId}
+                onClick={() => onSetDevAdOutcomeMode?.(mode)}
+                className={`px-2 py-0.5 rounded font-bold transition-colors whitespace-nowrap ${
+                  adMode === mode
+                    ? 'bg-[#DED2F9] text-[#2D1E2F]'
+                    : 'bg-[#2B1F2D] text-[#FFFDF0]/75 hover:text-[#FFFDF0]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[#A8E6CF] font-bold">Cloud Save Stub:</span>
+            {(
+              [
+                ['synced', 'Cloud Synced', 'yt-stub-cloud-synced'],
+                ['offline', 'Offline (Fallback)', 'yt-stub-cloud-offline'],
+              ] as const
+            ).map(([mode, label, testId]) => (
+              <button
+                key={mode}
+                type="button"
+                data-testid={testId}
+                onClick={() => onSetDevCloudStorageMode?.(mode)}
+                className={`px-2 py-0.5 rounded font-bold transition-colors whitespace-nowrap ${
+                  cloudMode === mode
+                    ? 'bg-[#A8E6CF] text-[#2D1E2F]'
+                    : 'bg-[#2B1F2D] text-[#FFFDF0]/75 hover:text-[#FFFDF0]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            {onSimulateYtAudioToggle && (
+              <button
+                type="button"
+                data-testid="yt-stub-audio-toggle"
+                onClick={onSimulateYtAudioToggle}
+                className="px-2 py-0.5 rounded bg-[#2B1F2D] text-[#FDFFB6] font-bold hover:bg-[#3B2B3E] whitespace-nowrap"
+              >
+                YT Audio: {ytDiagnostics.simulatedAudioEnabled ? 'ON' : 'MUTED'}
+              </button>
+            )}
+            {onSyncScoreNow && (
+              <button
+                type="button"
+                data-testid="yt-stub-sync-score"
+                onClick={onSyncScoreNow}
+                className="px-2 py-0.5 rounded bg-[#2B1F2D] text-[#A8E6CF] font-bold hover:bg-[#3B2B3E] whitespace-nowrap"
+              >
+                Send Score
+              </button>
+            )}
+          </div>
+        </div>
+
+        {statusBannerText && (
+          <div
+            data-testid="yt-sdk-status-banner"
+            className="px-3 py-1.5 rounded-lg bg-[#2B1F2D] border border-[#FDFFB6]/50 text-[11px] font-mono-tabular font-bold text-[#FDFFB6]"
+          >
+            {statusBannerText}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderHeroPersonasSection = (sectionNumberLabel?: string) => (
+    <div className="pt-2 border-t border-[#FFFDF0]/10">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+        <h3 className="text-xs font-bold tracking-wider text-[#DED2F9]">
+          {sectionNumberLabel ? `${sectionNumberLabel} ` : ''}HERO PERSONAS (COSMETIC TRAVELERS)
+        </h3>
+        {onIncrementAllPersonaAdPips && (
+          <button
+            type="button"
+            data-testid="debug-persona-ad-all"
+            onClick={onIncrementAllPersonaAdPips}
+            className="px-2.5 py-1 rounded-lg bg-[#DED2F9] text-[#2D1E2F] text-[11px] font-extrabold border-2 border-[#2D1E2F] hover:bg-[#c4b5fd] transition-colors whitespace-nowrap"
+          >
+            +1 Watched Ad (All Personas)
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {PERSONAS.map((persona) => {
+          const unlocked = unlocks.personas.includes(persona.id);
+          const selected = loadout.personaId === persona.id;
+          const pips = unlocks.personaAdPips[persona.id] ?? 0;
+          const cloakHex = `#${persona.cloakColor.toString(16).padStart(6, '0')}`;
+          const accentHex = `#${persona.accentColor.toString(16).padStart(6, '0')}`;
+          return (
+            <div
+              key={persona.id}
+              data-testid={`persona-card-${persona.id}`}
+              className={`p-3.5 rounded-xl border-2 flex items-center justify-between gap-3 ${
+                selected
+                  ? 'bg-[#36493E] border-[#A8E6CF]'
+                  : 'bg-[#1E1520] border-[#FFFDF0]/15'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="relative w-9 h-9 rounded-full border-2 border-[#2D1E2F] shrink-0 flex items-center justify-center shadow-inner" style={{ backgroundColor: cloakHex }}>
+                  <span className="w-3.5 h-3.5 rounded-full border border-[#2D1E2F]" style={{ backgroundColor: accentHex }} />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold text-sm truncate">{persona.name}</div>
+                  <div className="text-xs text-[#FFFDF0]/70 truncate">{persona.subtitle}</div>
+                  {!unlocked && persona.adPipsRequired > 0 && (
+                    <div className="text-[10px] font-mono-tabular text-[#DED2F9] mt-0.5">
+                      Watched Ads: {pips} / {persona.adPipsRequired}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {unlocked ? (
+                <button
+                  type="button"
+                  data-testid={`wear-persona-${persona.id}`}
+                  onClick={() => onSelectLoadout({ personaId: persona.id })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 ${
+                    selected
+                      ? 'bg-[#A8E6CF] text-[#2D1E2F]'
+                      : 'bg-[#3B2B3E] text-[#FFFDF0] hover:bg-[#4D3851]'
+                  }`}
+                >
+                  {selected ? 'Wearing' : 'Wear'}
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    data-testid={`watch-persona-ad-${persona.id}`}
+                    onClick={() => onWatchPersonaPipAd(persona.id)}
+                    className="px-2.5 py-1.5 rounded-lg bg-[#DED2F9] text-[#2D1E2F] text-xs font-bold hover:bg-[#c4b5fd] transition-colors whitespace-nowrap"
+                  >
+                    Watch Ad ({pips}/{persona.adPipsRequired})
+                  </button>
+                  {onIncrementPersonaAdPip && (
+                    <button
+                      type="button"
+                      data-testid={`debug-persona-ad-${persona.id}`}
+                      onClick={() => onIncrementPersonaAdPip(persona.id)}
+                      className="px-2 py-1.5 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-xs font-extrabold border border-[#2D1E2F] hover:bg-[#fbbf24] transition-colors whitespace-nowrap"
+                      title="Increase watched ad count to unlock persona"
+                    >
+                      +1 Ad
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -705,6 +988,7 @@ export function LoadoutAndStoreModal({
                 <button
                   key={t}
                   type="button"
+                  data-testid={`sanctuary-tab-${t}`}
                   onClick={() => setTab(t)}
                   className={`px-3 py-1 rounded-md text-xs font-bold capitalize transition-colors whitespace-nowrap ${
                     tab === t
@@ -835,11 +1119,15 @@ export function LoadoutAndStoreModal({
                 </div>
               </div>
 
+              {renderHeroPersonasSection('02.')}
+
+              {renderYouTubeSdkPanel()}
+
               {/* Biome & Daily Seed Toggle */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#FFFDF0]/10">
                 <div>
                   <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF] mb-2">
-                    02. BIOME THEME PACK
+                    03. BIOME THEME PACK
                   </h3>
                   <div className="grid grid-cols-2 gap-2 min-w-0">
                     {(['garden', 'dungeon', 'sakura_grove', 'sunlit_oasis'] as const).map((bId) => {
@@ -869,7 +1157,7 @@ export function LoadoutAndStoreModal({
 
                 <div>
                   <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF] mb-2">
-                    03. RUN SEED MODE
+                    04. RUN SEED MODE
                   </h3>
                   <button
                     type="button"
@@ -899,6 +1187,8 @@ export function LoadoutAndStoreModal({
 
           {tab === 'store' && (
             <div className="space-y-5">
+              {renderYouTubeSdkPanel()}
+
               <div className="p-3.5 rounded-xl bg-[#1E1520] border-2 border-[#FDFFB6]/40 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-bold text-[#FDFFB6]">Store Debug Treasury</div>
@@ -915,6 +1205,8 @@ export function LoadoutAndStoreModal({
                   +100 Gold
                 </button>
               </div>
+
+              {renderHeroPersonasSection()}
 
               <div>
                 <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF] mb-2.5">
@@ -1020,50 +1312,7 @@ export function LoadoutAndStoreModal({
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-xs font-bold tracking-wider text-[#DED2F9] mb-2.5">
-                  HERO PERSONAS (COSMETICTRAVELERS)
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {PERSONAS.map((persona) => {
-                    const unlocked = unlocks.personas.includes(persona.id);
-                    const selected = loadout.personaId === persona.id;
-                    const pips = unlocks.personaAdPips[persona.id] ?? 0;
-                    return (
-                      <div
-                        key={persona.id}
-                        className="p-3.5 rounded-xl bg-[#1E1520] border border-[#FFFDF0]/15 flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="font-bold text-sm">{persona.name}</div>
-                          <div className="text-xs text-[#FFFDF0]/70">{persona.subtitle}</div>
-                        </div>
-                        {unlocked ? (
-                          <button
-                            type="button"
-                            onClick={() => onSelectLoadout({ personaId: persona.id })}
-                            className={`px-3 py-1 rounded-lg text-xs font-bold ${
-                              selected
-                                ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                                : 'bg-[#3B2B3E] text-[#FFFDF0]'
-                            }`}
-                          >
-                            {selected ? 'Wearing' : 'Wear'}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => onWatchPersonaPipAd(persona.id)}
-                            className="px-3 py-1 rounded-lg bg-[#DED2F9] text-[#2D1E2F] text-xs font-bold whitespace-nowrap"
-                          >
-                            Watch Ad ({pips}/{persona.adPipsRequired})
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              {renderHeroPersonasSection()}
             </div>
           )}
 
@@ -1102,8 +1351,127 @@ export function LoadoutAndStoreModal({
           {tab === 'bestiary' && (
             <div className="space-y-6">
               <div>
+                <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF] mb-1">
+                  01. CHARACTER & ENEMY SPRITE CODEX (WITH ARENA DEBUG SPAWNER)
+                </h3>
+                <p className="text-xs text-[#FFFDF0]/75 mb-3">
+                  Use the Debug controls near any enemy to spawn them on the arena with the hero with Infinite HP, as a Swarm, or as a Single target that respawns after death.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(
+                    [
+                      ['enemy_chaser_norm', 'Chaser · Thorn-Vine Swarmer (6.1)'],
+                      ['enemy_dasher_norm', 'Dasher · Briar Charger (6.2)'],
+                      ['enemy_spitter_norm', 'Spitter · Spore Pitcher (6.3)'],
+                      ['enemy_brute_norm', 'Brute · Moss Golem (6.4)'],
+                      ['enemy_splitter_norm', 'Splitter · Bulb Mitotic (6.5)'],
+                      ['enemy_shielded_norm', 'Shielded · Bark Sentinel (6.6)'],
+                      ['special_golden_beast', 'Golden Beast · Special (6.8)'],
+                      ['special_bloom_giant', 'Bloom Giant · Special (6.9)'],
+                      ['special_brood_mother', 'Brood Mother · Special (6.10)'],
+                      ['special_mirror_wisp', 'Mirror Wisp · Special (6.11)'],
+                      ['boss_moss_colossus', 'Ancient Moss Colossus · Mini-Boss (6.12)'],
+                      ['boss_thornheart_p1', 'Primordial Thornheart · Phase 1 (6.13)'],
+                      ['boss_thornheart_p2', 'Frenzied Bloom · Phase 2 (6.14)'],
+                      ['boss_thornheart_p3', 'Apex Briar Overlord · Phase 3 (6.15)'],
+                      ['hero_warden', 'Warden Profession (2.2)'],
+                      ['hero_seeker', 'Seeker Profession (2.3)'],
+                      ['hero_herbalist', 'Herbalist Profession (2.4)'],
+                      ['hero_stormcaller', 'Stormcaller Profession (2.5)'],
+                    ] as ReadonlyArray<readonly [SpriteKey, string]>
+                  ).map(([key, label]) => {
+                    const url = getSpritePortraitDataUrl(key);
+                    const isEnemyEntry = !key.startsWith('hero_');
+                    const isDebugHighlighted = activeDebugEnemyKey === key;
+                    return (
+                      <div
+                        key={key}
+                        data-testid={`bestiary-card-${key}`}
+                        className={`p-3 rounded-xl bg-[#1E1520] border flex flex-col justify-between gap-2.5 transition-colors ${
+                          isDebugHighlighted
+                            ? 'border-[#FDFFB6]'
+                            : 'border-[#FFFDF0]/15'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {url && (
+                            <img
+                              src={url}
+                              alt={label}
+                              referrerPolicy="no-referrer"
+                              className="w-16 h-16 rounded-xl bg-[#2B1F2D] border-2 border-[#2D1E2F] shrink-0 object-contain p-1"
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1.5 mb-1">
+                              <div className="text-xs font-bold text-[#FDFFB6] truncate">
+                                {label}
+                              </div>
+                              {isEnemyEntry && (
+                                <button
+                                  type="button"
+                                  data-testid={`bestiary-debug-btn-${key}`}
+                                  onClick={() =>
+                                    setActiveDebugEnemyKey((prev) => (prev === key ? null : key))
+                                  }
+                                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold border transition-colors shrink-0 ${
+                                    isDebugHighlighted
+                                      ? 'bg-[#FDFFB6] text-[#2D1E2F] border-[#2D1E2F]'
+                                      : 'bg-[#2B1F2D] text-[#FDFFB6] border-[#FDFFB6]/50 hover:bg-[#3B2B3E]'
+                                  }`}
+                                >
+                                  Debug
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[#FFFDF0]/75 leading-snug">
+                              {CATALOG_SPRITE_PROMPTS[key]}
+                            </p>
+                          </div>
+                        </div>
+
+                        {isEnemyEntry && onSpawnBestiaryEnemy && (
+                          <div
+                            data-testid={`bestiary-debug-controls-${key}`}
+                            className={`pt-2 border-t border-[#FFFDF0]/10 flex flex-wrap items-center gap-1.5 ${
+                              isDebugHighlighted ? 'bg-[#2B1F2D]/60 -mx-1 px-1.5 pb-1 rounded-lg' : ''
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              data-testid={`bestiary-spawn-infinite-${key}`}
+                              onClick={() => onSpawnBestiaryEnemy(key, 'infinite_hp')}
+                              className="flex-1 py-1 px-2 rounded-lg bg-[#FDFFB6] text-[#2D1E2F] text-[10px] font-extrabold border border-[#2D1E2F] hover:bg-[#fbbf24] transition-colors whitespace-nowrap"
+                            >
+                              ∞ Infinite HP
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`bestiary-spawn-swarm-${key}`}
+                              onClick={() => onSpawnBestiaryEnemy(key, 'swarm')}
+                              className="flex-1 py-1 px-2 rounded-lg bg-[#FFAAA6] text-[#2D1E2F] text-[10px] font-extrabold border border-[#2D1E2F] hover:bg-[#f88b86] transition-colors whitespace-nowrap"
+                            >
+                              Spawn Lot (Swarm)
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`bestiary-spawn-respawn-${key}`}
+                              onClick={() => onSpawnBestiaryEnemy(key, 'respawn_on_death')}
+                              className="flex-1 py-1 px-2 rounded-lg bg-[#A8E6CF] text-[#2D1E2F] text-[10px] font-extrabold border border-[#2D1E2F] hover:bg-[#88D49E] transition-colors whitespace-nowrap"
+                            >
+                              1× Respawn on Death
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-[#FFFDF0]/15">
                 <h3 className="text-xs font-bold tracking-wider text-[#FDFFB6] mb-1">
-                  01. BOTANICAL TAROT DECK (30 ARCANA BLESSINGS & 6 WEAPONS)
+                  02. BOTANICAL TAROT DECK (30 ARCANA BLESSINGS & 6 WEAPONS)
                 </h3>
                 <p className="text-xs text-[#FFFDF0]/75 mb-3">
                   Each blessing card is illustrated as an antique botanical Tarot card depicting its core power.
@@ -1150,62 +1518,6 @@ export function LoadoutAndStoreModal({
                   })}
                 </div>
               </div>
-
-              <div className="pt-4 border-t border-[#FFFDF0]/15">
-                <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF] mb-1">
-                  02. CHARACTER & ENEMY SPRITE CODEX (WITH ARTICULATED WALK CYCLES)
-                </h3>
-                <p className="text-xs text-[#FFFDF0]/75 mb-3">
-                  24 top-down 3/4 cel-shaded cartoon sprites with bold dark plum outlines (#2D1E2F) and real-time articulated foot & leg movement animations.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {(
-                    [
-                      ['hero_warden', 'Warden Profession (2.2)'],
-                      ['hero_seeker', 'Seeker Profession (2.3)'],
-                      ['hero_herbalist', 'Herbalist Profession (2.4)'],
-                      ['hero_stormcaller', 'Stormcaller Profession (2.5)'],
-                      ['enemy_chaser_norm', 'Chaser · Thorn-Vine Swarmer (6.1)'],
-                      ['enemy_dasher_norm', 'Dasher · Briar Charger (6.2)'],
-                      ['enemy_spitter_norm', 'Spitter · Spore Pitcher (6.3)'],
-                      ['enemy_brute_norm', 'Brute · Moss Golem (6.4)'],
-                      ['enemy_splitter_norm', 'Splitter · Bulb Mitotic (6.5)'],
-                      ['enemy_shielded_norm', 'Shielded · Bark Sentinel (6.6)'],
-                      ['special_golden_beast', 'Golden Beast · Special (6.8)'],
-                      ['special_bloom_giant', 'Bloom Giant · Special (6.9)'],
-                      ['special_brood_mother', 'Brood Mother · Special (6.10)'],
-                      ['special_mirror_wisp', 'Mirror Wisp · Special (6.11)'],
-                      ['boss_moss_colossus', 'Ancient Moss Colossus · Mini-Boss (6.12)'],
-                      ['boss_thornheart_p1', 'Primordial Thornheart · Phase 1 (6.13)'],
-                      ['boss_thornheart_p2', 'Frenzied Bloom · Phase 2 (6.14)'],
-                      ['boss_thornheart_p3', 'Apex Briar Overlord · Phase 3 (6.15)'],
-                    ] as ReadonlyArray<readonly [SpriteKey, string]>
-                  ).map(([key, label]) => {
-                    const url = getSpritePortraitDataUrl(key);
-                    return (
-                      <div
-                        key={key}
-                        className="p-3 rounded-xl bg-[#1E1520] border border-[#FFFDF0]/15 flex items-start gap-3"
-                      >
-                        {url && (
-                          <img
-                            src={url}
-                            alt={label}
-                            referrerPolicy="no-referrer"
-                            className="w-16 h-16 rounded-xl bg-[#2B1F2D] border-2 border-[#2D1E2F] shrink-0 object-contain p-1"
-                          />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-bold text-[#FDFFB6] mb-1">{label}</div>
-                          <p className="text-[11px] text-[#FFFDF0]/75 leading-snug">
-                            {CATALOG_SPRITE_PROMPTS[key]}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -1213,7 +1525,7 @@ export function LoadoutAndStoreModal({
         {/* Footer Start CTA */}
         <div className="px-6 py-4 bg-[#1E1520] border-t border-[#FFFDF0]/10 flex items-center justify-between">
           <span className="text-xs text-[#FFFDF0]/75">
-            Active: {PROFESSIONS[loadout.professionId]?.name} · {THEME_PACKS[loadout.biomeId].name}
+            Active: {PROFESSIONS[loadout.professionId]?.name} · {PERSONAS.find((p) => p.id === loadout.personaId)?.name ?? 'Seedling Wanderer'} · {THEME_PACKS[loadout.biomeId].name}
           </span>
           <button
             type="button"

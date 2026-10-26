@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { PALETTE, PROFESSIONS, WEAPONS } from '../../content/data/catalog';
+import { PALETTE, PERSONAS, PROFESSIONS, WEAPONS } from '../../content/data/catalog';
 import { clamp, lerp } from '../../core/math/vec2';
 import type { Simulation } from '../../sim/Simulation';
 import { PPU } from './EnvironmentRenderer';
@@ -134,18 +134,23 @@ export class HeroRenderer {
       });
     }
 
+    const customPersona =
+      sim.personaId && sim.personaId !== 'adventurer_default'
+        ? PERSONAS.find((p) => p.id === sim.personaId)
+        : undefined;
+
     const bodyColor =
       sim.hitFlashTimer > 0
         ? PALETTE.CREAM_WHITE
         : isDashInvisible
           ? PALETTE.SKY_BLUE
-          : prof.primaryColor;
+          : (customPersona?.cloakColor ?? prof.primaryColor);
     const accentColor =
       sim.hitFlashTimer > 0
         ? PALETTE.CREAM_WHITE
         : isDashInvisible
           ? PALETTE.CREAM_WHITE
-          : prof.accentColor;
+          : (customPersona?.accentColor ?? prof.accentColor);
 
     // Animated legs beneath torso
     if (!isDyingSequence) {

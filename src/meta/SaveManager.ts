@@ -286,8 +286,169 @@ export function createDefaultSaveData(): SaveDataV1 {
   };
 }
 
+export function parseSavePayload(raw: string): SaveDataV1 | null {
+  if (!raw || raw.trim().length < 2) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<SaveDataV1>;
+    if (!parsed || parsed.schemaVersion !== 1) return null;
+    const defaults = createDefaultSaveData();
+    return {
+      ...defaults,
+      ...parsed,
+      currencies: { ...defaults.currencies, ...parsed.currencies },
+      unlocks: {
+        ...defaults.unlocks,
+        ...parsed.unlocks,
+        maxDifficultyTierByBiome: {
+          ...defaults.unlocks.maxDifficultyTierByBiome,
+          ...(parsed.unlocks?.maxDifficultyTierByBiome ?? {}),
+        },
+        personaAdPips: {
+          ...defaults.unlocks.personaAdPips,
+          ...(parsed.unlocks?.personaAdPips ?? {}),
+        },
+      },
+      loadout: { ...defaults.loadout, ...parsed.loadout },
+      bestScores: {
+        ...defaults.bestScores,
+        ...parsed.bestScores,
+        dailyBest: {
+          ...defaults.bestScores.dailyBest,
+          ...(parsed.bestScores?.dailyBest ?? {}),
+        },
+      },
+      retention: { ...defaults.retention, ...parsed.retention },
+      settings: { ...defaults.settings, ...parsed.settings },
+    };
+  } catch {
+    return null;
+  }
+}
+
+function mergeUniqueStrings<T extends string>(a: readonly T[], b: readonly T[]): T[] {
+  return Array.from(new Set([...a, ...b]));
+}
+
+/**
+ * Deterministic Dual-Storage Reconciliation between YouTube Playables Cloud Save (`ytgame.game.loadData`)
+ * and LocalStorage backup (`swipe_roguelite_save_v1`).
+ * - Selects the snapshot with the newer `updatedAtEpochMs` as the primary state.
+ * - Merges all permanent unlocks (`personas`, `professions`, `weapons`, `trinkets`, `curses`),
+ *   highest `personaAdPips` per persona, and highest `bestScores.allTime` so progress is never lost.
+ */
+export function reconcileSaveData(
+  cloudRaw: string,
+  localRaw: string
+): { state: SaveDataV1; source: 'cloud' | 'local' | 'merged' | 'default' } {
+  const cloudState = parseSavePayload(cloudRaw);
+  const localState = parseSavePayload(localRaw);
+
+  let resolved: SaveDataV1;
+  let source: 'cloud' | 'local' | 'merged' | 'default';
+
+  if (cloudState && localState) {
+    const primary =
+      cloudState.updatedAtEpochMs >= localState.updatedAtEpochMs ? cloudState : localState;
+    const secondary = primary === cloudState ? localState : cloudState;
+
+    const mergedPips: Record<string, number> = {
+      ...secondary.unlocks.personaAdPips,
+      ...primary.unlocks.personaAdPips,
+    };
+    for (const [k, v] of Object.entries(secondary.unlocks.personaAdPips)) {
+      mergedPips[k] = Math.max(mergedPips[k] ?? 0, v ?? 0);
+    }
+
+    const mergedTierByBiome: Record<string, number> = {
+      ...secondary.unlocks.maxDifficultyTierByBiome,
+      ...primary.unlocks.maxDifficultyTierByBiome,
+    };
+    for (const [k, v] of Object.entries(secondary.unlocks.maxDifficultyTierByBiome)) {
+      mergedTierByBiome[k] = Math.max(mergedTierByBiome[k] ?? 1, v ?? 1);
+    }
+
+    const bestAllTime = Math.max(
+      primary.bestScores.allTime,
+      secondary.bestScores.allTime
+    );
+
+    resolved = {
+      ...primary,
+      updatedAtEpochMs: Math.max(primary.updatedAtEpochMs, secondary.updatedAtEpochMs),
+      currencies: {
+        ...primary.currencies,
+        coins:
+          primary.updatedAtEpochMs === secondary.updatedAtEpochMs
+            ? Math.max(primary.currencies.coins, secondary.currencies.coins)
+            : primary.currencies.coins,
+        gems:
+          primary.updatedAtEpochMs === secondary.updatedAtEpochMs
+            ? Math.max(primary.currencies.gems, secondary.currencies.gems)
+            : primary.currencies.gems,
+        adTokensToday: Math.max(
+          primary.currencies.adTokensToday,
+          secondary.currencies.adTokensToday
+        ),
+      },
+      unlocks: {
+        personas: mergeUniqueStrings(primary.unlocks.personas, secondary.unlocks.personas),
+        professions: mergeUniqueStrings(
+          primary.unlocks.professions,
+          secondary.unlocks.professions
+        ),
+        weapons: mergeUniqueStrings(primary.unlocks.weapons, secondary.unlocks.weapons),
+        trinkets: mergeUniqueStrings(primary.unlocks.trinkets, secondary.unlocks.trinkets),
+        curses: mergeUniqueStrings(primary.unlocks.curses, secondary.unlocks.curses),
+        maxDifficultyTierByBiome: mergedTierByBiome,
+        personaAdPips: mergedPips,
+      },
+      bestScores: {
+        ...primary.bestScores,
+        allTime: bestAllTime,
+        unsynced: primary.bestScores.unsynced || secondary.bestScores.unsynced,
+      },
+      retention: {
+        ...primary.retention,
+        totalRunsCompleted: Math.max(
+          primary.retention.totalRunsCompleted,
+          secondary.retention.totalRunsCompleted
+        ),
+        streakDays: Math.max(
+          primary.retention.streakDays,
+          secondary.retention.streakDays
+        ),
+        achievementsUnlocked: mergeUniqueStrings(
+          primary.retention.achievementsUnlocked,
+          secondary.retention.achievementsUnlocked
+        ),
+      },
+    };
+    source = 'merged';
+  } else if (cloudState) {
+    resolved = cloudState;
+    source = 'cloud';
+  } else if (localState) {
+    resolved = localState;
+    source = 'local';
+  } else {
+    resolved = createDefaultSaveData();
+    source = 'default';
+  }
+
+  // Reset daily ad counters if UTC date rolled over
+  const today = getCurrentUtcDateKey();
+  if (resolved.currencies.lastAdResetUtcDate !== today) {
+    resolved.currencies.adWatchCountToday = 0;
+    resolved.currencies.lastAdResetUtcDate = today;
+  }
+
+  return { state: resolved, source };
+}
+
 export class SaveManager {
   private state: SaveDataV1 = createDefaultSaveData();
+  public lastSyncSource: 'cloud' | 'local' | 'merged' | 'default' = 'default';
+  public lastSaveSucceeded = true;
 
   constructor(private readonly platform: PlatformFacade) {}
 
@@ -295,33 +456,29 @@ export class SaveManager {
     return this.state;
   }
 
+  public setState(nextState: SaveDataV1): void {
+    this.state = nextState;
+  }
+
   public async loadAndReconcile(): Promise<SaveDataV1> {
-    const raw = await this.platform.storage.loadRaw();
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as Partial<SaveDataV1>;
-        if (parsed && parsed.schemaVersion === 1) {
-          this.state = {
-            ...createDefaultSaveData(),
-            ...parsed,
-            currencies: { ...createDefaultSaveData().currencies, ...parsed.currencies },
-            unlocks: { ...createDefaultSaveData().unlocks, ...parsed.unlocks },
-            loadout: { ...createDefaultSaveData().loadout, ...parsed.loadout },
-            bestScores: { ...createDefaultSaveData().bestScores, ...parsed.bestScores },
-            retention: { ...createDefaultSaveData().retention, ...parsed.retention },
-            settings: { ...createDefaultSaveData().settings, ...parsed.settings },
-          };
-        }
-      } catch {
-        this.platform.health.logWarning();
-      }
+    const cloudRaw = await this.platform.storage.loadCloudRaw();
+    const localRaw = this.platform.storage.loadLocalBackupRaw();
+    const { state, source } = reconcileSaveData(cloudRaw, localRaw);
+    this.state = state;
+    this.lastSyncSource = source;
+
+    // If reconciled from local or merged, flush back so cloud & local match
+    if (source === 'local' || source === 'merged') {
+      await this.flushImmediate();
     }
 
-    // Reset daily ad counters if UTC date rolled over
-    const today = getCurrentUtcDateKey();
-    if (this.state.currencies.lastAdResetUtcDate !== today) {
-      this.state.currencies.adWatchCountToday = 0;
-      this.state.currencies.lastAdResetUtcDate = today;
+    // Retry syncing any unsynced high score to YouTube Playables engagement API
+    if (this.state.bestScores.unsynced && this.state.bestScores.allTime > 0) {
+      const ok = await this.platform.engagement.sendScore(this.state.bestScores.allTime);
+      if (ok) {
+        this.state.bestScores.unsynced = false;
+        await this.flushImmediate();
+      }
     }
 
     return this.state;
@@ -330,7 +487,9 @@ export class SaveManager {
   public async flushImmediate(): Promise<boolean> {
     this.state.updatedAtEpochMs = Date.now();
     const serialized = JSON.stringify(this.state);
-    return this.platform.storage.saveRaw(serialized);
+    const ok = await this.platform.storage.saveRaw(serialized);
+    this.lastSaveSucceeded = ok;
+    return ok;
   }
 
   public recordAdWatched(): void {
@@ -338,7 +497,19 @@ export class SaveManager {
     this.state.currencies.adTokensToday++;
   }
 
+  public claimSanctuaryAdReward(rewardCoins = 120, rewardGems = 2): {
+    coinsAdded: number;
+    gemsAdded: number;
+  } {
+    this.recordAdWatched();
+    this.state.currencies.coins += rewardCoins;
+    this.state.currencies.gems += rewardGems;
+    this.state.updatedAtEpochMs = Date.now();
+    return { coinsAdded: rewardCoins, gemsAdded: rewardGems };
+  }
+
   public canWatchRewardedAd(): boolean {
     return this.state.currencies.adWatchCountToday < 6;
   }
 }
+

@@ -76,6 +76,9 @@ export interface SimEnemy {
   isFinalBoss: boolean;
   isArenaFlower?: boolean;
   isHeroGrave?: boolean;
+  isInfiniteHp?: boolean;
+  respawnOnDeath?: boolean;
+  bestiaryKey?: string;
   bossAttackMode?: 'sunflower_charge' | 'sunflower_seed_volley' | 'sunflower_leaf_spiral';
   bossPhase: 1 | 2 | 3;
 
@@ -99,6 +102,8 @@ export interface SimEnemy {
   stormMarkTimer: number; // > 0 when marked with storm debuff from lightning
   koTimer: number; // > 0 when dying in brief KO topple
 }
+
+export type BestiaryEnemySpawnMode = 'infinite_hp' | 'swarm' | 'respawn_on_death';
 
 export interface SimProjectile {
   id: number;
@@ -913,13 +918,74 @@ export class Simulation {
     }
   }
 
-  public declineReviveAndEndRun(): void {
+  /**
+   * Forces immediate Sudden Death on the hero (e.g. when clicking End Run from Pause or declining revive),
+   * bypassing all extra lives (Second Wind, Rescue Revive, Shield HP, and Invulnerability),
+   * leaving a Hero Grave at the hero's position before concluding the run and awarding rewards.
+   */
+  public triggerSuddenDeath(): void {
+    if (this.runEnded || this.deathSequenceTimer > 0) return;
+    this.secondWindUsed = true;
+    this.reviveUsed = true;
     this.awaitingReviveDecision = false;
+    this.pendingCardOffers = [];
+    this.shieldHp = 0;
+    this.shieldTimer = 0;
+    this.invulnTimer = 0;
+    this.dashIframeTimer = 0;
+    this.cardPickInvisTimer = 0;
+    this.dashTimer = 0;
+    this.heroVx = 0;
+    this.heroVy = 0;
+    this.currentHp = 0;
+    this.hitFlashTimer = 0.28;
+
+    this.visualEffects.push({
+      id: this.nextEntityId++,
+      kind: 'circle_blast',
+      x: this.heroX,
+      y: this.heroY,
+      targetX: this.heroX,
+      targetY: this.heroY,
+      angle: 0,
+      radius: 2.2,
+      arcRad: Math.PI * 2,
+      color: PALETTE.CRIMSON_WARN,
+      timer: 0.45,
+      maxTimer: 0.45,
+    });
+
+    this.events.emit('HeroHit', {
+      x: this.heroX,
+      y: this.heroY,
+      damage: this.maxHp,
+      currentHp: 0,
+      maxHp: this.maxHp,
+      shieldAbsorbed: false,
+    });
+
+    this.events.emit('FloatingText', {
+      x: this.heroX,
+      y: this.heroY - 0.75,
+      text: 'SUDDEN DEATH!',
+      color: PALETTE.CRIMSON_WARN,
+      scale: 1.35,
+    });
+
     this.startDefeatSequence();
+  }
+
+  public declineReviveAndEndRun(): void {
+    this.triggerSuddenDeath();
   }
 
   public startDefeatSequence(): void {
     if (this.runEnded || this.deathSequenceTimer > 0) return;
+    this.secondWindUsed = true;
+    this.reviveUsed = true;
+    this.awaitingReviveDecision = false;
+    this.pendingCardOffers = [];
+    this.shieldHp = 0;
     this.currentHp = 0;
     this.deathSequenceTimer = 1.65;
     const hasNearbyGrave = this.enemies.some(
@@ -939,11 +1005,7 @@ export class Simulation {
    * Executes one discrete 60 Hz simulation step (16.667 ms)
    */
   public tick(): void {
-    if (
-      this.runEnded ||
-      this.awaitingReviveDecision ||
-      this.pendingCardOffers.length > 0
-    ) {
+    if (this.runEnded) {
       return;
     }
 
@@ -962,6 +1024,13 @@ export class Simulation {
       if (this.victorySequenceTimer <= 0) {
         this.finishRun('victory');
       }
+      return;
+    }
+
+    if (
+      this.awaitingReviveDecision ||
+      this.pendingCardOffers.length > 0
+    ) {
       return;
     }
 
@@ -1447,7 +1516,7 @@ export class Simulation {
       }
 
       // Special Monster despawn timer (Golden Beast & longer-lived Special Targets)
-      if (e.isSpecial) {
+      if (e.isSpecial && !e.isInfiniteHp && !e.respawnOnDeath && !e.bestiaryKey) {
         e.despawnTimer -= dt;
         if (e.despawnTimer <= 0) {
           this.enemies.splice(i, 1);
@@ -1459,10 +1528,14 @@ export class Simulation {
       const dxHero = this.heroX - e.x;
       const dyHero = this.heroY - e.y;
       const dHero = Math.hypot(dxHero, dyHero);
-      if (!e.isSpecial && !e.isMiniBoss && !e.isFinalBoss && dHero > 18.0) {
+      if (
+        (!e.isSpecial && !e.isMiniBoss && !e.isFinalBoss && dHero > 18.0) ||
+        (e.bestiaryKey && dHero > 9.5)
+      ) {
         const respawnAngle = this.rng.spawn.range(0, Math.PI * 2);
-        e.x = this.heroX + Math.cos(respawnAngle) * 10.0;
-        e.y = this.heroY + Math.sin(respawnAngle) * 10.0;
+        const targetDist = e.bestiaryKey ? 5.2 : 10.0;
+        e.x = this.heroX + Math.cos(respawnAngle) * targetDist;
+        e.y = this.heroY + Math.sin(respawnAngle) * targetDist;
         e.prevX = e.x;
         e.prevY = e.y;
         continue;
@@ -2567,6 +2640,9 @@ export class Simulation {
     });
 
     enemy.hp -= finalDamage;
+    if (enemy.isInfiniteHp) {
+      enemy.hp = enemy.maxHp;
+    }
     if (!isDotTick) {
       enemy.hitFlashTimer = 0.08;
       this.totalHitsDealt++;
@@ -2884,6 +2960,41 @@ export class Simulation {
       color: enemy.color,
     });
 
+    if (enemy.respawnOnDeath && enemy.bestiaryKey) {
+      const respawnAngle = this.rng.spawn.range(0, Math.PI * 2);
+      const respawnDist = 3.6;
+      const rx = this.heroX + Math.cos(respawnAngle) * respawnDist;
+      const ry = this.heroY + Math.sin(respawnAngle) * respawnDist;
+      const respawned = this.spawnBestiarySingleUnit(enemy.bestiaryKey, rx, ry);
+      if (respawned) {
+        respawned.respawnOnDeath = true;
+        respawned.bestiaryKey = enemy.bestiaryKey;
+        respawned.despawnTimer = 999999;
+        this.visualEffects.push({
+          id: this.nextEntityId++,
+          kind: 'circle_blast',
+          x: respawned.x,
+          y: respawned.y,
+          targetX: respawned.x,
+          targetY: respawned.y,
+          angle: 0,
+          radius: 1.4,
+          arcRad: Math.PI * 2,
+          color: PALETTE.MINT_GREEN,
+          timer: 0.35,
+          maxTimer: 0.35,
+        });
+        this.events.emit('FloatingText', {
+          x: respawned.x,
+          y: respawned.y - 0.7,
+          text: 'RESPAWNED!',
+          color: PALETTE.MINT_GREEN,
+          scale: 1.15,
+        });
+      }
+      return;
+    }
+
     if (enemy.isMiniBoss) {
       this.miniBossDefeated = true;
     }
@@ -3194,6 +3305,9 @@ export class Simulation {
       for (const e of livingEnemies) {
         if (e.hp <= 0 || e.koTimer > 0) continue;
         e.hp -= dmg;
+        if (e.isInfiniteHp) {
+          e.hp = e.maxHp;
+        }
         e.hitFlashTimer = 0.1;
         this.totalHitsDealt++;
 
@@ -3819,6 +3933,160 @@ export class Simulation {
   public debugSpawnFinalBossArena(): SimEnemy | null {
     this.finalBossSpawned = true;
     return this.spawnBoss(true);
+  }
+
+  /**
+   * Spawns a Bestiary enemy entry onto the arena with the hero in one of 3 debug modes:
+   * - 'infinite_hp': Single enemy that takes hits & debuffs but never dies (HP stays at maxHp).
+   * - 'swarm': Spawns a large swarm of that enemy around the hero on the arena.
+   * - 'respawn_on_death': Single enemy that automatically respawns on the arena whenever killed.
+   */
+  public debugSpawnBestiaryEnemy(
+    bestiaryKey: string,
+    mode: BestiaryEnemySpawnMode
+  ): SimEnemy[] {
+    // Clear existing non-flower enemies so the arena focuses on the hero and the Bestiary test target(s)
+    this.enemies = this.enemies.filter((e) => e.isArenaFlower || e.isHeroGrave);
+    this.spawnTimer = Math.max(this.spawnTimer, 45.0);
+
+    const spawned: SimEnemy[] = [];
+    if (mode === 'swarm') {
+      const isHeavy =
+        bestiaryKey.startsWith('special_') || bestiaryKey.startsWith('boss_');
+      const count = isHeavy ? 8 : 14;
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2 + this.rng.spawn.range(-0.12, 0.12);
+        const distU = 3.2 + (i % 3) * 0.95;
+        const sx = this.heroX + Math.cos(angle) * distU;
+        const sy = this.heroY + Math.sin(angle) * distU;
+        const unit = this.spawnBestiarySingleUnit(bestiaryKey, sx, sy);
+        if (unit) {
+          unit.bestiaryKey = bestiaryKey;
+          unit.despawnTimer = 999999;
+          spawned.push(unit);
+        }
+      }
+      this.events.emit('FloatingText', {
+        x: this.heroX,
+        y: this.heroY - 0.85,
+        text: `SWARM ×${spawned.length}!`,
+        color: PALETTE.BUTTER_YELLOW,
+        scale: 1.25,
+      });
+    } else {
+      const sx = this.heroX + Math.cos(this.heroFacingAngle) * 3.2;
+      const sy = this.heroY + Math.sin(this.heroFacingAngle) * 3.2;
+      const unit = this.spawnBestiarySingleUnit(bestiaryKey, sx, sy);
+      if (unit) {
+        unit.bestiaryKey = bestiaryKey;
+        unit.despawnTimer = 999999;
+        if (mode === 'infinite_hp') {
+          unit.isInfiniteHp = true;
+          this.events.emit('FloatingText', {
+            x: unit.x,
+            y: unit.y - 0.8,
+            text: '∞ INFINITE HP',
+            color: PALETTE.GOLD_STAR,
+            scale: 1.25,
+          });
+        } else if (mode === 'respawn_on_death') {
+          unit.respawnOnDeath = true;
+          this.events.emit('FloatingText', {
+            x: unit.x,
+            y: unit.y - 0.8,
+            text: 'AUTO-RESPAWN ON DEATH',
+            color: PALETTE.MINT_GREEN,
+            scale: 1.2,
+          });
+        }
+        spawned.push(unit);
+      }
+    }
+
+    return spawned;
+  }
+
+  private spawnBestiarySingleUnit(
+    bestiaryKey: string,
+    x: number,
+    y: number
+  ): SimEnemy | null {
+    const archetypeMap: Record<string, EnemyArchetypeId> = {
+      enemy_chaser_norm: 'chaser',
+      enemy_chaser: 'chaser',
+      enemy_swarm: 'chaser',
+      enemy_dasher_norm: 'dasher',
+      enemy_dasher: 'dasher',
+      enemy_spitter_norm: 'spitter',
+      enemy_spitter: 'spitter',
+      enemy_brute_norm: 'brute',
+      enemy_brute: 'brute',
+      enemy_splitter_norm: 'splitter',
+      enemy_splitter: 'splitter',
+      enemy_shielded_norm: 'shielded',
+      enemy_shielded: 'shielded',
+    };
+    const specialMap: Record<string, SpecialMonsterId> = {
+      special_golden_beast: 'golden_beast',
+      special_bloom_giant: 'bloom_giant',
+      special_brood_mother: 'brood_mother',
+      special_mirror_wisp: 'mirror_wisp',
+    };
+
+    if (archetypeMap[bestiaryKey]) {
+      return this.spawnEnemy(archetypeMap[bestiaryKey]!, x, y, false);
+    }
+
+    if (specialMap[bestiaryKey]) {
+      const sp = this.spawnSpecialMonster(specialMap[bestiaryKey]!);
+      if (sp) {
+        sp.x = x;
+        sp.y = y;
+        sp.prevX = x;
+        sp.prevY = y;
+        sp.despawnTimer = 999999;
+      }
+      return sp;
+    }
+
+    if (bestiaryKey === 'boss_moss_colossus') {
+      const mini = this.spawnBoss(false);
+      if (mini) {
+        mini.x = x;
+        mini.y = y;
+        mini.prevX = x;
+        mini.prevY = y;
+      }
+      return mini;
+    }
+
+    if (
+      bestiaryKey === 'boss_thornheart_p1' ||
+      bestiaryKey === 'boss_thornheart_p2' ||
+      bestiaryKey === 'boss_thornheart_p3'
+    ) {
+      const boss = this.spawnBoss(true);
+      if (boss) {
+        boss.x = x;
+        boss.y = y;
+        boss.prevX = x;
+        boss.prevY = y;
+        if (bestiaryKey === 'boss_thornheart_p2') {
+          boss.bossPhase = 2;
+          boss.name = 'Frenzied Bloom';
+          boss.hp = Math.max(1, Math.round(boss.maxHp * 0.6));
+          this.arenaRadiusU = 7.2;
+        } else if (bestiaryKey === 'boss_thornheart_p3') {
+          boss.bossPhase = 3;
+          boss.name = 'Apex Briar Overlord';
+          boss.hp = Math.max(1, Math.round(boss.maxHp * 0.3));
+          this.arenaRadiusU = 6.0;
+        }
+      }
+      return boss;
+    }
+
+    return this.spawnEnemy('chaser', x, y, false);
   }
 
   private spawnBoss(isFinalBoss: boolean): SimEnemy | null {
