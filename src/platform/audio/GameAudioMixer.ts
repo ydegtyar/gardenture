@@ -14,7 +14,7 @@ export class GameAudioMixer {
   private userMuted = false;
   private isPausedByPlatform = false;
   private isAdPlaying = false;
-  private userMusicVolume = 0.7;
+  private userMusicVolume = 0.0;
   private userSfxVolume = 0.85;
 
   private recentSfxTimestamps: number[] = [];

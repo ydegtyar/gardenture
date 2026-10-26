@@ -273,7 +273,7 @@ export function createDefaultSaveData(): SaveDataV1 {
       achievementsUnlocked: [],
     },
     settings: {
-      musicVolume: 0.7,
+      musicVolume: 0.0,
       sfxVolume: 0.85,
       reducedMotion: false,
       colorblindPalette: 'none',
