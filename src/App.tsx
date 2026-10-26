@@ -1320,6 +1320,7 @@ export default function App() {
           isAdLoading={isAdLoading}
           onWatchAdRevive={handleWatchAdRevive}
           onSpendCoinsRevive={handleSpendCoinsRevive}
+          /* @llm-hook death-anim-delay: hide rescue prompt immediately so death collapse & grave animation plays */
           onDeclineRevive={() => {
             setAwaitingRevive(false);
             clockRef.current.reset();
@@ -1351,6 +1352,7 @@ export default function App() {
             updateShellState('playing');
           }}
           onRestart={() => startNewOrResumedRun(false)}
+          /* @llm-hook death-anim-delay: unpause into playing state so death collapse & fade animation runs */
           onEndRunAndSummary={() => {
             const sim = simRef.current;
             if (!sim) return;

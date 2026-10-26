@@ -424,10 +424,11 @@ export class Simulation {
       this.heldPowerUps.push('shield');
     }
 
-    // Spawn 4 initial weak Chasers at 6.5 u so the player immediately sees targets & gets first XP gems within 5s
+    // Spawn initial weak Chasers outside the viewport (12u away) so enemies move inward
+    // @llm-hook spawn-distance: ensure opening enemies spawn outside camera viewport
     for (let i = 0; i < 4; i++) {
       const angle = (i / 4) * Math.PI * 2 + 0.4;
-      this.spawnEnemy('chaser', Math.cos(angle) * 6.2, Math.sin(angle) * 6.2, false);
+      this.spawnEnemy('chaser', Math.cos(angle) * 12.0, Math.sin(angle) * 12.0, false);
     }
 
     // Spawn 3 initial gold coins nearby in the clearing so the player can immediately collect them
@@ -1525,6 +1526,7 @@ export class Simulation {
       }
 
       // Recycle ordinary enemies that wander > 18u away from hero (Spec Section 8)
+      // @llm-hook spawn-distance: respawn recycled enemies outside camera viewport (11.5 - 13.0u)
       const dxHero = this.heroX - e.x;
       const dyHero = this.heroY - e.y;
       const dHero = Math.hypot(dxHero, dyHero);
@@ -1532,10 +1534,15 @@ export class Simulation {
         (!e.isSpecial && !e.isMiniBoss && !e.isFinalBoss && dHero > 18.0) ||
         (e.bestiaryKey && dHero > 9.5)
       ) {
-        const respawnAngle = this.rng.spawn.range(0, Math.PI * 2);
-        const targetDist = e.bestiaryKey ? 5.2 : 10.0;
-        e.x = this.heroX + Math.cos(respawnAngle) * targetDist;
-        e.y = this.heroY + Math.sin(respawnAngle) * targetDist;
+        if (e.bestiaryKey) {
+          const respawnAngle = this.rng.spawn.range(0, Math.PI * 2);
+          e.x = this.heroX + Math.cos(respawnAngle) * 5.2;
+          e.y = this.heroY + Math.sin(respawnAngle) * 5.2;
+        } else {
+          const respawnPos = this.pickRingSpawnPoint(11.5, 13.0);
+          e.x = respawnPos.x;
+          e.y = respawnPos.y;
+        }
         e.prevX = e.x;
         e.prevY = e.y;
         continue;
@@ -3642,7 +3649,8 @@ export class Simulation {
                 this.arenaCenterY +
                 Math.sin(this.rng.spawn.range(0, Math.PI * 2)) * (this.arenaRadiusU * 0.85),
             }
-          : this.pickRingSpawnPoint(9.5, 11.0);
+          // @llm-hook spawn-distance: director wave enemies spawn outside camera ring (12.0 - 14.0u)
+          : this.pickRingSpawnPoint(12.0, 14.0);
 
         for (let g = 0; g < groupCount; g++) {
           const isElite = this.rng.spawn.chance(phase.eliteChance);
@@ -3793,7 +3801,8 @@ export class Simulation {
     if (!this.specialMonstersSpawned.includes(chosen.id)) {
       this.specialMonstersSpawned.push(chosen.id);
     }
-    const pos = this.pickRingSpawnPoint(8.0, 9.5);
+    // @llm-hook spawn-distance: special monsters spawn outside camera viewport (12.0 - 13.5u)
+    const pos = this.pickRingSpawnPoint(12.0, 13.5);
     const e = this.spawnEnemy(chosen.baseArchetype, pos.x, pos.y, false);
     if (!e) return null;
 
@@ -4111,7 +4120,8 @@ export class Simulation {
           x: this.arenaCenterX + 4.8,
           y: this.arenaCenterY - 1.5,
         }
-      : this.pickRingSpawnPoint(7.5, 8.5);
+      // @llm-hook spawn-distance: mini-bosses spawn outside camera ring (12.0 - 13.5u)
+      : this.pickRingSpawnPoint(12.0, 13.5);
     const e = this.spawnEnemy('brute', pos.x, pos.y, false);
     if (!e) return null;
 

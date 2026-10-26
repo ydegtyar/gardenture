@@ -71,6 +71,97 @@ export function getTarotMetadata(targetId: string): TarotMetadata {
 }
 
 /**
+ * Botanical Tarot Card Back Illustration
+ * Layer 7 (app): Antique occult botanical back with gold starburst, botanical vines,
+ * and vintage celestial diamond filigree for 3D card flips.
+ */
+export function TarotCardBackSvg() {
+  return (
+    <svg
+      viewBox="0 0 180 260"
+      className="w-full h-full drop-shadow-sm select-none pointer-events-none"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="180" height="260" rx="14" fill="#2D1E2F" />
+      {/* Outer gold foil frame */}
+      <rect
+        x="6"
+        y="6"
+        width="168"
+        height="248"
+        rx="10"
+        fill="none"
+        stroke="#FDFFB6"
+        strokeWidth="1.5"
+        strokeOpacity="0.8"
+      />
+      {/* Inner ornamental border */}
+      <rect
+        x="12"
+        y="12"
+        width="156"
+        height="236"
+        rx="8"
+        fill="#3B2A26"
+        stroke="#8C5A3C"
+        strokeWidth="1.5"
+      />
+      {/* Vine lattice background pattern */}
+      <path
+        d="M 16,30 Q 50,70 16,110 T 16,190 T 16,240"
+        stroke="#A8E6CF"
+        strokeWidth="1"
+        strokeOpacity="0.25"
+        fill="none"
+      />
+      <path
+        d="M 164,30 Q 130,70 164,110 T 164,190 T 164,240"
+        stroke="#A8E6CF"
+        strokeWidth="1"
+        strokeOpacity="0.25"
+        fill="none"
+      />
+      {/* Corner filigree diamonds */}
+      <polygon points="22,18 26,22 22,26 18,22" fill="#FDFFB6" />
+      <polygon points="158,18 162,22 158,26 154,22" fill="#FDFFB6" />
+      <polygon points="22,234 26,238 22,242 18,238" fill="#FDFFB6" />
+      <polygon points="158,234 162,238 158,242 154,238" fill="#FDFFB6" />
+      {/* Central esoteric concentric mystic rings */}
+      <circle cx="90" cy="130" r="54" fill="#251727" stroke="#FDFFB6" strokeWidth="1.5" strokeOpacity="0.75" />
+      <circle cx="90" cy="130" r="46" fill="none" stroke="#DED2F9" strokeWidth="1" strokeDasharray="3 3" />
+      <circle cx="90" cy="130" r="38" fill="#1C1220" stroke="#88D49E" strokeWidth="1.5" strokeOpacity="0.8" />
+      {/* Mystic 8-pointed golden sun/flower burst */}
+      <polygon
+        points="90,98 94,124 122,130 94,136 90,162 86,136 58,130 86,124"
+        fill="#FDFFB6"
+      />
+      <polygon
+        points="90,108 97,123 112,130 97,137 90,152 83,137 68,130 83,123"
+        fill="#FFAAA6"
+        transform="rotate(45 90 130)"
+      />
+      {/* Center glowing gem seed */}
+      <circle cx="90" cy="130" r="8" fill="#A8E6CF" stroke="#2D1E2F" strokeWidth="2" />
+      <circle cx="90" cy="130" r="3" fill="#FFFDF0" />
+      {/* Arcane botanical leaves top and bottom */}
+      <path
+        d="M 90,40 C 82,54 86,68 90,74 C 94,68 98,54 90,40 Z"
+        fill="#A8E6CF"
+        stroke="#2D1E2F"
+        strokeWidth="1"
+      />
+      <path
+        d="M 90,220 C 82,206 86,192 90,186 C 94,192 98,206 90,220 Z"
+        fill="#A8E6CF"
+        stroke="#2D1E2F"
+        strokeWidth="1"
+      />
+    </svg>
+  );
+}
+
+/**
  * Renders the bespoke antique Tarot illustration inside an arched esoteric alcove
  * depicting the exact concept of each card or weapon from Game Elements Catalog.
  */
