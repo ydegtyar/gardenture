@@ -225,7 +225,7 @@ export function PowerUpAbilityIcon({
   powerUpId,
   className = 'w-5 h-5 shrink-0',
 }: {
-  powerUpId: 'shield' | 'freeze' | 'fire_breath' | 'magnet' | 'time_slow';
+  powerUpId: 'shield' | 'freeze' | 'fire_breath' | 'magnet' | 'time_slow' | 'heal_potion';
   className?: string;
 }) {
   if (powerUpId === 'shield') {
