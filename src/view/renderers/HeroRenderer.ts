@@ -12,6 +12,14 @@ import { PPU } from './EnvironmentRenderer';
  * and Victory white Angel Wings ascension animation.
  */
 export class HeroRenderer {
+  private static thunderEyeTrail: Array<{
+    lx: number;
+    ly: number;
+    rx: number;
+    ry: number;
+    t: number;
+  }> = [];
+
   public static drawHero(
     heroUnderGraphic: PIXI.Graphics,
     heroSprite: PIXI.Sprite,
@@ -32,14 +40,17 @@ export class HeroRenderer {
     const speed = Math.hypot(sim.heroVx, sim.heroVy);
     const isMoving = speed > 0.25;
     const walkPhase = sim.elapsedSeconds * 14;
-    const bobY = isMoving
-      ? Math.abs(Math.sin(walkPhase)) * -4.0
-      : Math.sin(sim.elapsedSeconds * 3.5) * -1.5;
+    const isLevitatingThunderGod = sim.personaId === 'stormcaller_gojo_killua';
+    const bobY = isLevitatingThunderGod
+      ? Math.sin(sim.elapsedSeconds * 4.2) * 3.8 - 6.0
+      : isMoving
+        ? Math.abs(Math.sin(walkPhase)) * -4.0
+        : Math.sin(sim.elapsedSeconds * 3.5) * -1.5;
 
-    // Victory sequence: Hero sprouts white Angel Wings and flies skyward!
-    const isWinningAscension = sim.victorySequenceTimer > 0;
+    // Victory sequence: Hero sprouts white Angel Wings and flies skyward ONLY after Final Boss death animation finishes!
+    const isWinningAscension = sim.victorySequenceTimer > 0 && sim.bossDeathTimer <= 0;
     const winProgress = isWinningAscension
-      ? clamp(1 - sim.victorySequenceTimer / 1.85, 0, 1)
+      ? clamp(1 - sim.victorySequenceTimer / 1.1, 0, 1)
       : 0;
     const flyHeightOffset = isWinningAscension
       ? -Math.pow(winProgress, 1.35) * 92 - Math.sin(sim.elapsedSeconds * 10) * 5
@@ -104,12 +115,16 @@ export class HeroRenderer {
       }
     }
 
-    // Shield Power-Up active bubble
+    // Shield Power-Up (Aegis Orb) active crystalline rune ward & orbiting shield crests (no simple circle)
     if (sim.shieldHp > 0) {
-      gUnder
-        .circle(hx, hy + flyHeightOffset, 26)
-        .fill({ color: PALETTE.SKY_BLUE, alpha: 0.22 })
-        .stroke({ color: PALETTE.SKY_BLUE, width: 2.5, alpha: 0.85 });
+      HeroRenderer.drawAegisShieldAura(
+        gUnder,
+        gOver,
+        hx,
+        hy + flyHeightOffset,
+        sim.elapsedSeconds,
+        sim.shieldHp
+      );
     }
 
     // Ember Guard ("fire_breath") active flame barrier ring & orbiting fireballs
@@ -168,7 +183,7 @@ export class HeroRenderer {
           ? PALETTE.CREAM_WHITE
           : (customPersona?.accentColor ?? prof.accentColor);
 
-    // Animated legs beneath Bestiary hero sprite
+    // Animated legs beneath Bestiary hero sprite (or poised levitation for Thander Rein)
     if (!isDyingSequence) {
       HeroRenderer.drawCharacterLegs(
         gUnder,
@@ -178,7 +193,8 @@ export class HeroRenderer {
         walkPhase,
         displayFacingAngle,
         accentColor,
-        bodyColor
+        bodyColor,
+        isLevitatingThunderGod
       );
     }
 
@@ -190,8 +206,8 @@ export class HeroRenderer {
       HeroRenderer.drawHeroAngelWings(gUnder, hx, cy, sim.elapsedSeconds, winProgress);
     }
 
-    // Update the Hero PIXI.Sprite from Bestiary SpriteAtlas
-    const spriteKey = resolveHeroSpriteKey(sim.professionId);
+    // Update the Hero PIXI.Sprite from Bestiary / Persona Skin SpriteAtlas
+    const spriteKey = resolveHeroSpriteKey(sim.professionId, sim.personaId);
     const tex = atlasTextures.get(spriteKey);
     if (tex && heroSprite.texture !== tex) {
       heroSprite.texture = tex;
@@ -204,31 +220,55 @@ export class HeroRenderer {
     const baseScale = 58 / 256;
     const facingCos = Math.cos(displayFacingAngle);
     const flipX = facingCos < -0.15 ? -1 : 1;
-    const squashX = isMoving
-      ? 1 + Math.sin(walkPhase * 2) * 0.045
-      : 1 + Math.sin(sim.elapsedSeconds * 3.5) * 0.015;
+    const squashX = isLevitatingThunderGod
+      ? 1 + Math.sin(sim.elapsedSeconds * 4.2) * 0.02
+      : isMoving
+        ? 1 + Math.sin(walkPhase * 2) * 0.045
+        : 1 + Math.sin(sim.elapsedSeconds * 3.5) * 0.015;
     const squashY = isDyingSequence
       ? clamp(1 - deathProgress * 0.45, 0.5, 1)
-      : isMoving
-        ? 1 - Math.sin(walkPhase * 2) * 0.045
-        : 1 - Math.sin(sim.elapsedSeconds * 3.5) * 0.015;
+      : isLevitatingThunderGod
+        ? 1 - Math.sin(sim.elapsedSeconds * 4.2) * 0.02
+        : isMoving
+          ? 1 - Math.sin(walkPhase * 2) * 0.045
+          : 1 - Math.sin(sim.elapsedSeconds * 3.5) * 0.015;
 
     heroSprite.scale.set(baseScale * squashX * flipX, baseScale * squashY);
     heroSprite.rotation = isDyingSequence
       ? deathProgress * 0.65 * flipX
-      : isMoving && !isWinningAscension
-        ? Math.sin(walkPhase) * 0.075
-        : 0;
+      : isLevitatingThunderGod
+        ? isMoving && !isWinningAscension
+          ? clamp(sim.heroVx / Math.max(1, sim.stats.moveSpeed), -1, 1) * 0.09
+          : Math.sin(sim.elapsedSeconds * 2.5) * 0.022
+        : isMoving && !isWinningAscension
+          ? Math.sin(walkPhase) * 0.075
+          : 0;
 
     if (sim.hitFlashTimer > 0) {
       heroSprite.tint = 0xffffff;
       gOver.circle(hx, cy - 4, 18).fill({ color: PALETTE.CREAM_WHITE, alpha: 0.55 });
     } else if (isDashInvisible) {
       heroSprite.tint = PALETTE.SKY_BLUE;
-    } else if (customPersona) {
-      heroSprite.tint = customPersona.cloakColor;
     } else {
       heroSprite.tint = 0xffffff;
+    }
+
+    // Permanent Arcana Skin visual effects (underfoot aura, orbiting relics, and heterochromia/lightning eye glints)
+    if (customPersona && !isDyingSequence) {
+      HeroRenderer.drawPersonaPermanentAura(
+        gUnder,
+        gOver,
+        hx,
+        cy,
+        hy + flyHeightOffset,
+        flipX,
+        sim.elapsedSeconds,
+        customPersona.id,
+        customPersona.eyeLeftColor,
+        customPersona.eyeRightColor,
+        sim.heroVx,
+        sim.heroVy
+      );
     }
 
     // Draw attached weapons & articulated hero arm in front of hero sprite
@@ -256,6 +296,203 @@ export class HeroRenderer {
           spearWpn,
           sim.elapsedSeconds
         );
+      }
+    }
+  }
+
+  /**
+   * Renders permanent visual effects and heterochromia eye glints for unlocked Arcana Persona skins.
+   */
+  private static drawPersonaPermanentAura(
+    gUnder: PIXI.Graphics,
+    gOver: PIXI.Graphics,
+    hx: number,
+    cy: number,
+    groundY: number,
+    flipX: number,
+    elapsedSeconds: number,
+    personaId: string,
+    eyeLeftColor: number,
+    eyeRightColor: number,
+    heroVx = 0,
+    heroVy = 0
+  ): void {
+    // Heterochromia / Lightning glowing eye glints on the character face
+    const eyeY = cy - 4.5;
+    const leftEyeX = hx - 4.2 * flipX;
+    const rightEyeX = hx + 4.2 * flipX;
+    const eyePulse = 0.78 + 0.22 * Math.sin(elapsedSeconds * 9);
+
+    gOver
+      .circle(leftEyeX, eyeY, 2.2)
+      .fill({ color: eyeLeftColor, alpha: 0.95 * eyePulse });
+    gOver
+      .circle(rightEyeX, eyeY, 2.2)
+      .fill({ color: eyeRightColor, alpha: 0.95 * eyePulse });
+
+    if (personaId === 'warden_zagreus_naruto') {
+      // Stygian Hellfire underfoot ring + Six-Paths Truth-Seeking Orbs
+      const flamePulse = 0.88 + 0.14 * Math.sin(elapsedSeconds * 14);
+      gUnder
+        .ellipse(hx, groundY + 11, 19 * flamePulse, 9.5 * flamePulse)
+        .fill({ color: 0xf43f5e, alpha: 0.24 })
+        .stroke({ color: 0xf97316, width: 2.2, alpha: 0.78 });
+
+      // 3 Orbiting Six-Paths Truth-Seeking Orbs behind the shoulders
+      for (let i = 0; i < 3; i++) {
+        const a = elapsedSeconds * 2.8 + (i * Math.PI * 2) / 3;
+        const ox = hx + Math.cos(a) * 21;
+        const oy = cy - 6 + Math.sin(a) * 11;
+        gUnder
+          .circle(ox, oy, 4.6)
+          .fill({ color: 0xfbbf24, alpha: 0.42 });
+        gUnder
+          .circle(ox, oy, 3.1)
+          .fill({ color: 0x0f172a, alpha: 0.96 })
+          .stroke({ color: 0xf97316, width: 1.4, alpha: 0.9 });
+      }
+    } else if (personaId === 'seeker_hollow_levi') {
+      // Abyssal Void-Shade ring + ODM steam wisps
+      gUnder
+        .ellipse(hx, groundY + 11, 18, 8.5)
+        .fill({ color: 0x0f172a, alpha: 0.36 })
+        .stroke({ color: 0x38bdf8, width: 1.8, alpha: 0.75 });
+      for (let i = 0; i < 3; i++) {
+        const a = elapsedSeconds * 3.6 + (i * Math.PI * 2) / 3;
+        const vx = hx + Math.cos(a) * 18;
+        const vy = cy + Math.sin(a) * 10;
+        gUnder
+          .circle(vx, vy, 3.2)
+          .fill({ color: i % 2 === 0 ? 0x0f172a : 0xe0f2fe, alpha: 0.85 })
+          .stroke({ color: 0x10b981, width: 1.2, alpha: 0.75 });
+      }
+    } else if (personaId === 'herbalist_frieren_strange') {
+      // Rotating Eldritch Mandala & Alchemical Halo
+      const r = 21;
+      gUnder
+        .ellipse(hx, groundY + 10, r, r * 0.52)
+        .stroke({ color: 0xfbbf24, width: 2.0, alpha: 0.78 });
+      for (let i = 0; i < 3; i++) {
+        const a = elapsedSeconds * 2.2 + (i * Math.PI * 2) / 3;
+        const mx = hx + Math.cos(a) * 20;
+        const my = cy - 5 + Math.sin(a) * 12;
+        gOver
+          .circle(mx, my, 2.8)
+          .fill({ color: i === 0 ? 0x2dd4bf : 0xfbbf24, alpha: 0.9 });
+      }
+    } else if (personaId === 'stormcaller_gojo_killua') {
+      // THANDER REIN (Raiden × Marvel Thor):
+      // No spinning orbs! Levitating electric hover aura + blazing lightning eyes leaving a light trail on movement.
+      const hoverPulse = 0.88 + 0.14 * Math.sin(elapsedSeconds * 10);
+      gUnder
+        .ellipse(hx, groundY + 11, 18 * hoverPulse, 8 * hoverPulse)
+        .fill({ color: 0x38bdf8, alpha: 0.22 })
+        .stroke({ color: 0xe0f2fe, width: 2.0, alpha: 0.82 });
+
+      // Blazing Lightning Eyes under Raiden's conical hat brim
+      gOver
+        .circle(leftEyeX, eyeY, 3.4)
+        .fill({ color: 0x38bdf8, alpha: 0.92 })
+        .stroke({ color: 0xe0f2fe, width: 1.3, alpha: 0.98 });
+      gOver
+        .circle(rightEyeX, eyeY, 3.4)
+        .fill({ color: 0x38bdf8, alpha: 0.92 })
+        .stroke({ color: 0xe0f2fe, width: 1.3, alpha: 0.98 });
+
+      // Record & prune world-space eye trail points for movement light trails
+      const trail = HeroRenderer.thunderEyeTrail;
+      if (
+        trail.length > 0 &&
+        (elapsedSeconds < trail[trail.length - 1]!.t ||
+          Math.hypot(hx - trail[trail.length - 1]!.lx, eyeY - trail[trail.length - 1]!.ly) > 140)
+      ) {
+        trail.length = 0;
+      }
+
+      const speed = Math.hypot(heroVx, heroVy);
+      if (speed > 0.2) {
+        const last = trail[trail.length - 1];
+        if (!last || elapsedSeconds - last.t >= 0.018 || Math.hypot(leftEyeX - last.lx, eyeY - last.ly) >= 4) {
+          trail.push({
+            lx: leftEyeX,
+            ly: eyeY,
+            rx: rightEyeX,
+            ry: eyeY,
+            t: elapsedSeconds,
+          });
+          if (trail.length > 16) {
+            trail.shift();
+          }
+        }
+      }
+
+      while (trail.length > 0 && elapsedSeconds - trail[0]!.t > 0.34) {
+        trail.shift();
+      }
+
+      // Draw persistent multi-segment lightning eye light trail left behind on movement
+      if (trail.length >= 2) {
+        for (let i = 0; i < trail.length - 1; i++) {
+          const p0 = trail[i]!;
+          const p1 = trail[i + 1]!;
+          const ageRatio = clamp(1 - (elapsedSeconds - p0.t) / 0.34, 0, 1);
+          const jitter = Math.sin(elapsedSeconds * 38 + i * 2.1) * 1.8 * (1 - ageRatio);
+
+          // Outer electric cyan glow ribbon for left & right eye trails
+          gOver
+            .moveTo(p0.lx, p0.ly + jitter)
+            .lineTo(p1.lx, p1.ly)
+            .stroke({
+              color: 0x38bdf8,
+              width: 4.4 * ageRatio,
+              alpha: 0.72 * ageRatio,
+              cap: 'round',
+            });
+          gOver
+            .moveTo(p0.rx, p0.ry - jitter)
+            .lineTo(p1.rx, p1.ry)
+            .stroke({
+              color: 0x38bdf8,
+              width: 4.4 * ageRatio,
+              alpha: 0.72 * ageRatio,
+              cap: 'round',
+            });
+
+          // Inner white-hot lightning core ribbon
+          gOver
+            .moveTo(p0.lx, p0.ly + jitter)
+            .lineTo(p1.lx, p1.ly)
+            .stroke({
+              color: 0xe0f2fe,
+              width: 1.9 * ageRatio,
+              alpha: 0.95 * ageRatio,
+              cap: 'round',
+            });
+          gOver
+            .moveTo(p0.rx, p0.ry - jitter)
+            .lineTo(p1.rx, p1.ry)
+            .stroke({
+              color: 0xe0f2fe,
+              width: 1.9 * ageRatio,
+              alpha: 0.95 * ageRatio,
+              cap: 'round',
+            });
+        }
+
+        // Connect latest trail sample directly to current eye positions
+        const newest = trail[trail.length - 1]!;
+        gOver
+          .moveTo(newest.lx, newest.ly)
+          .lineTo(leftEyeX, eyeY)
+          .moveTo(newest.rx, newest.ry)
+          .lineTo(rightEyeX, eyeY)
+          .stroke({ color: 0x38bdf8, width: 4.2, alpha: 0.85, cap: 'round' });
+        gOver
+          .moveTo(newest.lx, newest.ly)
+          .lineTo(leftEyeX, eyeY)
+          .moveTo(newest.rx, newest.ry)
+          .lineTo(rightEyeX, eyeY)
+          .stroke({ color: 0xe0f2fe, width: 2.0, alpha: 0.98, cap: 'round' });
       }
     }
   }
@@ -316,10 +553,47 @@ export class HeroRenderer {
     walkPhase: number,
     facingAngle: number,
     bootColor: number,
-    legColor: number
+    legColor: number,
+    isLevitating = false
   ): void {
     const strideX = Math.cos(facingAngle);
     const strideY = Math.sin(facingAngle);
+
+    if (isLevitating) {
+      // Levitating Thunder-God flight stance: poised boots hovering in mid-air without walking swing
+      const hoverFloat = Math.sin(walkPhase * 0.3) * 1.8 - 4.5;
+      const leftHipX = hx - 4.5;
+      const leftHipY = hy + hoverFloat;
+      const rightHipX = hx + 4.5;
+      const rightHipY = hy + hoverFloat;
+
+      const leftFootX = leftHipX - strideX * 1.5;
+      const leftFootY = leftHipY + 5.5;
+      const rightFootX = rightHipX + strideX * 1.5;
+      const rightFootY = rightHipY + 7.5;
+
+      g.moveTo(leftHipX, leftHipY)
+        .lineTo(leftFootX, leftFootY)
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 6.2, cap: 'round' });
+      g.moveTo(leftHipX, leftHipY)
+        .lineTo(leftFootX, leftFootY)
+        .stroke({ color: legColor, width: 3.4, cap: 'round' });
+      g.ellipse(leftFootX, leftFootY, 4.2, 2.8)
+        .fill({ color: bootColor })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
+
+      g.moveTo(rightHipX, rightHipY)
+        .lineTo(rightFootX, rightFootY)
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 6.2, cap: 'round' });
+      g.moveTo(rightHipX, rightHipY)
+        .lineTo(rightFootX, rightFootY)
+        .stroke({ color: legColor, width: 3.4, cap: 'round' });
+      g.ellipse(rightFootX, rightFootY, 4.2, 2.8)
+        .fill({ color: bootColor })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
+      return;
+    }
+
     const leftSwing = isMoving ? Math.sin(walkPhase) : 0;
     const rightSwing = isMoving ? Math.sin(walkPhase + Math.PI) : 0;
 
@@ -573,5 +847,86 @@ export class HeroRenderer {
       .stroke({ color: PALETTE.CREAM_WHITE, width: 1.4, alpha: 0.85 });
 
     g.setTransform(new PIXI.Matrix());
+  }
+
+  /**
+   * Active Aegis Orb aura: rotating hexagonal botanical rune ward underfoot +
+   * 3 orbiting crystalline shield crests with shimmering cyan-mint energy ribbons (no simple circle).
+   */
+  private static drawAegisShieldAura(
+    gUnder: PIXI.Graphics,
+    gOver: PIXI.Graphics,
+    hx: number,
+    hy: number,
+    elapsedSeconds: number,
+    shieldHp: number
+  ): void {
+    const rot = elapsedSeconds * 1.8;
+    const wardR = 27 + Math.sin(elapsedSeconds * 6) * 1.5;
+
+    // Rotating 6-sided crystalline ward polygon underfoot
+    for (let i = 0; i < 6; i++) {
+      const a = rot + (i * Math.PI) / 3;
+      const vx = hx + Math.cos(a) * wardR;
+      const vy = hy + Math.sin(a) * (wardR * 0.72);
+      if (i === 0) gUnder.moveTo(vx, vy);
+      else gUnder.lineTo(vx, vy);
+    }
+    gUnder
+      .closePath()
+      .fill({ color: PALETTE.SKY_BLUE, alpha: 0.14 })
+      .stroke({ color: PALETTE.SKY_BLUE, width: 2.2, alpha: 0.78 });
+
+    // Inner counter-rotating star-hex rune lines
+    for (let i = 0; i < 6; i++) {
+      const a = -rot * 1.2 + (i * Math.PI) / 3;
+      const vx = hx + Math.cos(a) * (wardR * 0.62);
+      const vy = hy + Math.sin(a) * (wardR * 0.45);
+      if (i === 0) gUnder.moveTo(vx, vy);
+      else gUnder.lineTo(vx, vy);
+    }
+    gUnder.closePath().stroke({
+      color: PALETTE.MINT_GREEN,
+      width: 1.5,
+      alpha: 0.68,
+    });
+
+    // 3 orbiting miniature Aegis shield crests around the hero
+    const crestCount = 3;
+    for (let c = 0; c < crestCount; c++) {
+      const ca = elapsedSeconds * 3.2 + (c * Math.PI * 2) / crestCount;
+      const cx = hx + Math.cos(ca) * 25;
+      const cy = hy - 4 + Math.sin(ca) * 17;
+      const targetG = Math.sin(ca) >= 0 ? gOver : gUnder;
+
+      // Trailing energy ribbon
+      const tailA = ca - 0.35;
+      const tx = hx + Math.cos(tailA) * 25;
+      const ty = hy - 4 + Math.sin(tailA) * 17;
+      targetG
+        .moveTo(tx, ty)
+        .lineTo(cx, cy)
+        .stroke({ color: PALETTE.SKY_BLUE, width: 2.6, alpha: 0.65, cap: 'round' });
+
+      // Kite-shaped Aegis crest
+      targetG
+        .moveTo(cx, cy - 5.5)
+        .lineTo(cx + 4.5, cy - 2)
+        .lineTo(cx + 3.2, cy + 3.5)
+        .lineTo(cx, cy + 6.0)
+        .lineTo(cx - 3.2, cy + 3.5)
+        .lineTo(cx - 4.5, cy - 2)
+        .closePath()
+        .fill({ color: shieldHp > 20 ? PALETTE.SKY_BLUE : PALETTE.MINT_GREEN, alpha: 0.95 })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
+
+      targetG
+        .moveTo(cx, cy - 3.5)
+        .lineTo(cx + 2.2, cy)
+        .lineTo(cx, cy + 3.5)
+        .lineTo(cx - 2.2, cy)
+        .closePath()
+        .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.9 });
+    }
   }
 }

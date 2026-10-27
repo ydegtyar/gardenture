@@ -237,12 +237,41 @@ export class EnemyRenderer {
           });
       }
 
+      // Final Boss dramatic death convulsion & collapse animation before Angel Wings ascension
+      const isFinalBossDying = e.isFinalBoss && (sim.bossDeathTimer > 0 || e.koTimer > 0);
+      if (isFinalBossDying) {
+        const deathProg = clamp(1 - sim.bossDeathTimer / 0.85, 0, 1);
+        renderX += Math.sin(sim.elapsedSeconds * 75) * 6.5 * (1 - deathProg * 0.4);
+        cy += Math.cos(sim.elapsedSeconds * 62) * 4.5 + deathProg * 10;
+        animScaleX *= 1 + Math.sin(sim.elapsedSeconds * 48) * 0.16 - deathProg * 0.28;
+        animScaleY *= 1 - Math.sin(sim.elapsedSeconds * 48) * 0.16 - deathProg * 0.35;
+        animRotation += Math.sin(sim.elapsedSeconds * 35) * 0.22;
+      }
+
       sprite.position.set(renderX, cy);
       sprite.scale.set(baseScale * animScaleX * flipX, baseScale * animScaleY);
       sprite.rotation = animRotation;
 
       // Status & hit-flash tinting on the Bestiary sprite
-      if (e.hitFlashTimer > 0) {
+      if (isFinalBossDying) {
+        const flashPhase = Math.floor(sim.elapsedSeconds * 24) % 2 === 0;
+        sprite.tint = flashPhase ? PALETTE.CRIMSON_WARN : PALETTE.GOLD_STAR;
+        // Radiating fracture rays & bursting thorn petals from dying Final Boss
+        for (let ray = 0; ray < 6; ray++) {
+          const ra = sim.elapsedSeconds * 5 + (ray * Math.PI) / 3;
+          const rIn = rPx * 0.25;
+          const rOut = rPx * (1.25 + 0.35 * Math.sin(sim.elapsedSeconds * 18 + ray));
+          gOver
+            .moveTo(renderX + Math.cos(ra) * rIn, cy + Math.sin(ra) * rIn)
+            .lineTo(renderX + Math.cos(ra) * rOut, cy + Math.sin(ra) * rOut)
+            .stroke({
+              color: ray % 2 === 0 ? PALETTE.BUTTER_YELLOW : PALETTE.CRIMSON_WARN,
+              width: 3.2,
+              alpha: 0.9,
+              cap: 'round',
+            });
+        }
+      } else if (e.hitFlashTimer > 0) {
         sprite.tint = 0xffffff;
         gOver.circle(renderX, cy, rPx * 0.92).fill({
           color: PALETTE.CREAM_WHITE,
@@ -270,38 +299,37 @@ export class EnemyRenderer {
         EnemyRenderer.drawSpiderWebGlueDebuff(gOver, renderX, cy, rPx, sim.elapsedSeconds, e.id);
       }
 
-      // Storm Mark Debuff visual indicator
+      // Storm Mark (Chain Lightning status): NO blue circle; only small zap sparkles that fly away from enemy and disappear
       if (e.stormMarkTimer > 0) {
-        const pulse = 0.8 + 0.2 * Math.sin(sim.elapsedSeconds * 14);
-        const rot = sim.elapsedSeconds * 3.5;
+        const sparkCount = 5;
+        for (let s = 0; s < sparkCount; s++) {
+          const sparkProgress = (sim.elapsedSeconds * 2.6 + e.id * 0.37 + s / sparkCount) % 1;
+          const sparkFade = clamp(1 - sparkProgress, 0, 1);
+          const sa =
+            e.id * 1.13 +
+            (s * Math.PI * 2) / sparkCount +
+            Math.sin(sim.elapsedSeconds * 4 + s) * 0.35;
+          const dist = rPx * 0.45 + sparkProgress * (rPx * 0.95 + 14);
+          const sx = renderX + Math.cos(sa) * dist;
+          const sy = cy + Math.sin(sa) * dist - sparkProgress * 6;
+          const perpX = -Math.sin(sa);
+          const perpY = Math.cos(sa);
+          const zapLen = (4.5 + 3.0 * sparkFade) * (0.7 + 0.3 * sparkFade);
 
-        gOver.circle(renderX, cy, (rPx + 5) * pulse).stroke({
-          color: PALETTE.SKY_BLUE,
-          width: 2.2,
-          alpha: 0.85,
-        });
-
-        for (let s = 0; s < 3; s++) {
-          const sa = rot + (s * Math.PI * 2) / 3;
-          const sx = renderX + Math.cos(sa) * (rPx + 5);
-          const sy = cy + Math.sin(sa) * (rPx + 5);
+          // Small jagged lightning zap sparkle flying outward & fading away
           gOver
-            .circle(sx, sy, 3.0)
-            .fill({ color: PALETTE.BUTTER_YELLOW })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
+            .moveTo(sx - Math.cos(sa) * zapLen, sy - Math.sin(sa) * zapLen)
+            .lineTo(sx + perpX * 2.6, sy + perpY * 2.6)
+            .lineTo(sx - perpX * 2.2 + Math.cos(sa) * (zapLen * 0.4), sy - perpY * 2.2 + Math.sin(sa) * (zapLen * 0.4))
+            .lineTo(sx + Math.cos(sa) * zapLen, sy + Math.sin(sa) * zapLen)
+            .stroke({
+              color: s % 2 === 0 ? PALETTE.BUTTER_YELLOW : PALETTE.SKY_BLUE,
+              width: 2.2 * sparkFade + 0.6,
+              alpha: 0.95 * sparkFade,
+              cap: 'round',
+              join: 'round',
+            });
         }
-
-        const iconY = cy - rPx - 14 + Math.sin(sim.elapsedSeconds * 8) * 2;
-        gOver
-          .moveTo(renderX + 2, iconY - 7)
-          .lineTo(renderX - 4, iconY)
-          .lineTo(renderX + 1, iconY)
-          .lineTo(renderX - 2, iconY + 7)
-          .lineTo(renderX + 5, iconY - 1)
-          .lineTo(renderX, iconY - 1)
-          .closePath()
-          .fill({ color: PALETTE.BUTTER_YELLOW })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
       }
 
       // Poison Status: green venom drop grows above the enemy and drops into the enemy on each poison tick!
@@ -510,18 +538,10 @@ export class EnemyRenderer {
       .setTransform(m)
       .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.14 });
 
-    // Filling progress bar inside corridor
+    // Filling progress bar inside corridor (red outer border lines removed)
     g.roundRect(0, -halfW * 0.8, len * progress, halfW * 1.6, 5)
       .setTransform(m)
       .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.28 + 0.25 * progress });
-
-    // Outer directional wind-rails
-    g.moveTo(4, -halfW)
-      .lineTo(len, -halfW)
-      .moveTo(4, halfW)
-      .lineTo(len, halfW)
-      .setTransform(m)
-      .stroke({ color: PALETTE.CRIMSON_WARN, width: 2.2, alpha: 0.85, cap: 'round' });
 
     // Animated scrolling chevron arrows (>>>) along the dash lane
     const chevronCount = 3;

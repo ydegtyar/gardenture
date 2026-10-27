@@ -9,12 +9,25 @@ export type CardType = 'stat' | 'behavior' | 'synergy' | 'risk_reward' | 'weapon
 export type CardRarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 export type EnemyArchetypeId = 'chaser' | 'dasher' | 'spitter' | 'brute' | 'splitter' | 'shielded';
 export type SpecialMonsterId = 'golden_beast' | 'bloom_giant' | 'brood_mother' | 'mirror_wisp';
-export type PowerUpId = 'shield' | 'freeze' | 'fire_breath' | 'magnet' | 'time_slow';
+export type PowerUpId = 'shield' | 'freeze' | 'fire_breath' | 'magnet' | 'time_slow' | 'heal_potion';
+
+export type PersonaStepEffectKind =
+  | 'zagreus_fire_step'
+  | 'void_soul_step'
+  | 'alchemy_rune_step'
+  | 'godspeed_lightning_step';
 
 export interface PersonaDef {
   id: string;
+  professionId: ProfessionId;
   name: string;
   subtitle: string;
+  popCultureMashup: string;
+  permanentVfxLabel: string;
+  permanentVfxDescription: string;
+  stepEffectKind: PersonaStepEffectKind;
+  eyeLeftColor: number;
+  eyeRightColor: number;
   bodyColor: number;
   cloakColor: number;
   accentColor: number;

@@ -402,6 +402,49 @@ export function PowerUpAbilityIcon({
     );
   }
 
+  if (powerUpId === 'heal_potion') {
+    // Heal +20HP: Emerald-and-Gold Botanical Elixir Flask with glowing white vitality cross
+    return (
+      <svg
+        viewBox="0 0 28 28"
+        className={className}
+        data-testid="powerup-icon-heal_potion"
+        aria-hidden="true"
+      >
+        {/* Golden flask stopper & leaf sprout */}
+        <path
+          d="M14 4.2 C16.5 2.0 19.5 2.5 18.8 5.2 C17.2 5.8 15.2 5.5 14 4.2 Z"
+          fill="#88D49E"
+          stroke="#2D1E2F"
+          strokeWidth="1.6"
+        />
+        <rect
+          x="10.5"
+          y="4.8"
+          width="7"
+          height="3.4"
+          rx="1.2"
+          fill="#FBBF24"
+          stroke="#2D1E2F"
+          strokeWidth="1.8"
+        />
+        {/* Round emerald potion bulb */}
+        <circle
+          cx="14"
+          cy="16.5"
+          r="9.2"
+          fill="#10B981"
+          stroke="#2D1E2F"
+          strokeWidth="2.4"
+        />
+        <circle cx="10.8" cy="13.2" r="2.6" fill="#A7F3D0" opacity="0.65" />
+        {/* Crisp white +20 HP vitality cross */}
+        <rect x="12.3" y="11.5" width="3.4" height="10" rx="1" fill="#FFFDF0" />
+        <rect x="9" y="14.8" width="10" height="3.4" rx="1" fill="#FFFDF0" />
+      </svg>
+    );
+  }
+
   // 'time_slow' -> Sundial Watch: Ornate golden pocket watch / chronometer with lavender clock face
   return (
     <svg

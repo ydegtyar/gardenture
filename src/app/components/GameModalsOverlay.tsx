@@ -31,6 +31,8 @@ export function GameModalsOverlay() {
     hud,
     freeRerollAvailable,
     canAdReroll,
+    adRerollsRemaining,
+    coinRerollsRemaining,
     canWatchRewardedAd,
     startNewOrResumedRun,
     updateShellState,
@@ -85,6 +87,9 @@ export function GameModalsOverlay() {
           offers={draftOffers}
           freeRerollAvailable={freeRerollAvailable}
           canAdReroll={canAdReroll}
+          adRerollsRemaining={adRerollsRemaining}
+          coinRerollsRemaining={coinRerollsRemaining}
+          isAdLoading={isAdLoading}
           coins={saveData.currencies.coins}
           onSelectOffer={handleSelectCardOffer}
           onRerollFree={handleRerollFree}

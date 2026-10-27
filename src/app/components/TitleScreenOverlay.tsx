@@ -78,9 +78,9 @@ export function TitleScreenOverlay() {
             type="button"
             data-start="true"
             onClick={() => startNewOrResumedRun(false)}
-            className="w-full sm:flex-1 btn-herbarium-primary px-4 sm:px-6 py-3 sm:py-0 text-base sm:text-lg tracking-wide whitespace-nowrap shadow-xl"
+            className="w-full sm:flex-1 btn-herbarium-primary justify-center text-center px-4 sm:px-6 py-3 sm:py-0 text-base sm:text-lg tracking-wide whitespace-nowrap shadow-xl"
           >
-            <span className="leading-none">Start Run</span>
+            <span className="leading-none text-center mx-auto">Start Run</span>
           </button>
 
           {saveData.activeRun && (

@@ -43,6 +43,7 @@ export interface SaveDataV1 {
     trinketIds: string[];
     curseIds: string[];
     biomeId: BiomeId;
+    biomeExplicitlyChosen?: boolean;
     isDailySeedMode: boolean;
   };
   bestScores: {
@@ -223,6 +224,7 @@ export function createDefaultSaveData(): SaveDataV1 {
       trinketIds: ['aegis_leaf'],
       curseIds: [],
       biomeId: 'garden',
+      biomeExplicitlyChosen: false,
       isDailySeedMode: false,
     },
     bestScores: {

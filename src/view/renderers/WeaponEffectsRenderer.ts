@@ -19,11 +19,23 @@ export class WeaponEffectsRenderer {
       const hx = h.x * PPU;
       const hy = h.y * PPU;
       const rPx = h.radius * PPU;
-      const fade = clamp(h.lifeTimer / 1.0, 0.2, 0.85);
-      decalGraphic
-        .circle(hx, hy, rPx)
-        .fill({ color: h.color, alpha: 0.22 * fade })
-        .stroke({ color: h.color, width: 2, alpha: 0.65 * fade });
+      const fade = clamp(h.lifeTimer / 1.0, 0.2, 0.92);
+      if (h.kind === 'thorn_trail') {
+        WeaponEffectsRenderer.drawThornTrailHazard(
+          decalGraphic,
+          hx,
+          hy,
+          rPx,
+          fade,
+          h.id,
+          sim.elapsedSeconds
+        );
+      } else {
+        decalGraphic
+          .circle(hx, hy, rPx)
+          .fill({ color: h.color, alpha: 0.22 * fade })
+          .stroke({ color: h.color, width: 2, alpha: 0.65 * fade });
+      }
     }
   }
 
@@ -75,6 +87,37 @@ export class WeaponEffectsRenderer {
           .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
         g.rect(px - 1.5, py - 4.5, 3, 9).fill({ color: PALETTE.CREAM_WHITE });
         g.rect(px - 4.5, py - 1.5, 9, 3).fill({ color: PALETTE.CREAM_WHITE });
+      } else if (p.kind === 'heal_potion') {
+        const pulse = 1 + 0.08 * Math.sin(sim.elapsedSeconds * 6.5 + p.id);
+        g.ellipse(px, py + 10, 9.5, 4.2).fill({ color: 0x0f131d, alpha: 0.35 });
+        // Soft emerald-rose aura petals behind flask
+        for (let i = 0; i < 4; i++) {
+          const a = sim.elapsedSeconds * 1.8 + (i * Math.PI) / 2;
+          const ox = px + Math.cos(a) * 9.5 * pulse;
+          const oy = py + Math.sin(a) * 9.5 * pulse;
+          g.ellipse(ox, oy, 3.2, 1.8).fill({
+            color: i % 2 === 0 ? PALETTE.MINT_GREEN : PALETTE.BLUSH_ROSE,
+            alpha: 0.72,
+          });
+        }
+        // Golden flask neck & leaf stopper
+        g.roundRect(px - 3.5, py - 11.5, 7, 4.5, 1.5)
+          .fill({ color: PALETTE.GOLD_STAR })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
+        g.moveTo(px, py - 11)
+          .lineTo(px + 5.5, py - 14.5)
+          .lineTo(px + 2, py - 9.5)
+          .closePath()
+          .fill({ color: PALETTE.MINT_GREEN })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.4 });
+        // Rounded heart-blossom potion body
+        g.circle(px, py, 9.5)
+          .fill({ color: 0x10b981 })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
+        g.circle(px - 2.5, py - 2.5, 3.2).fill({ color: 0xa7f3d0, alpha: 0.65 });
+        // Crisp white healing cross (+20 HP)
+        g.rect(px - 1.8, py - 5.2, 3.6, 10.4).fill({ color: PALETTE.CREAM_WHITE });
+        g.rect(px - 5.2, py - 1.8, 10.4, 3.6).fill({ color: PALETTE.CREAM_WHITE });
       } else if (p.kind === 'power_up') {
         const pId = p.powerUpId ?? 'shield';
         const pDef = POWER_UPS[pId];
@@ -152,49 +195,124 @@ export class WeaponEffectsRenderer {
     const hx = lerp(sim.heroPrevX, sim.heroX, alpha) * PPU;
     const hy = lerp(sim.heroPrevY, sim.heroY, alpha) * PPU;
 
-    // 1. Orbiting Petals (styled after the Bestiary petal_orbit lotus/sakura blades)
+    // 1. Orbiting Sakura Leaves / Petals with Wind Currents & Independent Up-and-Down Oscillation
     const petalCount = sim.getOrbitPetalCount();
     if (petalCount > 0) {
       const petalWpn = sim.weapons.find((w) => w.id === 'petal_orbit');
       const evolved = Boolean(petalWpn?.evolved);
       const orbitR = sim.getOrbitRadiusU() * PPU;
-      const col = evolved ? PALETTE.LILAC_ARCANE : PALETTE.BLUSH_ROSE;
+      const outerLeafColor = evolved ? 0xe879f9 : 0xf472b6;
+      const innerLeafColor = evolved ? 0xfef08a : 0xfbcfe8;
+      const veinColor = evolved ? 0xffffff : 0xfff1f2;
+
+      const getPetalPos = (baseAngle: number, idx: number, timeSec: number) => {
+        // Independent up-and-down vertical oscillation + radial wind wave per orb
+        const upDownFreq = 3.8 + (idx % 3) * 1.15;
+        const upDownPhase = idx * 2.17;
+        const verticalInferencePx =
+          Math.sin(timeSec * upDownFreq + upDownPhase) * 10.5 +
+          Math.cos(timeSec * 5.6 - idx * 1.43) * 4.2;
+        const radialWavePx =
+          Math.sin(timeSec * (2.9 + (idx % 2) * 0.9) + idx * 1.65) * 6.0;
+        const r = orbitR + radialWavePx;
+        return {
+          x: hx + Math.cos(baseAngle) * r,
+          y: hy + Math.sin(baseAngle) * r + verticalInferencePx,
+        };
+      };
 
       for (let i = 0; i < petalCount; i++) {
         const a = sim.bonusOrbitAngle + (i / petalCount) * Math.PI * 2;
-        const px = hx + Math.cos(a) * orbitR;
-        const py = hy + Math.sin(a) * orbitR;
+        const curr = getPetalPos(a, i, sim.elapsedSeconds);
+        const midTrail = getPetalPos(a - 0.24, i, sim.elapsedSeconds - 0.06);
+        const endTrail = getPetalPos(a - 0.5, i, sim.elapsedSeconds - 0.12);
 
+        // Swirling wind gust ribbons trailing behind each sakura leaf
+        g.moveTo(curr.x, curr.y)
+          .quadraticCurveTo(midTrail.x, midTrail.y, endTrail.x, endTrail.y)
+          .stroke({
+            color: evolved ? PALETTE.LILAC_ARCANE : 0xfbcfe8,
+            width: 4.2,
+            alpha: 0.45,
+            cap: 'round',
+          });
+        g.moveTo(curr.x, curr.y)
+          .quadraticCurveTo(
+            midTrail.x + Math.sin(sim.elapsedSeconds * 7 + i) * 3,
+            midTrail.y - 2.5,
+            endTrail.x,
+            endTrail.y
+          )
+          .stroke({
+            color: PALETTE.CREAM_WHITE,
+            width: 1.8,
+            alpha: 0.68,
+            cap: 'round',
+          });
+
+        // Tiny wind-blown sakura flecks in the slipstream
         for (let t = 1; t <= 2; t++) {
-          const wispA = a - t * 0.14;
-          const wx = hx + Math.cos(wispA) * orbitR;
-          const wy = hy + Math.sin(wispA) * orbitR;
-          g.circle(wx, wy, 4.8 - t * 1.3).fill({
-            color: evolved ? PALETTE.BUTTER_YELLOW : PALETTE.CREAM_WHITE,
-            alpha: 0.45 - t * 0.14,
+          const fleckPos = getPetalPos(
+            a - t * 0.19,
+            i,
+            sim.elapsedSeconds - t * 0.04
+          );
+          const fleckTilt = sim.elapsedSeconds * 9 + i * 2.3 + t;
+          g.ellipse(
+            fleckPos.x + Math.cos(fleckTilt) * 2.5,
+            fleckPos.y + Math.sin(fleckTilt) * 2.5,
+            3.2 - t * 0.7,
+            1.6 - t * 0.3
+          ).fill({
+            color: innerLeafColor,
+            alpha: 0.65 - t * 0.18,
           });
         }
 
-        const m = new PIXI.Matrix();
-        m.rotate(a + Math.PI * 0.5 + Math.sin(sim.elapsedSeconds * 8 + i) * 0.18);
-        m.translate(px, py);
+        // 3D Wind-Flutter Orientation & Perspective Tilt for the Sakura Leaf
+        const flutterAngle =
+          a +
+          Math.PI * 0.5 +
+          Math.sin(sim.elapsedSeconds * 6.4 + i * 1.93) * 0.34;
+        const flutterScaleY =
+          0.8 + 0.22 * Math.sin(sim.elapsedSeconds * 5.2 + i * 1.47);
 
-        // Outer pointed botanical petal blade
-        g.moveTo(12.5, 0)
-          .bezierCurveTo(6, -8.5, -6, -7.5, -10.5, 0)
-          .bezierCurveTo(-6, 7.5, 6, 8.5, 12.5, 0)
+        const m = new PIXI.Matrix();
+        m.scale(1.08, flutterScaleY);
+        m.rotate(flutterAngle);
+        m.translate(curr.x, curr.y);
+
+        // Authentic Cloven Sakura Leaf / Petal with signature V-notch cleft at the tip
+        g.moveTo(-12.5, 0)
+          .bezierCurveTo(-7.5, -8.8, 5.5, -9.2, 13.0, -3.8)
+          .lineTo(8.4, 0)
+          .lineTo(13.0, 3.8)
+          .bezierCurveTo(5.5, 9.2, -7.5, 8.8, -12.5, 0)
           .closePath()
           .setTransform(m)
-          .fill({ color: col })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
+          .fill({ color: outerLeafColor })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.3 });
 
-        // Inner cream/gold petal core & midrib
-        g.ellipse(-1.5, 0, 5.2, 2.8)
+        // Soft inner sakura blush gradient layer
+        g.moveTo(-9.0, 0)
+          .bezierCurveTo(-4.5, -5.2, 3.5, -5.4, 8.8, -2.2)
+          .lineTo(5.6, 0)
+          .lineTo(8.8, 2.2)
+          .bezierCurveTo(3.5, 5.4, -4.5, 5.2, -9.0, 0)
+          .closePath()
           .setTransform(m)
-          .fill({
-            color: evolved ? PALETTE.BUTTER_YELLOW : PALETTE.CREAM_WHITE,
-            alpha: 0.92,
-          });
+          .fill({ color: innerLeafColor, alpha: 0.92 });
+
+        // Delicate central midrib & lateral leaf veins
+        g.moveTo(-9.5, 0)
+          .lineTo(5.2, 0)
+          .moveTo(-3.5, 0)
+          .lineTo(2.0, -3.0)
+          .moveTo(-3.5, 0)
+          .lineTo(2.0, 3.0)
+          .setTransform(m)
+          .stroke({ color: veinColor, width: 1.3, alpha: 0.9, cap: 'round' });
+
         g.setTransform(new PIXI.Matrix());
       }
     }
@@ -456,8 +574,19 @@ export class WeaponEffectsRenderer {
         }
       } else if (fx.kind === 'clover_step') {
         WeaponEffectsRenderer.drawLuckyCloverStep(decalGraphic, fx, progress, fade);
+      } else if (
+        fx.kind === 'zagreus_fire_step' ||
+        fx.kind === 'void_soul_step' ||
+        fx.kind === 'alchemy_rune_step' ||
+        fx.kind === 'godspeed_lightning_step'
+      ) {
+        WeaponEffectsRenderer.drawPersonaStepEffect(decalGraphic, g, fx, progress, fade);
       } else if (fx.kind === 'heal_pulse') {
         WeaponEffectsRenderer.drawHeroHealPulse(g, fx, hx, hy, progress, fade);
+      } else if (fx.kind === 'dash_strike_burst') {
+        WeaponEffectsRenderer.drawDashStrikeBurst(g, fx, progress, fade);
+      } else if (fx.kind === 'aegis_burst') {
+        WeaponEffectsRenderer.drawAegisActivationBurst(g, fx, progress, fade);
       } else if (fx.kind === 'circle_blast') {
         const cx = fx.x * PPU;
         const cy = fx.y * PPU;
@@ -723,6 +852,153 @@ export class WeaponEffectsRenderer {
       });
   }
 
+  /**
+   * Renders disappearing pop-culture Arcana Persona footsteps behind the character:
+   * - zagreus_fire_step: Stygian Hellfire & Six-Paths Chakra burning footprint + rising ember flames
+   * - void_soul_step: Hollow Knight Void puddle + Survey Corps ODM steam vortex
+   * - alchemy_rune_step: Doctor Strange Eldritch Mandala + Fullmetal Alchemical Transmutation rune
+   * - godspeed_lightning_step: Gojo Infinity spatial ripple + Killua Godspeed bio-lightning arcs
+   */
+  public static drawPersonaStepEffect(
+    decalGraphic: PIXI.Graphics,
+    fxGraphic: PIXI.Graphics,
+    fx: SimVisualEffect,
+    progress: number,
+    fade: number
+  ): void {
+    const cx = fx.x * PPU;
+    const cy = fx.y * PPU;
+    const baseR = fx.radius * PPU;
+    const scale = progress < 0.15 ? progress / 0.15 : 1 - (progress - 0.15) * 0.35;
+    const r = Math.max(2, baseR * scale);
+
+    if (fx.kind === 'zagreus_fire_step') {
+      // Stygian Hellfire & Six-Paths Sage Chakra burning footprint on the ground
+      const m = new PIXI.Matrix();
+      m.rotate(fx.angle);
+      m.translate(cx, cy);
+
+      // Scorched Stygian ember sole print
+      decalGraphic
+        .ellipse(0, 0, r * 0.92, r * 0.54)
+        .setTransform(m)
+        .fill({ color: 0xf43f5e, alpha: 0.78 * fade })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 * fade, alpha: 0.8 * fade });
+
+      // Inner Six-Paths golden-orange chakra core
+      decalGraphic
+        .ellipse(r * 0.12, 0, r * 0.58, r * 0.32)
+        .setTransform(m)
+        .fill({ color: 0xf97316, alpha: 0.9 * fade });
+      decalGraphic
+        .ellipse(r * 0.2, 0, r * 0.32, r * 0.18)
+        .setTransform(m)
+        .fill({ color: 0xfbbf24, alpha: 0.95 * fade });
+
+      decalGraphic.setTransform(new PIXI.Matrix());
+
+      // Rising Hellfire tongues & chakra sparks that drift up and disappear
+      for (let i = 0; i < 3; i++) {
+        const seedA = fx.id * 1.3 + i * 2.1;
+        const fxX = cx + Math.cos(seedA) * (r * 0.45);
+        const fxY = cy + Math.sin(seedA) * (r * 0.25) - progress * (18 + i * 6);
+        const flameR = (4.2 - i * 0.7) * fade;
+        fxGraphic
+          .circle(fxX, fxY, flameR)
+          .fill({ color: i === 0 ? 0xf43f5e : i === 1 ? 0xf97316 : 0xfbbf24, alpha: 0.88 * fade });
+      }
+    } else if (fx.kind === 'void_soul_step') {
+      // Abyssal Void-Shade puddle + ODM pressurized steam ring
+      decalGraphic
+        .ellipse(cx, cy, r * 0.9, r * 0.52)
+        .fill({ color: 0x0f172a, alpha: 0.82 * fade })
+        .stroke({ color: 0x38bdf8, width: 1.8 * fade, alpha: 0.85 * fade });
+      decalGraphic
+        .ellipse(cx, cy, r * 0.48, r * 0.26)
+        .fill({ color: 0x10b981, alpha: 0.55 * fade });
+
+      // Rising Void droplets & white ODM steam wisps
+      for (let i = 0; i < 3; i++) {
+        const seedA = fx.id * 1.7 + i * 2.09;
+        const wx = cx + Math.cos(seedA + progress * 2) * (r * 0.55);
+        const wy = cy - progress * (16 + i * 5);
+        fxGraphic
+          .circle(wx, wy, (3.6 - i * 0.5) * fade)
+          .fill({
+            color: i % 2 === 0 ? 0x0f172a : 0xe0f2fe,
+            alpha: 0.85 * fade,
+          })
+          .stroke({
+            color: i % 2 === 0 ? 0x38bdf8 : 0x10b981,
+            width: 1.1,
+            alpha: 0.7 * fade,
+          });
+      }
+    } else if (fx.kind === 'alchemy_rune_step') {
+      // Eldritch Mandala & Alchemical Transmutation Circle
+      const runeR = baseR * (0.65 + 0.45 * progress);
+      decalGraphic
+        .circle(cx, cy, runeR)
+        .fill({ color: 0x2dd4bf, alpha: 0.18 * fade })
+        .stroke({ color: 0xfbbf24, width: 2.0 * fade, alpha: 0.88 * fade });
+      decalGraphic
+        .circle(cx, cy, runeR * 0.66)
+        .stroke({ color: 0x2dd4bf, width: 1.4 * fade, alpha: 0.82 * fade });
+
+      // Inscribed Alchemical Triangle inside the circle
+      const rot = fx.angle + progress * 1.4;
+      for (let v = 0; v < 3; v++) {
+        const a1 = rot + (v * Math.PI * 2) / 3;
+        const a2 = rot + ((v + 1) * Math.PI * 2) / 3;
+        decalGraphic
+          .moveTo(cx + Math.cos(a1) * (runeR * 0.64), cy + Math.sin(a1) * (runeR * 0.64))
+          .lineTo(cx + Math.cos(a2) * (runeR * 0.64), cy + Math.sin(a2) * (runeR * 0.64))
+          .stroke({ color: 0xfbbf24, width: 1.5 * fade, alpha: 0.85 * fade });
+      }
+
+      // Red Fullmetal transmutation spark rising
+      const sparkY = cy - progress * 16;
+      fxGraphic
+        .circle(cx, sparkY, 3.2 * fade)
+        .fill({ color: 0xef4444, alpha: 0.9 * fade })
+        .stroke({ color: 0xfbbf24, width: 1.2 * fade, alpha: 0.85 * fade });
+    } else if (fx.kind === 'godspeed_lightning_step') {
+      // Gojo Infinity spatial ripple + Killua Godspeed electric arcs
+      const rippleR = baseR * (0.55 + 0.6 * progress);
+      decalGraphic
+        .ellipse(cx, cy, rippleR, rippleR * 0.58)
+        .fill({ color: 0xa855f7, alpha: 0.24 * fade })
+        .stroke({ color: 0x38bdf8, width: 2.2 * fade, alpha: 0.9 * fade });
+
+      // Crackling Godspeed bio-lightning bolt snapping upward
+      const z1x = cx + (fx.id % 2 === 0 ? 5 : -5);
+      const z1y = cy - 7 - progress * 8;
+      const z2x = cx + (fx.id % 2 === 0 ? -4 : 4);
+      const z2y = cy - 15 - progress * 12;
+      fxGraphic
+        .moveTo(cx, cy)
+        .lineTo(z1x, z1y)
+        .lineTo(z2x, z2y)
+        .stroke({
+          color: 0x38bdf8,
+          width: 2.8 * fade,
+          alpha: 0.92 * fade,
+          cap: 'round',
+          join: 'round',
+        });
+      fxGraphic
+        .moveTo(cx, cy)
+        .lineTo(z1x, z1y)
+        .lineTo(z2x, z2y)
+        .stroke({
+          color: 0xe0f2fe,
+          width: 1.3 * fade,
+          alpha: 0.95 * fade,
+          cap: 'round',
+        });
+    }
+  }
+
   public static drawProjectiles(
     projectileGraphic: PIXI.Graphics,
     sim: Simulation,
@@ -821,6 +1097,224 @@ export class WeaponEffectsRenderer {
 
         g.setTransform(new PIXI.Matrix());
       }
+    }
+  }
+
+  /**
+   * Pretty Thorn Trail visual effect instead of red circles:
+   * Intertwined curving dark-emerald & mint briar vines with sharp rose/crimson thorns,
+   * small leaves, and blooming rosebuds.
+   */
+  private static drawThornTrailHazard(
+    g: PIXI.Graphics,
+    hx: number,
+    hy: number,
+    rPx: number,
+    fade: number,
+    id: number,
+    elapsedSeconds: number
+  ): void {
+    const seedRot = (id * 1.37) % (Math.PI * 2);
+    const sway = Math.sin(elapsedSeconds * 3.2 + id) * 0.08;
+
+    // 3 intertwined S-curved thorny briar vines across the patch
+    for (let v = 0; v < 3; v++) {
+      const a = seedRot + sway + (v * Math.PI) / 3;
+      const cosA = Math.cos(a);
+      const sinA = Math.sin(a);
+      const perpX = -sinA;
+      const perpY = cosA;
+      const span = rPx * (0.82 - v * 0.08);
+      const wave = rPx * 0.26 * (v % 2 === 0 ? 1 : -1);
+
+      const x0 = hx - cosA * span;
+      const y0 = hy - sinA * span;
+      const x1 = hx + cosA * span;
+      const y1 = hy + sinA * span;
+      const cx1 = hx - cosA * (span * 0.35) + perpX * wave;
+      const cy1 = hy - sinA * (span * 0.35) + perpY * wave;
+      const cx2 = hx + cosA * (span * 0.35) - perpX * wave;
+      const cy2 = hy + sinA * (span * 0.35) - perpY * wave;
+
+      // Dark forest outline + vibrant emerald/mint vine stem
+      g.moveTo(x0, y0)
+        .bezierCurveTo(cx1, cy1, cx2, cy2, x1, y1)
+        .stroke({ color: 0x064e3b, width: 5.2 * fade, alpha: 0.85 * fade, cap: 'round' });
+      g.moveTo(x0, y0)
+        .bezierCurveTo(cx1, cy1, cx2, cy2, x1, y1)
+        .stroke({
+          color: v === 0 ? PALETTE.MINT_GREEN : 0x10b981,
+          width: 2.6 * fade,
+          alpha: 0.92 * fade,
+          cap: 'round',
+        });
+
+      // Sharp crimson/rose thorns jutting along each vine
+      for (let t = -1; t <= 1; t += 2) {
+        const tx = hx + cosA * (span * 0.42 * t);
+        const ty = hy + sinA * (span * 0.42 * t);
+        const thornDir = t * (v % 2 === 0 ? 1 : -1);
+        const tipX = tx + perpX * 6.5 * thornDir + cosA * 2.5 * t;
+        const tipY = ty + perpY * 6.5 * thornDir + sinA * 2.5 * t;
+        g.moveTo(tx - cosA * 2.2, ty - sinA * 2.2)
+          .lineTo(tipX, tipY)
+          .lineTo(tx + cosA * 2.2, ty + sinA * 2.2)
+          .closePath()
+          .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.92 * fade })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.2, alpha: 0.75 * fade });
+      }
+    }
+
+    // Small emerald leaves & a central blooming rosebud
+    for (let l = 0; l < 4; l++) {
+      const la = seedRot + (l * Math.PI) / 2 + 0.35;
+      const lx = hx + Math.cos(la) * (rPx * 0.45);
+      const ly = hy + Math.sin(la) * (rPx * 0.45);
+      const m = new PIXI.Matrix();
+      m.rotate(la);
+      m.translate(lx, ly);
+      g.moveTo(0, 0)
+        .lineTo(4.5, -2.5)
+        .lineTo(8.5, 0)
+        .lineTo(4.5, 2.5)
+        .closePath()
+        .setTransform(m)
+        .fill({ color: PALETTE.MINT_GREEN, alpha: 0.88 * fade })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.2, alpha: 0.7 * fade });
+    }
+    g.setTransform(new PIXI.Matrix());
+
+    // Center rosebud diamond
+    const budSize = 4.8 * fade;
+    g.moveTo(hx, hy - budSize)
+      .lineTo(hx + budSize, hy)
+      .lineTo(hx, hy + budSize)
+      .lineTo(hx - budSize, hy)
+      .closePath()
+      .fill({ color: PALETTE.BLUSH_ROSE, alpha: 0.95 * fade })
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5, alpha: 0.8 * fade });
+  }
+
+  /**
+   * Dash Strike Burst visual effect:
+   * Directional wind-slash crescents, 8-point starburst lances, and flying shards (no simple circle).
+   */
+  private static drawDashStrikeBurst(
+    g: PIXI.Graphics,
+    fx: SimVisualEffect,
+    progress: number,
+    fade: number
+  ): void {
+    const cx = fx.x * PPU;
+    const cy = fx.y * PPU;
+    const maxR = fx.radius * PPU;
+    const easeOut = 1 - Math.pow(1 - progress, 2.2);
+    const r = maxR * (0.35 + 0.75 * easeOut);
+
+    // 8-point starburst of sharp lances radiating outward
+    const spikes = 8;
+    for (let i = 0; i < spikes; i++) {
+      const a = fx.angle + (i * Math.PI * 2) / spikes + progress * 0.35;
+      const isMajor = i % 2 === 0;
+      const innerR = r * (0.18 + 0.35 * progress);
+      const outerR = r * (isMajor ? 1.12 : 0.78);
+      const halfSpread = isMajor ? 0.14 : 0.09;
+
+      const xIn = cx + Math.cos(a) * innerR;
+      const yIn = cy + Math.sin(a) * innerR;
+      const xTip = cx + Math.cos(a) * outerR;
+      const yTip = cy + Math.sin(a) * outerR;
+      const midR = (innerR + outerR) * 0.48;
+      const xL = cx + Math.cos(a - halfSpread) * midR;
+      const yL = cy + Math.sin(a - halfSpread) * midR;
+      const xR = cx + Math.cos(a + halfSpread) * midR;
+      const yR = cy + Math.sin(a + halfSpread) * midR;
+
+      g.moveTo(xIn, yIn)
+        .lineTo(xL, yL)
+        .lineTo(xTip, yTip)
+        .lineTo(xR, yR)
+        .closePath()
+        .fill({
+          color: isMajor ? fx.color : PALETTE.BUTTER_YELLOW,
+          alpha: (isMajor ? 0.88 : 0.75) * fade,
+        })
+        .stroke({
+          color: PALETTE.INK_OUTLINE,
+          width: 1.6 * fade,
+          alpha: 0.75 * fade,
+        });
+    }
+
+    // Directional wind-slash crescent blades along dash angle
+    for (let w = -1; w <= 1; w += 2) {
+      const arcAngle = fx.angle + w * 0.45;
+      const arcR = r * 0.86;
+      const ax0 = cx + Math.cos(arcAngle - 0.55) * (arcR * 0.75);
+      const ay0 = cy + Math.sin(arcAngle - 0.55) * (arcR * 0.75);
+      const axMid = cx + Math.cos(arcAngle) * (arcR * 1.15);
+      const ayMid = cy + Math.sin(arcAngle) * (arcR * 1.15);
+      const ax1 = cx + Math.cos(arcAngle + 0.55) * (arcR * 0.75);
+      const ay1 = cy + Math.sin(arcAngle + 0.55) * (arcR * 0.75);
+
+      g.moveTo(ax0, ay0)
+        .quadraticCurveTo(axMid, ayMid, ax1, ay1)
+        .stroke({
+          color: PALETTE.CREAM_WHITE,
+          width: 3.2 * fade,
+          alpha: 0.88 * fade,
+          cap: 'round',
+        });
+    }
+  }
+
+  /**
+   * Aegis Orb activation burst:
+   * Expanding hexagonal crystalline rune ward with 6 flying shield crests (no simple circle).
+   */
+  private static drawAegisActivationBurst(
+    g: PIXI.Graphics,
+    fx: SimVisualEffect,
+    progress: number,
+    fade: number
+  ): void {
+    const cx = fx.x * PPU;
+    const cy = fx.y * PPU;
+    const easeOut = 1 - Math.pow(1 - progress, 2.0);
+    const r = fx.radius * PPU * (0.42 + 0.65 * easeOut);
+    const rot = progress * 0.9;
+
+    // Outer & inner rotating hexagonal ward lines
+    for (let layer = 0; layer < 2; layer++) {
+      const polyR = r * (layer === 0 ? 1.0 : 0.64);
+      const layerRot = layer === 0 ? rot : -rot;
+      for (let i = 0; i < 6; i++) {
+        const a = layerRot + (i * Math.PI) / 3;
+        const px = cx + Math.cos(a) * polyR;
+        const py = cy + Math.sin(a) * polyR;
+        if (i === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.closePath().stroke({
+        color: layer === 0 ? PALETTE.SKY_BLUE : PALETTE.MINT_GREEN,
+        width: (layer === 0 ? 3.2 : 2.0) * fade,
+        alpha: 0.88 * fade,
+      });
+    }
+
+    // 6 crystalline shield crests at the hexagon vertices
+    for (let i = 0; i < 6; i++) {
+      const a = rot + (i * Math.PI) / 3;
+      const vx = cx + Math.cos(a) * r;
+      const vy = cy + Math.sin(a) * r;
+      const s = 5.5 * fade;
+      g.moveTo(vx, vy - s)
+        .lineTo(vx + s * 0.8, vy)
+        .lineTo(vx, vy + s)
+        .lineTo(vx - s * 0.8, vy)
+        .closePath()
+        .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.92 * fade })
+        .stroke({ color: PALETTE.SKY_BLUE, width: 1.8 * fade, alpha: 0.9 * fade });
     }
   }
 }

@@ -190,11 +190,12 @@ export function RescueReviveModal({
           {canWatchAd && (
             <button
               type="button"
+              data-testid="revive-ad-btn"
               disabled={isAdLoading}
               onClick={onWatchAdRevive}
-              className="w-full  btn-herbarium-lichen px-4 py-2.5 flex items-center  text-left group"
+              className="w-full btn-herbarium-lichen justify-between px-4 py-2.5 flex items-center text-left group"
             >
-              <div className="flex items-center gap-3 min-w-0 justify-between">
+              <div className="flex items-center gap-3 min-w-0">
                 <div
                   className="w-10 h-10 rounded-lg bg-[#101F12]/15 flex items-center justify-center shrink-0">
                   {/* Smart display / video icon */}
@@ -240,9 +241,10 @@ export function RescueReviveModal({
           {coins > 0 && (
             <button
               type="button"
+              data-testid="revive-coins-btn"
               disabled={!canAffordCoins || isAdLoading}
               onClick={onSpendCoinsRevive}
-              className="w-full btn-herbarium-primary px-4 py-2.5 flex items-center justify-between text-left group"
+              className="w-full btn-herbarium-primary justify-between px-4 py-2.5 flex items-center text-left group"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div

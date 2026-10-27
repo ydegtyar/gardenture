@@ -25,11 +25,22 @@ import type {
 import {
   CATALOG_SPRITE_PROMPTS,
   getSpritePortraitDataUrl,
+  getSpriteSilhouetteDataUrl,
   resolveHeroSpriteKey,
+  resolvePersonaSkinSpriteKey,
   type SpriteKey,
 } from '../../view/SpriteAtlas';
 import { CoinIcon, SeedGemIcon } from '../SvgIcons';
 import { getTarotMetadata, TarotIllustrationSvg } from '../TarotCardArt';
+import {
+  LazyBestiaryEnemyDebugBadge,
+  LazyBestiaryEnemyDebugSpawner,
+  LazyPersonaDebugAllButton,
+  LazyPersonaDebugSingleButton,
+  LazySanctuaryHeaderDebugGoldButton,
+  LazyStoreDebugTreasuryPanel,
+  LazyYouTubeDevStubControls,
+} from '../debug/LazyDebugComponents';
 
 export interface LoadoutAndStoreModalProps {
   saveData: SaveDataV1;
@@ -99,8 +110,6 @@ export function LoadoutAndStoreModal({
 
   const renderYouTubeSdkPanel = () => {
     if (!ytDiagnostics) return null;
-    const adMode = ytDiagnostics.adOutcomeMode;
-    const cloudMode = ytDiagnostics.cloudStorageMode;
     return (
       <div
         data-testid="yt-sdk-panel"
@@ -168,76 +177,13 @@ export function LoadoutAndStoreModal({
         </div>
 
         {/* Dev Mode Stub Controls */}
-        <div className="pt-2 border-t border-[#FFFDF0]/10 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[#DED2F9] font-bold">Ad Stub Mode:</span>
-            {(
-              [
-                ['grant', 'Grant Reward', 'yt-stub-ad-grant'],
-                ['skip', 'Skip Ad', 'yt-stub-ad-skip'],
-                ['error', 'Ad Error', 'yt-stub-ad-error'],
-              ] as const
-            ).map(([mode, label, testId]) => (
-              <button
-                key={mode}
-                type="button"
-                data-testid={testId}
-                onClick={() => onSetDevAdOutcomeMode?.(mode)}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
-                  adMode === mode
-                    ? 'bg-[#E8B64A] text-[#201A09]'
-                    : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[#A8E6CF] font-bold">Cloud Save Stub:</span>
-            {(
-              [
-                ['synced', 'Cloud Synced', 'yt-stub-cloud-synced'],
-                ['offline', 'Offline (Fallback)', 'yt-stub-cloud-offline'],
-              ] as const
-            ).map(([mode, label, testId]) => (
-              <button
-                key={mode}
-                type="button"
-                data-testid={testId}
-                onClick={() => onSetDevCloudStorageMode?.(mode)}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
-                  cloudMode === mode
-                    ? 'bg-[#6FA36B] text-[#101F12]'
-                    : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-            {onSimulateYtAudioToggle && (
-              <button
-                type="button"
-                data-testid="yt-stub-audio-toggle"
-                onClick={onSimulateYtAudioToggle}
-                className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#E8B64A] font-bold hover:border-[#E8B64A] whitespace-nowrap"
-              >
-                YT Audio: {ytDiagnostics.simulatedAudioEnabled ? 'ON' : 'MUTED'}
-              </button>
-            )}
-            {onSyncScoreNow && (
-              <button
-                type="button"
-                data-testid="yt-stub-sync-score"
-                onClick={onSyncScoreNow}
-                className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#6FA36B] font-bold hover:border-[#6FA36B] whitespace-nowrap"
-              >
-                Send Score
-              </button>
-            )}
-          </div>
-        </div>
+        <LazyYouTubeDevStubControls
+          ytDiagnostics={ytDiagnostics}
+          onSetDevAdOutcomeMode={onSetDevAdOutcomeMode}
+          onSetDevCloudStorageMode={onSetDevCloudStorageMode}
+          onSimulateYtAudioToggle={onSimulateYtAudioToggle}
+          onSyncScoreNow={onSyncScoreNow}
+        />
 
         {statusBannerText && (
           <div
@@ -254,87 +200,206 @@ export function LoadoutAndStoreModal({
   const renderHeroPersonasSection = (sectionNumberLabel?: string) => (
     <div className="pt-2 border-t border-[#FFFDF0]/10">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-        <h3 className="text-xs font-bold tracking-wider text-[#DED2F9]">
-          {sectionNumberLabel ? `${sectionNumberLabel} ` : ''}HERO PERSONAS (COSMETIC TRAVELERS)
-        </h3>
-        {onIncrementAllPersonaAdPips && (
-          <button
-            type="button"
-            data-testid="debug-persona-ad-all"
-            onClick={onIncrementAllPersonaAdPips}
-            className="btn-herbarium-secondary-compact px-2.5 py-1 text-[11px] whitespace-nowrap text-[#E8B64A]"
-          >
-            +1 Watched Ad (All Personas)
-          </button>
-        )}
+        <div>
+          <h3 className="text-xs font-bold tracking-wider text-[#DED2F9]">
+            {sectionNumberLabel ? `${sectionNumberLabel} ` : ''}ARCANA CHARACTER SKINS (AD-EXCLUSIVE POP-CULTURE MASHUPS & PERMANENT VFX)
+          </h3>
+          <p className="text-[11px] text-[#FFFDF0]/70 mt-0.5">
+            Locked skins appear only as mysterious shadow silhouettes until opened by watching 3 Rewarded Ads.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {loadout.personaId !== 'adventurer_default' && (
+            <button
+              type="button"
+              data-testid="reset-default-persona-btn"
+              onClick={() => onSelectLoadout({ personaId: 'adventurer_default' })}
+              className="btn-herbarium-secondary-compact px-2.5 py-1 text-[11px] whitespace-nowrap"
+            >
+              Use Default Hero Look
+            </button>
+          )}
+          {onIncrementAllPersonaAdPips && (
+            <LazyPersonaDebugAllButton
+              onIncrementAllPersonaAdPips={onIncrementAllPersonaAdPips}
+            />
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {PERSONAS.map((persona) => {
           const unlocked = unlocks.personas.includes(persona.id);
           const selected = loadout.personaId === persona.id;
           const pips = unlocks.personaAdPips[persona.id] ?? 0;
-          const cloakHex = `#${persona.cloakColor.toString(16).padStart(6, '0')}`;
-          const accentHex = `#${persona.accentColor.toString(16).padStart(6, '0')}`;
+          const skinKey = resolvePersonaSkinSpriteKey(persona.id);
+          const portraitUrl = skinKey
+            ? unlocked
+              ? getSpritePortraitDataUrl(skinKey)
+              : getSpriteSilhouetteDataUrl(skinKey)
+            : '';
+          const profName = PROFESSIONS[persona.professionId]?.name ?? persona.professionId;
+          const eyeLeftHex = `#${persona.eyeLeftColor.toString(16).padStart(6, '0')}`;
+          const eyeRightHex = `#${persona.eyeRightColor.toString(16).padStart(6, '0')}`;
+
           return (
             <div
               key={persona.id}
               data-testid={`persona-card-${persona.id}`}
-              className={`p-3.5 rounded-xl border-2 flex items-center justify-between gap-3 ${
+              data-unlocked={unlocked ? 'true' : 'false'}
+              className={`p-3.5 rounded-xl border-2 flex flex-col justify-between gap-3 transition-colors ${
                 selected
-                  ? 'bg-[#36493E] border-[#A8E6CF]'
-                  : 'bg-[#1E1520] border-[#FFFDF0]/15'
+                  ? 'bg-[#36493E] border-[#A8E6CF] shadow-[0_0_14px_rgba(168,230,207,0.22)]'
+                  : unlocked
+                    ? 'bg-[#1E1520] border-[#DED2F9]/45'
+                    : 'bg-[#130D16] border-[#FFFDF0]/15'
               }`}
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="relative w-9 h-9 rounded-full border-2 border-[#2D1E2F] shrink-0 flex items-center justify-center shadow-inner" style={{ backgroundColor: cloakHex }}>
-                  <span className="w-3.5 h-3.5 rounded-full border border-[#2D1E2F]" style={{ backgroundColor: accentHex }} />
+              <div className="flex items-start gap-3 min-w-0">
+                <div
+                  className={`relative w-20 h-20 rounded-xl border-2 shrink-0 flex items-center justify-center overflow-hidden p-1 ${
+                    unlocked
+                      ? 'bg-[#2B1F2D] border-[#A8E6CF]/60'
+                      : 'bg-[#08050B] border-[#2D1E2F] shadow-inner'
+                  }`}
+                >
+                  {portraitUrl && (
+                    <img
+                      src={portraitUrl}
+                      alt={
+                        unlocked
+                          ? `${persona.name} skin`
+                          : `Mystery ${profName} shadow silhouette`
+                      }
+                      data-testid={
+                        unlocked
+                          ? `persona-portrait-${persona.id}`
+                          : `persona-silhouette-${persona.id}`
+                      }
+                      data-silhouette={unlocked ? 'false' : 'true'}
+                      referrerPolicy="no-referrer"
+                      className={`w-full h-full object-contain transition-all duration-300 ${
+                        unlocked ? '' : 'opacity-90 contrast-200 drop-shadow-[0_0_6px_rgba(168,85,247,0.35)]'
+                      }`}
+                    />
+                  )}
+                  {!unlocked && (
+                    <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-[#1E1520]/90 border border-[#DED2F9]/30 text-[9px] font-mono-tabular font-bold text-[#DED2F9]">
+                      SHADOW
+                    </span>
+                  )}
                 </div>
-                <div className="min-w-0">
-                  <div className="font-bold text-sm truncate">{persona.name}</div>
-                  <div className="text-xs text-[#FFFDF0]/70 truncate">{persona.subtitle}</div>
-                  {!unlocked && persona.adPipsRequired > 0 && (
-                    <div className="text-[10px] font-mono-tabular text-[#DED2F9] mt-0.5">
-                      Watched Ads: {pips} / {persona.adPipsRequired}
-                    </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#2B1F2D] text-[#FDFFB6] border border-[#FDFFB6]/25">
+                      {profName} Arcana Skin
+                    </span>
+                    {unlocked && (
+                      <span
+                        className="flex items-center gap-1 text-[10px] text-[#FFFDF0]/75"
+                        title="Heterochromia Eyes"
+                      >
+                        <span
+                          className="w-2.5 h-2.5 rounded-full border border-[#140E16]"
+                          style={{ backgroundColor: eyeLeftHex }}
+                        />
+                        <span
+                          className="w-2.5 h-2.5 rounded-full border border-[#140E16]"
+                          style={{ backgroundColor: eyeRightHex }}
+                        />
+                      </span>
+                    )}
+                  </div>
+
+                  {unlocked ? (
+                    <>
+                      <div
+                        data-testid={`persona-title-${persona.id}`}
+                        className="font-display font-bold text-sm text-[#FFFDF0] truncate"
+                      >
+                        {persona.name}
+                      </div>
+                      <div className="text-[11px] font-semibold text-[#DED2F9] truncate">
+                        {persona.popCultureMashup}
+                      </div>
+                      <p className="text-[11px] text-[#A8E6CF] mt-1 leading-snug">
+                        <span className="font-bold">{persona.permanentVfxLabel}:</span>{' '}
+                        {persona.permanentVfxDescription}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        data-testid={`persona-title-${persona.id}`}
+                        className="font-display font-bold text-sm text-[#DED2F9]/85 truncate"
+                      >
+                        ??? · Shadowed {profName}
+                      </div>
+                      <p className="text-[11px] text-[#FFFDF0]/60 mt-0.5 leading-snug">
+                        Unopened silhouette. Watch {persona.adPipsRequired} Rewarded Ads to reveal this pop-culture skin & its permanent footsteps VFX.
+                      </p>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        {Array.from({ length: persona.adPipsRequired }).map((_, idx) => (
+                          <span
+                            key={idx}
+                            className={`h-1.5 flex-1 rounded-full ${
+                              idx < pips ? 'bg-[#A8E6CF]' : 'bg-[#FFFDF0]/15'
+                            }`}
+                          />
+                        ))}
+                        <span className="text-[10px] font-mono-tabular text-[#DED2F9] ml-1">
+                          {pips}/{persona.adPipsRequired} Ads
+                        </span>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
-              {unlocked ? (
-                <button
-                  type="button"
-                  data-testid={`wear-persona-${persona.id}`}
-                  onClick={() => onSelectLoadout({ personaId: persona.id })}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors ${
-                    selected
-                      ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
-                      : 'btn-herbarium-secondary-compact'
-                  }`}
-                >
-                  {selected ? 'Wearing' : 'Wear'}
-                </button>
-              ) : (
-                <div className="flex items-center gap-1.5 shrink-0">
+
+              <div className="pt-2 border-t border-[#FFFDF0]/10 flex items-center justify-between gap-2">
+                <span className="text-[10px] text-[#FFFDF0]/60 truncate">
+                  {unlocked ? persona.subtitle : 'Ad-Exclusive Arcana Unlock'}
+                </span>
+                {unlocked ? (
                   <button
                     type="button"
-                    data-testid={`watch-persona-ad-${persona.id}`}
-                    onClick={() => onWatchPersonaPipAd(persona.id)}
-                    className="btn-herbarium-lichen px-2.5 py-1.5 text-xs whitespace-nowrap min-h-[38px]"
+                    data-testid={`wear-persona-${persona.id}`}
+                    onClick={() =>
+                      onSelectLoadout({
+                        personaId: persona.id,
+                        professionId: persona.professionId,
+                        startingWeaponId:
+                          PROFESSIONS[persona.professionId]?.startingWeaponId ??
+                          loadout.startingWeaponId,
+                      })
+                    }
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors ${
+                      selected
+                        ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
+                        : 'btn-herbarium-secondary-compact'
+                    }`}
                   >
-                    Watch Ad ({pips}/{persona.adPipsRequired})
+                    {selected ? 'Wearing Skin' : 'Wear Skin'}
                   </button>
-                  {onIncrementPersonaAdPip && (
+                ) : (
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      data-testid={`debug-persona-ad-${persona.id}`}
-                      onClick={() => onIncrementPersonaAdPip(persona.id)}
-                      className="btn-herbarium-secondary-compact px-2 py-1.5 text-xs text-[#E8B64A] whitespace-nowrap min-h-[38px]"
-                      title="Increase watched ad count to unlock persona"
+                      data-testid={`watch-persona-ad-${persona.id}`}
+                      onClick={() => onWatchPersonaPipAd(persona.id)}
+                      className="btn-herbarium-lichen px-2.5 py-1.5 text-xs whitespace-nowrap min-h-[38px]"
                     >
-                      +1 Ad
+                      Watch Ad ({pips}/{persona.adPipsRequired})
                     </button>
-                  )}
-                </div>
-              )}
+                    {onIncrementPersonaAdPip && (
+                      <LazyPersonaDebugSingleButton
+                        personaId={persona.id}
+                        onIncrementPersonaAdPip={onIncrementPersonaAdPip}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -383,14 +448,7 @@ export function LoadoutAndStoreModal({
               <CoinIcon />
               {currencies.coins}
             </span>
-            <button
-              type="button"
-              data-testid="debug-add-gold-btn"
-              onClick={() => onAddDebugGold(100)}
-              className="btn-herbarium-secondary-compact px-2.5 py-1 text-xs whitespace-nowrap shrink-0 text-[#E8B64A]"
-            >
-              +100 Gold (Debug)
-            </button>
+            <LazySanctuaryHeaderDebugGoldButton onAddDebugGold={onAddDebugGold} />
             <span className="flex items-center gap-1.5 text-[#DED2F9]">
               <SeedGemIcon />
               {currencies.gems}
@@ -419,7 +477,15 @@ export function LoadoutAndStoreModal({
                     const prof = PROFESSIONS[profId]!;
                     const isUnlocked = unlocks.professions.includes(profId);
                     const isSelected = loadout.professionId === profId;
-                    const spriteUrl = getSpritePortraitDataUrl(resolveHeroSpriteKey(profId));
+                    const activeProfPersona = PERSONAS.find(
+                      (p) =>
+                        p.id === loadout.personaId &&
+                        p.professionId === profId &&
+                        unlocks.personas.includes(p.id)
+                    );
+                    const spriteUrl = getSpritePortraitDataUrl(
+                      resolveHeroSpriteKey(profId, activeProfPersona?.id)
+                    );
                     return (
                       <div
                         key={profId}
@@ -519,9 +585,6 @@ export function LoadoutAndStoreModal({
                           }`}
                         >
                           <div className="text-xs font-bold truncate">{t.name}</div>
-                          <div className="text-[11px] text-[#FFFDF0]/70 truncate">
-                            {t.subtitle}
-                          </div>
                         </button>
                       );
                     })}
@@ -560,26 +623,11 @@ export function LoadoutAndStoreModal({
 
           {tab === 'store' && (
             <div className="space-y-5">
+              {renderHeroPersonasSection()}
+
               {renderYouTubeSdkPanel()}
 
-              <div className="p-3.5 rounded-xl bg-[#1E1520] border-2 border-[#FDFFB6]/40 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-bold text-[#FDFFB6]">Store Debug Treasury</div>
-                  <div className="text-[11px] text-[#FFFDF0]/75">
-                    Add +100 Gold instantly to purchase and test any Relic, Curse, or Profession upgrade.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  data-testid="store-debug-add-100-gold"
-                  onClick={() => onAddDebugGold(100)}
-                  className="btn-herbarium-secondary-compact px-3.5 py-1.5 text-xs text-[#E8B64A] whitespace-nowrap shrink-0"
-                >
-                  +100 Gold
-                </button>
-              </div>
-
-              {renderHeroPersonasSection()}
+              <LazyStoreDebugTreasuryPanel onAddDebugGold={onAddDebugGold} />
 
               <div>
                 <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF] mb-2.5">
@@ -684,8 +732,6 @@ export function LoadoutAndStoreModal({
                   })}
                 </div>
               </div>
-
-              {renderHeroPersonasSection()}
             </div>
           )}
 
@@ -787,20 +833,13 @@ export function LoadoutAndStoreModal({
                                 {label}
                               </div>
                               {isEnemyEntry && (
-                                <button
-                                  type="button"
-                                  data-testid={`bestiary-debug-btn-${key}`}
-                                  onClick={() =>
+                                <LazyBestiaryEnemyDebugBadge
+                                  enemyKey={key}
+                                  isHighlighted={isDebugHighlighted}
+                                  onToggle={() =>
                                     setActiveDebugEnemyKey((prev) => (prev === key ? null : key))
                                   }
-                                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold border transition-colors shrink-0 ${
-                                    isDebugHighlighted
-                                      ? 'bg-[#E8B64A] text-[#201A09] border-[#8F691C]'
-                                      : 'btn-herbarium-secondary-compact'
-                                  }`}
-                                >
-                                  Debug
-                                </button>
+                                />
                               )}
                             </div>
                             <p className="text-[11px] text-[#FFFDF0]/75 leading-snug">
@@ -810,37 +849,11 @@ export function LoadoutAndStoreModal({
                         </div>
 
                         {isEnemyEntry && onSpawnBestiaryEnemy && (
-                          <div
-                            data-testid={`bestiary-debug-controls-${key}`}
-                            className={`pt-2 border-t border-[#FFFDF0]/10 flex flex-wrap items-center gap-1.5 ${
-                              isDebugHighlighted ? 'bg-[#2B1F2D]/60 -mx-1 px-1.5 pb-1 rounded-lg' : ''
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              data-testid={`bestiary-spawn-infinite-${key}`}
-                              onClick={() => onSpawnBestiaryEnemy(key, 'infinite_hp')}
-                              className="flex-1 py-1 px-2 btn-herbarium-secondary-compact text-[#E8B64A] text-[10px] whitespace-nowrap"
-                            >
-                              ∞ Infinite HP
-                            </button>
-                            <button
-                              type="button"
-                              data-testid={`bestiary-spawn-swarm-${key}`}
-                              onClick={() => onSpawnBestiaryEnemy(key, 'swarm')}
-                              className="flex-1 py-1 px-2 btn-herbarium-danger-compact text-[10px] whitespace-nowrap"
-                            >
-                              Spawn Lot (Swarm)
-                            </button>
-                            <button
-                              type="button"
-                              data-testid={`bestiary-spawn-respawn-${key}`}
-                              onClick={() => onSpawnBestiaryEnemy(key, 'respawn_on_death')}
-                              className="flex-1 py-1 px-2 btn-herbarium-lichen text-[10px] min-h-[30px] whitespace-nowrap"
-                            >
-                              1× Respawn on Death
-                            </button>
-                          </div>
+                          <LazyBestiaryEnemyDebugSpawner
+                            enemyKey={key}
+                            isHighlighted={isDebugHighlighted}
+                            onSpawnBestiaryEnemy={onSpawnBestiaryEnemy}
+                          />
                         )}
                       </div>
                     );

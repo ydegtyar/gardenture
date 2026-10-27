@@ -151,21 +151,13 @@ export function PlayingHudOverlay() {
                 : undefined,
             }}
           >
-            <div className="flex items-baseline gap-1 sm:gap-2 whitespace-nowrap">
-              <span className="hidden sm:inline text-[10px] font-extrabold tracking-wider text-[#FFFDF0]/75">
-                STYLE
-              </span>
+            <div className="flex items-center justify-center whitespace-nowrap">
               <span
-                key={rankAura?.active ? `rank-${rankAura.key}` : 'rank-static'}
-                className={`text-xl sm:text-3xl font-display font-black leading-none stroke-plum ${
-                  rankAura?.active ? 'animate-rank-letter-pop' : ''
-                }`}
+                key={`rank-${currentRankDef.letter}-${rankAura?.key ?? 0}`}
+                className="text-2xl sm:text-3xl font-display font-black leading-none stroke-plum animate-rank-letter-pop"
                 style={{ color: currentRankDef.colorHex }}
               >
                 {currentRankDef.letter}
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-mono-tabular font-bold text-[#FDFFB6]">
-                ×{currentRankDef.scoreMult.toFixed(1)}
               </span>
             </div>
             <div className="w-16 sm:w-28 h-2 rounded-full bg-[#18111A] border border-[#2D1E2F] overflow-hidden mt-1">

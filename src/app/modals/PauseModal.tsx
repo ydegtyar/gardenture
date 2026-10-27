@@ -8,6 +8,7 @@
 import React from 'react';
 import { CARDS, WEAPONS } from '../../content/data/catalog';
 import type { SaveDataV1 } from '../../meta/SaveManager';
+import { LazyModalDebugCardsButton } from '../debug/LazyDebugComponents';
 
 export interface PauseModalProps {
   weapons: ReadonlyArray<{ id: string; level: number; evolved: boolean }>;
@@ -49,13 +50,7 @@ export function PauseModal({
             Run Paused
           </h2>
           {onOpenDebugCards && (
-            <button
-              type="button"
-              onClick={onOpenDebugCards}
-              className="btn-herbarium-secondary-compact px-3 py-1.5 text-[#E8B64A] text-xs font-bold whitespace-nowrap shrink-0"
-            >
-              Debug Cards
-            </button>
+            <LazyModalDebugCardsButton onOpen={onOpenDebugCards} variant="pause" />
           )}
         </div>
         <p className="text-xs text-[#A8E6CF] mb-4">

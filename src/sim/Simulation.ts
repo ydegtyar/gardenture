@@ -21,6 +21,7 @@ import {
   CURSES,
   ENEMY_ARCHETYPES,
   PALETTE,
+  PERSONAS,
   PROFESSIONS,
   SPECIAL_MONSTERS,
   STYLE_RANKS,
@@ -30,6 +31,7 @@ import {
 } from '../content/data/catalog';
 import type {
   EnemyArchetypeId,
+  PersonaStepEffectKind,
   PowerUpId,
   ProfessionId,
   SpecialMonsterId,
@@ -127,7 +129,14 @@ export interface SimProjectile {
 
 export interface SimPickup {
   id: number;
-  kind: 'xp_gem' | 'xp_cluster' | 'gold_coin' | 'healing_seed' | 'power_up' | 'chest';
+  kind:
+    | 'xp_gem'
+    | 'xp_cluster'
+    | 'gold_coin'
+    | 'healing_seed'
+    | 'heal_potion'
+    | 'power_up'
+    | 'chest';
   x: number;
   y: number;
   value: number;
@@ -154,6 +163,8 @@ export interface SimVisualEffect {
     | 'slash_arc'
     | 'spear_line'
     | 'circle_blast'
+    | 'dash_strike_burst'
+    | 'aegis_burst'
     | 'shockwave_blast'
     | 'ember_burst'
     | 'chain_bolt'
@@ -164,7 +175,8 @@ export interface SimVisualEffect {
     | 'bloom_hammer'
     | 'clover_step'
     | 'heal_pulse'
-    | 'second_wind_blast';
+    | 'second_wind_blast'
+    | PersonaStepEffectKind;
   x: number;
   y: number;
   targetX: number;
@@ -227,6 +239,7 @@ export interface MidRunCheckpointV1 {
   readonly reviveUsed: boolean;
   readonly freeRerollUsed: boolean;
   readonly adRerollsUsed: number;
+  readonly coinRerollsUsed?: number;
   readonly totalCardsReceived?: number;
   readonly pendingCardOfferIds: string[] | null;
 }
@@ -282,7 +295,8 @@ export class Simulation {
   public freezeAuraTimer = 0; // Active Frost Flask duration during which no new enemies spawn
   public secondWindUsed = false;
   public deathSequenceTimer = 0; // > 0 when playing hero grave collapse animation before defeat screen
-  public victorySequenceTimer = 0; // > 0 when playing white angel wings ascension animation before win screen
+  public victorySequenceTimer = 0; // > 0 when playing victory sequence (boss death + white angel wings ascension)
+  public bossDeathTimer = 0; // > 0 during first phase of victory while Final Boss plays death animation
 
   // Dash state & Invisibility Frames (i-frames)
   public dashTimer = 0;
@@ -300,6 +314,8 @@ export class Simulation {
   public ghostSpawnTimer = 0;
   private cloverStepDistanceAccum = 0;
   private cloverStepSide: 1 | -1 = 1;
+  private personaStepDistanceAccum = 0;
+  private personaStepSide: 1 | -1 = 1;
   private isProcessingRegrowthNova = false;
 
   public isRegrowthEvolved(): boolean {
@@ -366,21 +382,29 @@ export class Simulation {
   public specialMonstersSpawned: SpecialMonsterId[] = [];
   public miniBossSpawned = false;
   public miniBossDefeated = false;
+  public static readonly INITIAL_ARENA_RADIUS_U = 28.0;
+  public static readonly FINAL_BOSS_ARENA_RADIUS_P1_U = 13.5;
+  public static readonly FINAL_BOSS_ARENA_RADIUS_P2_U = 12.0;
+  public static readonly FINAL_BOSS_ARENA_RADIUS_P3_U = 10.5;
+  public static readonly FINAL_BOSS_SPAWN_SEC = 225;
   public finalBossSpawned = false;
   public finalBossId: number | null = null;
-  public arenaActive = false; // True only during Final Boss fight (small circular thorn border)
+  public arenaActive = true; // Active from the start of the run and slowly collapses toward the Final Boss arena
   public arenaCenterX = 0;
   public arenaCenterY = 0;
-  public arenaRadiusU = 8.5; // Shrinks during Final Boss Phase 2 & 3
+  public arenaRadiusU = Simulation.INITIAL_ARENA_RADIUS_U;
   public isOutsideArena = false;
   private arenaOutDpsAccumulator = 0;
   private arenaFlowerSpawnTimer = 14.0;
 
   // Draft & Modal state
+  public static readonly MAX_AD_REROLLS = 3;
+  public static readonly MAX_COIN_REROLLS = 3;
   public pendingCardOffers: DraftOfferItem[] = [];
   public consecutiveAllCommonOffers = 0;
   public freeRerollUsed = false;
   public adRerollsUsed = 0;
+  public coinRerollsUsed = 0;
   public reviveUsed = false;
   public awaitingReviveDecision = false;
   public runEnded = false;
@@ -431,12 +455,8 @@ export class Simulation {
       this.spawnEnemy('chaser', Math.cos(angle) * 12.0, Math.sin(angle) * 12.0, false);
     }
 
-    // Spawn 3 initial gold coins nearby in the clearing so the player can immediately collect them
-    const initialCoins = [
-      { x: 1.35, y: 0.0, value: 1 },
-      { x: 2.1, y: 0.32, value: 2 },
-      { x: -1.45, y: 0.65, value: 1 },
-    ];
+    // Spawn 1 initial gold coin near hero spawn, placed a bit farther away in the clearing
+    const initialCoins = [{ x: 3.2, y: -0.85, value: 1 }];
     for (const c of initialCoins) {
       this.pickups.push({
         id: this.nextEntityId++,
@@ -585,17 +605,17 @@ export class Simulation {
       );
       this.visualEffects.push({
         id: this.nextEntityId++,
-        kind: 'circle_blast',
+        kind: 'dash_strike_burst',
         x: this.heroX,
         y: this.heroY,
         targetX: this.heroX,
         targetY: this.heroY,
-        angle: 0,
+        angle: this.heroFacingAngle,
         radius: 1.7 * this.stats.areaMult,
         arcRad: Math.PI * 2,
         color: PALETTE.MINT_GREEN,
-        timer: 0.28,
-        maxTimer: 0.28,
+        timer: 0.34,
+        maxTimer: 0.34,
       });
     }
 
@@ -769,11 +789,48 @@ export class Simulation {
     });
   }
 
+  private spawnPersonaStepEffect(stepKind: PersonaStepEffectKind, color: number): void {
+    this.personaStepSide = this.personaStepSide === 1 ? -1 : 1;
+    const perpAngle = this.heroFacingAngle + Math.PI * 0.5;
+    const footOffset = 0.14 * this.personaStepSide;
+    const backOffset = -0.08;
+    const stepX =
+      this.heroX +
+      Math.cos(perpAngle) * footOffset +
+      Math.cos(this.heroFacingAngle) * backOffset;
+    const stepY =
+      this.heroY +
+      Math.sin(perpAngle) * footOffset +
+      Math.sin(this.heroFacingAngle) * backOffset +
+      0.16;
+    const duration = 0.78;
+    const radius = 0.34;
+
+    this.visualEffects.push({
+      id: this.nextEntityId++,
+      kind: stepKind,
+      x: stepX,
+      y: stepY,
+      targetX: stepX,
+      targetY: stepY,
+      angle: this.heroFacingAngle + this.personaStepSide * 0.18,
+      radius,
+      arcRad: this.personaStepSide,
+      color,
+      timer: duration,
+      maxTimer: duration,
+    });
+  }
+
   public debugTriggerPowerUp(powerUpId: PowerUpId): void {
     this.activatePowerUp(powerUpId);
   }
 
   public debugSpawnPowerUpDrop(powerUpId: PowerUpId = 'fire_breath'): void {
+    if (powerUpId === 'heal_potion') {
+      this.debugSpawnHeal20Drop();
+      return;
+    }
     const angle = this.heroFacingAngle;
     this.pickups.push({
       id: this.nextEntityId++,
@@ -785,6 +842,22 @@ export class Simulation {
       magnetized: false,
       pullSpeed: 0,
     });
+  }
+
+  public debugSpawnHeal20Drop(): SimPickup {
+    const angle = this.heroFacingAngle;
+    const pickup: SimPickup = {
+      id: this.nextEntityId++,
+      kind: 'heal_potion',
+      powerUpId: 'heal_potion',
+      x: this.heroX + Math.cos(angle) * 1.35,
+      y: this.heroY + Math.sin(angle) * 1.35,
+      value: 20,
+      magnetized: false,
+      pullSpeed: 0,
+    };
+    this.pickups.push(pickup);
+    return pickup;
   }
 
   public debugGivePowerUp(powerUpId: PowerUpId = 'fire_breath'): void {
@@ -865,10 +938,18 @@ export class Simulation {
     this.cardPickInvisTimer = Math.max(this.cardPickInvisTimer, 0.5);
   }
 
-  public rerollCardDraft(isFree: boolean): DraftOfferItem[] {
-    if (isFree) {
+  public rerollCardDraft(mode: boolean | 'free' | 'ad' | 'coins'): DraftOfferItem[] {
+    if (mode === true || mode === 'free') {
       this.freeRerollUsed = true;
+    } else if (mode === 'coins') {
+      if (this.coinRerollsUsed >= Simulation.MAX_COIN_REROLLS) {
+        return this.pendingCardOffers;
+      }
+      this.coinRerollsUsed++;
     } else {
+      if (this.adRerollsUsed >= Simulation.MAX_AD_REROLLS) {
+        return this.pendingCardOffers;
+      }
       this.adRerollsUsed++;
     }
     const prevIds = this.pendingCardOffers.map((o) => o.offerId);
@@ -965,14 +1046,6 @@ export class Simulation {
       shieldAbsorbed: false,
     });
 
-    this.events.emit('FloatingText', {
-      x: this.heroX,
-      y: this.heroY - 0.75,
-      text: 'SUDDEN DEATH!',
-      color: PALETTE.CRIMSON_WARN,
-      scale: 1.35,
-    });
-
     this.startDefeatSequence();
   }
 
@@ -999,7 +1072,19 @@ export class Simulation {
 
   public startVictorySequence(): void {
     if (this.runEnded || this.victorySequenceTimer > 0) return;
-    this.victorySequenceTimer = 1.85;
+    // Despawn all enemies except the Final Boss, then play Final Boss death animation before Angel Wings ascension
+    this.enemies = this.enemies.filter((e) => e.isFinalBoss);
+    this.projectiles = [];
+    this.hazards = [];
+    const hasFinalBoss = this.enemies.length > 0;
+    this.bossDeathTimer = hasFinalBoss ? 0.85 : 0;
+    this.victorySequenceTimer = hasFinalBoss ? 1.95 : 1.1;
+    for (const boss of this.enemies) {
+      boss.hp = 0;
+      boss.koTimer = 0.85;
+      boss.vx = 0;
+      boss.vy = 0;
+    }
   }
 
   /**
@@ -1020,6 +1105,50 @@ export class Simulation {
     }
 
     if (this.victorySequenceTimer > 0) {
+      if (this.bossDeathTimer > 0) {
+        const prevStep = Math.floor(this.bossDeathTimer * 12);
+        this.bossDeathTimer = Math.max(0, this.bossDeathTimer - TICK_S);
+        const nextStep = Math.floor(this.bossDeathTimer * 12);
+        const boss = this.enemies.find((e) => e.isFinalBoss);
+        if (boss) {
+          boss.koTimer = Math.max(0.05, this.bossDeathTimer);
+          if (nextStep !== prevStep) {
+            const burstAngle = nextStep * 1.35;
+            const burstDist = boss.radius * 0.55;
+            this.visualEffects.push({
+              id: this.nextEntityId++,
+              kind: 'dash_strike_burst',
+              x: boss.x + Math.cos(burstAngle) * burstDist,
+              y: boss.y + Math.sin(burstAngle) * burstDist,
+              targetX: boss.x,
+              targetY: boss.y,
+              angle: burstAngle,
+              radius: 1.35,
+              arcRad: Math.PI * 2,
+              color: PALETTE.GOLD_STAR,
+              timer: 0.28,
+              maxTimer: 0.28,
+            });
+          }
+          if (this.bossDeathTimer <= 0) {
+            this.visualEffects.push({
+              id: this.nextEntityId++,
+              kind: 'second_wind_blast',
+              x: boss.x,
+              y: boss.y,
+              targetX: boss.x,
+              targetY: boss.y,
+              angle: 0,
+              radius: 3.2,
+              arcRad: Math.PI * 2,
+              color: PALETTE.GOLD_STAR,
+              timer: 0.55,
+              maxTimer: 0.55,
+            });
+            this.enemies = [];
+          }
+        }
+      }
       this.victorySequenceTimer = Math.max(0, this.victorySequenceTimer - TICK_S);
       this.updateVisualEffects(TICK_S);
       if (this.victorySequenceTimer <= 0) {
@@ -1062,9 +1191,9 @@ export class Simulation {
     this.updateStyleRank(TICK_S);
     this.updateWaveDirector(TICK_S);
 
-    // 6. Cleanup visual effects & check 4:30 timeout
+    // 6. Cleanup visual effects & check 5:00 timeout (+30s for extended Final Boss timer)
     this.updateVisualEffects(TICK_S);
-    if (this.elapsedSeconds >= 270 && !this.runEnded) {
+    if (this.elapsedSeconds >= 300 && !this.runEnded) {
       this.finishRun('timeout');
     }
   }
@@ -1242,6 +1371,20 @@ export class Simulation {
           }
           if (this.professionId === 'stormcaller') {
             this.applyDamageToEnemy(e, 10 * this.stats.damageMult, false, 0.3, ['pierce', 'lightning']);
+            this.visualEffects.push({
+              id: this.nextEntityId++,
+              kind: 'dash_strike_burst',
+              x: e.x,
+              y: e.y,
+              targetX: e.x,
+              targetY: e.y,
+              angle: this.heroFacingAngle,
+              radius: 0.95,
+              arcRad: Math.PI * 2,
+              color: PALETTE.SKY_BLUE,
+              timer: 0.28,
+              maxTimer: 0.28,
+            });
           }
         }
       }
@@ -1260,17 +1403,17 @@ export class Simulation {
           );
           this.visualEffects.push({
             id: this.nextEntityId++,
-            kind: 'circle_blast',
+            kind: 'dash_strike_burst',
             x: this.heroX,
             y: this.heroY,
             targetX: this.heroX,
             targetY: this.heroY,
-            angle: 0,
+            angle: this.heroFacingAngle,
             radius,
             arcRad: Math.PI * 2,
             color: PALETTE.BLUSH_ROSE,
-            timer: 0.25,
-            maxTimer: 0.25,
+            timer: 0.34,
+            maxTimer: 0.34,
           });
         }
 
@@ -1329,10 +1472,20 @@ export class Simulation {
       }
     }
 
-    // No hard world border!
-    // During the Final Boss fight (arenaActive), a small circle of thorns limits the arena:
-    // exiting the thorn circle deals continuous DPS to the hero's HP instead of hard-blocking movement.
+    // Thorn border arena is spawned from the start of the game (28.0u) and slowly collapses
+    // toward the Final Boss arena size (13.5u), then shrinks further in Boss Phases 2 & 3.
     if (this.arenaActive) {
+      if (!this.finalBossSpawned) {
+        const collapseT = clamp(
+          this.elapsedSeconds / Simulation.FINAL_BOSS_SPAWN_SEC,
+          0,
+          1
+        );
+        this.arenaRadiusU =
+          Simulation.INITIAL_ARENA_RADIUS_U +
+          (Simulation.FINAL_BOSS_ARENA_RADIUS_P1_U - Simulation.INITIAL_ARENA_RADIUS_U) *
+            collapseT;
+      }
       const distFromArena = Math.hypot(
         this.heroX - this.arenaCenterX,
         this.heroY - this.arenaCenterY
@@ -1356,9 +1509,9 @@ export class Simulation {
 
     // Lucky Clover step trail: spawns footstep clovers along the hero's path
     // Starts at really low intensity/frequency at Lv 1 (every 0.68u) and scales up with each level (Lv 5: every 0.20u)
+    const movedDist = Math.hypot(this.heroX - this.heroPrevX, this.heroY - this.heroPrevY);
     const cloverLv = this.cards.lucky_clover ?? 0;
     if (cloverLv > 0) {
-      const movedDist = Math.hypot(this.heroX - this.heroPrevX, this.heroY - this.heroPrevY);
       if (movedDist > 0.001) {
         this.cloverStepDistanceAccum += movedDist;
         const stepSpacingU = Math.max(0.18, 0.80 - cloverLv * 0.12);
@@ -1370,12 +1523,44 @@ export class Simulation {
     } else {
       this.cloverStepDistanceAccum = 0;
     }
+
+    // Permanent Arcana Persona Skin step trail (e.g. Zagreus × Naruto Hellfire footsteps, Void-ODM steps, Alchemy runes, Godspeed lightning)
+    const activePersona =
+      this.personaId && this.personaId !== 'adventurer_default'
+        ? PERSONAS.find((p) => p.id === this.personaId)
+        : undefined;
+    if (activePersona) {
+      if (movedDist > 0.001) {
+        this.personaStepDistanceAccum += movedDist;
+        const personaStepSpacingU = 0.26;
+        while (this.personaStepDistanceAccum >= personaStepSpacingU) {
+          this.personaStepDistanceAccum -= personaStepSpacingU;
+          this.spawnPersonaStepEffect(activePersona.stepEffectKind, activePersona.accentColor);
+        }
+      }
+    } else {
+      this.personaStepDistanceAccum = 0;
+    }
   }
 
   private activatePowerUp(powerUpId: PowerUpId): void {
     if (powerUpId === 'shield') {
       this.shieldHp = 40;
       this.shieldTimer = 20.0;
+      this.visualEffects.push({
+        id: this.nextEntityId++,
+        kind: 'aegis_burst',
+        x: this.heroX,
+        y: this.heroY,
+        targetX: this.heroX,
+        targetY: this.heroY,
+        angle: this.heroFacingAngle,
+        radius: 1.85,
+        arcRad: Math.PI * 2,
+        color: PALETTE.MINT_GREEN,
+        timer: 0.42,
+        maxTimer: 0.42,
+      });
     } else if (powerUpId === 'freeze') {
       this.freezeAuraTimer = 3.5;
       for (const e of this.enemies) {
@@ -1426,6 +1611,7 @@ export class Simulation {
           p.kind === 'xp_gem' ||
           p.kind === 'xp_cluster' ||
           p.kind === 'healing_seed' ||
+          p.kind === 'heal_potion' ||
           p.kind === 'gold_coin'
         ) {
           p.magnetized = true;
@@ -1434,6 +1620,8 @@ export class Simulation {
       }
     } else if (powerUpId === 'time_slow') {
       this.timeSlowTimer = 4.0;
+    } else if (powerUpId === 'heal_potion') {
+      this.healHero(20);
     }
     this.events.emit('PowerUpUsed', {
       powerUpId,
@@ -1508,7 +1696,7 @@ export class Simulation {
         e.vy = 0;
         if (
           e.isArenaFlower &&
-          !this.arenaActive &&
+          !this.finalBossSpawned &&
           Math.hypot(this.heroX - e.x, this.heroY - e.y) > 38.0
         ) {
           this.enemies.splice(i, 1);
@@ -1568,12 +1756,12 @@ export class Simulation {
         const hpRatio = e.hp / e.maxHp;
         if (hpRatio <= 0.33 && e.bossPhase < 3) {
           e.bossPhase = 3;
-          this.arenaRadiusU = 6.0;
+          this.arenaRadiusU = Simulation.FINAL_BOSS_ARENA_RADIUS_P3_U;
           this.addStylePoints(25);
           this.events.emit('BossPhaseChanged', { phase: 3, arenaRadiusU: this.arenaRadiusU });
         } else if (hpRatio <= 0.66 && e.bossPhase < 2) {
           e.bossPhase = 2;
-          this.arenaRadiusU = 7.2;
+          this.arenaRadiusU = Simulation.FINAL_BOSS_ARENA_RADIUS_P2_U;
           this.addStylePoints(25);
           this.events.emit('BossPhaseChanged', { phase: 2, arenaRadiusU: this.arenaRadiusU });
         }
@@ -2171,7 +2359,10 @@ export class Simulation {
     cooldownMap: Map<number, number>,
     evolved: boolean
   ): void {
-    this.bonusOrbitAngle = (this.bonusOrbitAngle + (evolved ? 3.4 : 2.5) * dt) % (Math.PI * 2);
+    const quickHandsLv = this.cards.quick_hands ?? 0;
+    const spinSpeedMult = this.stats.attackSpeedMult * (1 + quickHandsLv * 0.15);
+    this.bonusOrbitAngle =
+      (this.bonusOrbitAngle + (evolved ? 3.4 : 2.5) * spinSpeedMult * dt) % (Math.PI * 2);
 
     for (const [eId, timer] of cooldownMap.entries()) {
       if (timer <= dt) cooldownMap.delete(eId);
@@ -3010,10 +3201,16 @@ export class Simulation {
     }
   }
 
+  public getBasicCoinDropChance(): number {
+    const cloverLv = this.cards.lucky_clover ?? 0;
+    const luckBonus = Math.max(0, this.stats.luck) * 0.008 + cloverLv * 0.06;
+    return clamp(0.10 + luckBonus, 0.10, 0.85);
+  }
+
   private spawnDropsForEnemy(enemy: SimEnemy): void {
     if (enemy.isHeroGrave) return;
 
-    // Big Arena Flowers always drop a random usable Power-Up item + an XP cluster when destroyed!
+    // Big Arena Flowers always drop a random usable Power-Up item + Heal +20HP + an XP cluster when destroyed!
     if (enemy.isArenaFlower) {
       const allPowerUpIds: PowerUpId[] = ['shield', 'freeze', 'fire_breath', 'magnet', 'time_slow'];
       const randomPowerUp = this.rng.drops.pick(allPowerUpIds);
@@ -3024,6 +3221,15 @@ export class Simulation {
         y: enemy.y,
         value: 1,
         powerUpId: randomPowerUp,
+        magnetized: false,
+        pullSpeed: 0,
+      });
+      this.pickups.push({
+        id: this.nextEntityId++,
+        kind: 'heal_potion',
+        x: enemy.x - 0.28,
+        y: enemy.y + 0.16,
+        value: 20,
         magnetized: false,
         pullSpeed: 0,
       });
@@ -3109,13 +3315,31 @@ export class Simulation {
       }
     }
 
-    // Drop a collectible gold coin alongside XP drops (elites/bosses/specials always drop higher-value coins)
+    // New item drop: Heal +20HP ('heal_potion')
+    const healPotionChance = enemy.isSpecial
+      ? 0.65
+      : enemy.isElite
+        ? 0.18
+        : clamp(0.025 + Math.max(0, this.stats.luck) * 0.0015, 0.025, 0.14);
+    if (this.rng.drops.chance(healPotionChance)) {
+      this.pickups.push({
+        id: this.nextEntityId++,
+        kind: 'heal_potion',
+        x: enemy.x - 0.24,
+        y: enemy.y + 0.18,
+        value: 20,
+        magnetized: false,
+        pullSpeed: 0,
+      });
+    }
+
+    // Decreased basic coin drop rate (10% base), amplified by Lucky Clover & Luck stat; elites/bosses/specials always drop coins
     if (
       enemy.isElite ||
       enemy.isSpecial ||
       enemy.isMiniBoss ||
       enemy.isFinalBoss ||
-      this.kills % 2 === 1
+      this.rng.drops.chance(this.getBasicCoinDropChance())
     ) {
       const coinValue =
         enemy.isFinalBoss || enemy.isMiniBoss
@@ -3245,6 +3469,16 @@ export class Simulation {
       this.events.emit('CoinCollected', { x: p.x, y: p.y, value: coinVal });
     } else if (p.kind === 'healing_seed') {
       this.healHero(p.value);
+    } else if (p.kind === 'heal_potion') {
+      const healId: PowerUpId = 'heal_potion';
+      if (this.heldPowerUps.length >= 2) {
+        this.heldPowerUps.shift(); // Replace oldest if holding 2
+      }
+      this.heldPowerUps.push(healId);
+      this.events.emit('PowerUpPicked', {
+        powerUpId: healId,
+        slotIndex: this.heldPowerUps.length - 1,
+      });
     } else if (p.kind === 'power_up' && p.powerUpId) {
       if (this.heldPowerUps.length >= 2) {
         this.heldPowerUps.shift(); // Replace oldest if holding 2 (Spec Section 12)
@@ -3498,6 +3732,7 @@ export class Simulation {
       dmg <= 0 ||
       this.runEnded ||
       this.currentHp <= 0 ||
+      this.cardPickInvisTimer > 0 ||
       this.deathSequenceTimer > 0 ||
       this.victorySequenceTimer > 0
     ) {
@@ -3610,6 +3845,7 @@ export class Simulation {
     if (this.currentHp / this.maxHp < 0.35) budgetMod = 0.85;
     else if (this.currentStreak >= 10) budgetMod = 1.15;
     if (this.activeCurses.includes('swarm_brand')) budgetMod *= 1.25;
+    if (this.finalBossSpawned) budgetMod *= 0.4;
 
     this.directorBankedBudget = Math.min(
       phase.budgetPerSec * 2.2,
@@ -3623,17 +3859,17 @@ export class Simulation {
       this.spawnTimer <= 0 &&
       this.enemies.length < phase.activeCap
     ) {
-      this.spawnTimer = 0.85;
+      this.spawnTimer = this.finalBossSpawned ? 2.1 : 0.85;
       const archetypeId = this.rng.spawn.pick(phase.allowedArchetypes);
       const archDef = ENEMY_ARCHETYPES[archetypeId];
       if (archDef && this.directorBankedBudget >= archDef.budgetCost) {
         const maxCount = Math.min(
-          5,
+          this.finalBossSpawned ? 2 : 5,
           Math.floor(this.directorBankedBudget / archDef.budgetCost),
           phase.activeCap - this.enemies.length
         );
         const groupCount = Math.max(1, this.rng.spawn.int(1, Math.max(1, maxCount)));
-        const basePos = this.arenaActive
+        const basePos = this.finalBossSpawned
           ? {
               x:
                 this.arenaCenterX +
@@ -3689,8 +3925,8 @@ export class Simulation {
       this.spawnBoss(false);
     }
 
-    // Scheduled Final Boss at 3:15 (195s)
-    if (tSec >= 195 && !this.finalBossSpawned) {
+    // Scheduled Final Boss at 3:45 (225s = +30s from original 195s)
+    if (tSec >= Simulation.FINAL_BOSS_SPAWN_SEC && !this.finalBossSpawned) {
       this.finalBossSpawned = true;
       this.spawnBoss(true);
     }
@@ -4077,12 +4313,12 @@ export class Simulation {
           boss.bossPhase = 2;
           boss.name = 'Frenzied Bloom';
           boss.hp = Math.max(1, Math.round(boss.maxHp * 0.6));
-          this.arenaRadiusU = 7.2;
+          this.arenaRadiusU = Simulation.FINAL_BOSS_ARENA_RADIUS_P2_U;
         } else if (bestiaryKey === 'boss_thornheart_p3') {
           boss.bossPhase = 3;
           boss.name = 'Apex Briar Overlord';
           boss.hp = Math.max(1, Math.round(boss.maxHp * 0.3));
-          this.arenaRadiusU = 6.0;
+          this.arenaRadiusU = Simulation.FINAL_BOSS_ARENA_RADIUS_P3_U;
         }
       }
       return boss;
@@ -4093,10 +4329,11 @@ export class Simulation {
 
   private spawnBoss(isFinalBoss: boolean): SimEnemy | null {
     if (isFinalBoss) {
+      this.finalBossSpawned = true;
       this.arenaActive = true;
       this.arenaCenterX = this.heroX;
       this.arenaCenterY = this.heroY;
-      this.arenaRadiusU = 8.5;
+      this.arenaRadiusU = Simulation.FINAL_BOSS_ARENA_RADIUS_P1_U;
 
       // Place 3 Big Flowers inside the Final Boss thorn circle arena
       for (let i = 0; i < 3; i++) {
@@ -4256,6 +4493,7 @@ export class Simulation {
       reviveUsed: this.reviveUsed,
       freeRerollUsed: this.freeRerollUsed,
       adRerollsUsed: this.adRerollsUsed,
+      coinRerollsUsed: this.coinRerollsUsed,
       totalCardsReceived: this.totalCardsReceived,
       pendingCardOfferIds:
         this.pendingCardOffers.length > 0
@@ -4337,6 +4575,7 @@ export class Simulation {
     sim.reviveUsed = cp.reviveUsed;
     sim.freeRerollUsed = cp.freeRerollUsed;
     sim.adRerollsUsed = cp.adRerollsUsed;
+    sim.coinRerollsUsed = cp.coinRerollsUsed ?? 0;
     sim.totalCardsReceived =
       cp.totalCardsReceived ??
       Object.values(cp.cards).reduce((sum, v) => sum + v, 0);

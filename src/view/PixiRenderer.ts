@@ -465,8 +465,8 @@ export class PixiGameRenderer {
     const centerChunkY = Math.floor(heroY / CHUNK_SIZE_U);
     const neededKeys = new Set<string>();
 
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
         const cx = centerChunkX + dx;
         const cy = centerChunkY + dy;
         const key = `${cx},${cy}`;
@@ -574,9 +574,9 @@ export class PixiGameRenderer {
       }
     }
 
-    // Smooth golden-white fade into Winning Game Over screen during Angel Wings ascension
-    if (sim.victorySequenceTimer > 0) {
-      const winProgress = clamp(1 - sim.victorySequenceTimer / 1.85, 0, 1);
+    // Smooth golden-white fade into Winning Game Over screen during Angel Wings ascension (after Final Boss death finishes)
+    if (sim.victorySequenceTimer > 0 && sim.bossDeathTimer <= 0) {
+      const winProgress = clamp(1 - sim.victorySequenceTimer / 1.1, 0, 1);
       if (winProgress > 0.48) {
         const fadeAlpha = clamp(((winProgress - 0.48) / 0.52) * 0.72, 0, 0.72);
         this.screenOverlayGraphic

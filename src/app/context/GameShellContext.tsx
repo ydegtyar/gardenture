@@ -14,7 +14,7 @@ import {
   PROFESSIONS,
   STYLE_RANKS,
 } from '../../content/data/catalog';
-import type { PowerUpId, ProfessionId } from '../../content/schema/types';
+import type { BiomeId, PowerUpId, ProfessionId } from '../../content/schema/types';
 import { Simulation } from '../../sim/Simulation';
 import type { DraftOfferItem } from '../../sim/systems/cardDraft';
 import { InputManager } from '../../input/InputManager';
@@ -38,6 +38,17 @@ import { IS_DEV } from '../debug/devGate';
 
 export type ShellState = 'title' | 'playing' | 'paused' | 'gameover';
 export type SanctuaryTab = 'loadout' | 'store' | 'quests' | 'bestiary' | null;
+
+const ALL_BIOMES: readonly BiomeId[] = [
+  'garden',
+  'dungeon',
+  'sakura_grove',
+  'sunlit_oasis',
+];
+
+function pickRandomBiome(): BiomeId {
+  return ALL_BIOMES[Math.floor(Math.random() * ALL_BIOMES.length)] ?? 'garden';
+}
 
 export interface HudTelemetry {
   hp: number;
@@ -99,6 +110,8 @@ export interface GameShellContextValue {
   rankAura: RankAuraState | null;
   freeRerollAvailable: boolean;
   canAdReroll: boolean;
+  adRerollsRemaining: number;
+  coinRerollsRemaining: number;
   canWatchRewardedAd: boolean;
 
   // Core Actions
@@ -395,20 +408,20 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         audioRef.current.setStyleRankIndex(ev.newRankIndex);
         if (ev.rankedUp) {
           audioRef.current.playLevelUpOrRankUp(true);
-          if (rankAuraTimeoutRef.current) {
-            window.clearTimeout(rankAuraTimeoutRef.current);
-          }
-          const rankDef = STYLE_RANKS[ev.newRankIndex] || STYLE_RANKS[0]!;
-          setRankAura({
-            active: true,
-            colorHex: rankDef.colorHex,
-            letter: rankDef.letter,
-            key: Date.now(),
-          });
-          rankAuraTimeoutRef.current = window.setTimeout(() => {
-            setRankAura((prev) => (prev ? { ...prev, active: false } : null));
-          }, 950);
         }
+        if (rankAuraTimeoutRef.current) {
+          window.clearTimeout(rankAuraTimeoutRef.current);
+        }
+        const rankDef = STYLE_RANKS[ev.newRankIndex] || STYLE_RANKS[0]!;
+        setRankAura({
+          active: true,
+          colorHex: rankDef.colorHex,
+          letter: rankDef.letter,
+          key: Date.now(),
+        });
+        rankAuraTimeoutRef.current = window.setTimeout(() => {
+          setRankAura((prev) => (prev ? { ...prev, active: false } : null));
+        }, 950);
         syncHudFromSim(sim);
       });
 
@@ -567,6 +580,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         attachSimListeners(sim);
       } else {
         sd.activeRun = null;
+        if (!sd.loadout.biomeExplicitlyChosen) {
+          sd.loadout.biomeId = pickRandomBiome();
+          setSaveData({ ...sd });
+        }
         sim = createFreshSimulation(sd);
       }
 
@@ -665,6 +682,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         biomeParam === 'sunlit_oasis'
       ) {
         loadedSave.loadout.biomeId = biomeParam;
+        loadedSave.loadout.biomeExplicitlyChosen = true;
         saveDataRef.current = loadedSave;
         setSaveData({ ...loadedSave });
         renderer.setPreferences({
@@ -672,6 +690,17 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           showDamageNumbers: loadedSave.settings.showDamageNumbers,
           bloomIntensity: loadedSave.settings.bloomIntensity,
           biome: biomeParam,
+        });
+      } else if (!loadedSave.loadout.biomeExplicitlyChosen) {
+        const initialRandomBiome = pickRandomBiome();
+        loadedSave.loadout.biomeId = initialRandomBiome;
+        saveDataRef.current = loadedSave;
+        setSaveData({ ...loadedSave });
+        renderer.setPreferences({
+          reducedMotion: loadedSave.settings.reducedMotion,
+          showDamageNumbers: loadedSave.settings.showDamageNumbers,
+          bloomIntensity: loadedSave.settings.bloomIntensity,
+          biome: initialRandomBiome,
         });
       }
       if (params.get('autostart') === '1') {
@@ -870,7 +899,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     setSaveData({ ...saveDataRef.current });
     void saveManagerRef.current.flushImmediate();
     sim.triggerSuddenDeath();
-    syncHudFromSim(sim, 'SUDDEN DEATH · ENDING RUN & CLAIMING REWARDS...');
+    syncHudFromSim(sim, null);
     updateShellState('playing');
   }, [syncHudFromSim, updateShellState]);
 
@@ -907,13 +936,13 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
   const handleRerollFree = useCallback(() => {
     const sim = simRef.current;
-    if (!sim) return;
-    setDraftOffers([...sim.rerollCardDraft(true)]);
+    if (!sim || sim.freeRerollUsed) return;
+    setDraftOffers([...sim.rerollCardDraft('free')]);
   }, []);
 
   const handleRerollAd = useCallback(async () => {
     const sim = simRef.current;
-    if (!sim) return;
+    if (!sim || sim.adRerollsUsed >= Simulation.MAX_AD_REROLLS) return;
     setIsAdLoading(true);
     audioRef.current.setAdPlaying(true);
     const earned = await platformRef.current.ads.requestRewardedAd('reward_card_reroll_v1');
@@ -921,7 +950,8 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     setIsAdLoading(false);
     if (earned) {
       saveManagerRef.current.recordAdWatched();
-      setDraftOffers([...sim.rerollCardDraft(false)]);
+      setDraftOffers([...sim.rerollCardDraft('ad')]);
+      saveDataRef.current.activeRun = sim.serializeCheckpoint();
       void saveManagerRef.current.flushImmediate();
     }
   }, []);
@@ -929,10 +959,13 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   const handleRerollCoins = useCallback(() => {
     const sim = simRef.current;
     const sd = saveDataRef.current;
-    if (!sim || sd.currencies.coins < 40) return;
+    if (!sim || sim.coinRerollsUsed >= Simulation.MAX_COIN_REROLLS || sd.currencies.coins < 40) {
+      return;
+    }
     sd.currencies.coins -= 40;
     setSaveData({ ...sd });
-    setDraftOffers([...sim.rerollCardDraft(false)]);
+    setDraftOffers([...sim.rerollCardDraft('coins')]);
+    sd.activeRun = sim.serializeCheckpoint();
     void saveManagerRef.current.flushImmediate();
   }, []);
 
@@ -1012,7 +1045,11 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   const handleSelectLoadout = useCallback(
     (partial: Partial<SaveDataV1['loadout']>) => {
       const sd = saveDataRef.current;
-      sd.loadout = { ...sd.loadout, ...partial };
+      sd.loadout = {
+        ...sd.loadout,
+        ...partial,
+        ...(partial.biomeId !== undefined ? { biomeExplicitlyChosen: true } : {}),
+      };
       setSaveData({ ...sd });
       rendererRef.current?.setPreferences({
         reducedMotion: sd.settings.reducedMotion,
@@ -1093,9 +1130,16 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         if (!sd.unlocks.personas.includes(personaId)) {
           sd.unlocks.personas.push(personaId);
         }
+        if (!sd.unlocks.professions.includes(pDef.professionId)) {
+          sd.unlocks.professions.push(pDef.professionId);
+        }
         sd.loadout.personaId = personaId;
+        sd.loadout.professionId = pDef.professionId;
+        sd.loadout.startingWeaponId =
+          PROFESSIONS[pDef.professionId]?.startingWeaponId ?? sd.loadout.startingWeaponId;
         if (simRef.current) {
           simRef.current.personaId = personaId;
+          simRef.current.professionId = pDef.professionId;
         }
       }
       setSaveData({ ...sd });
@@ -1285,9 +1329,16 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         if (!sd.unlocks.personas.includes(personaId)) {
           sd.unlocks.personas.push(personaId);
         }
+        if (!sd.unlocks.professions.includes(pDef.professionId)) {
+          sd.unlocks.professions.push(pDef.professionId);
+        }
         sd.loadout.personaId = personaId;
+        sd.loadout.professionId = pDef.professionId;
+        sd.loadout.startingWeaponId =
+          PROFESSIONS[pDef.professionId]?.startingWeaponId ?? sd.loadout.startingWeaponId;
         if (simRef.current) {
           simRef.current.personaId = personaId;
+          simRef.current.professionId = pDef.professionId;
         }
       }
       setSaveData({ ...sd });
@@ -1366,9 +1417,15 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   }, [refreshYtDiagnostics]);
 
   const freeRerollAvailable = Boolean(simRef.current && !simRef.current.freeRerollUsed);
+  const adRerollsRemaining = simRef.current
+    ? Math.max(0, Simulation.MAX_AD_REROLLS - simRef.current.adRerollsUsed)
+    : Simulation.MAX_AD_REROLLS;
+  const coinRerollsRemaining = simRef.current
+    ? Math.max(0, Simulation.MAX_COIN_REROLLS - simRef.current.coinRerollsUsed)
+    : Simulation.MAX_COIN_REROLLS;
   const canWatchRewardedAd = saveManagerRef.current.canWatchRewardedAd();
   const canAdReroll = Boolean(
-    simRef.current && simRef.current.adRerollsUsed < 2 && canWatchRewardedAd
+    simRef.current && adRerollsRemaining > 0 && canWatchRewardedAd
   );
 
   const value: GameShellContextValue = {
@@ -1392,6 +1449,8 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     rankAura,
     freeRerollAvailable,
     canAdReroll,
+    adRerollsRemaining,
+    coinRerollsRemaining,
     canWatchRewardedAd,
     startNewOrResumedRun,
     updateShellState,

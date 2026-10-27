@@ -15,6 +15,10 @@ export type SpriteKey =
   | 'hero_seeker'
   | 'hero_herbalist'
   | 'hero_stormcaller'
+  | 'skin_warden_zagreus_naruto'
+  | 'skin_seeker_hollow_levi'
+  | 'skin_herbalist_frieren_strange'
+  | 'skin_stormcaller_gojo_killua'
   | 'enemy_chaser_norm'
   | 'enemy_chaser_elite'
   | 'enemy_dasher_norm'
@@ -37,7 +41,7 @@ export type SpriteKey =
   | 'boss_thornheart_p3';
 
 /**
- * Exact canonical prompts from Game_Elements_Catalog.md (Sections 2 & 6).
+ * Exact canonical prompts from Game_Elements_Catalog.md (Sections 2 & 6) + Pop-Culture Arcana Skins.
  */
 export const CATALOG_SPRITE_PROMPTS: Readonly<Record<SpriteKey, string>> = {
   hero_warden:
@@ -48,6 +52,14 @@ export const CATALOG_SPRITE_PROMPTS: Readonly<Record<SpriteKey, string>> = {
     'Stylized 2D cartoon herbalist apothecary character sprite, top-down 3/4 mobile game perspective, wide-brim straw hat with a blooming pastel pink daisy, sage green apron over cream tunic, pouch filled with glowing mint remedies, holding a small botanical pestle, bold dark outlines, warm pastel cel-shading, isolated on pure white background.',
   hero_stormcaller:
     'Stylized 2D cartoon lightning druid character sprite, top-down 3/4 mobile game view, floating ethereal pose, flowing sky-blue and lilac robes, glowing pastel electric runes on hands, leafy circlet sparking with tiny cartoon lightning sparks, bold dark outlines, vibrant high-contrast cel-shaded vector art, isolated on pure white background.',
+  skin_warden_zagreus_naruto:
+    'Pop-culture mashup character skin for Warden: Zagreus (Hades) × Naruto Uzumaki (Six Paths Sage Mode). Heterochromia eyes (left blazing Stygian blood-red, right verdant laurel-green with golden Toad-Sage pigment), spiky golden-and-crimson hair, Konoha metal headband entwined with Zagreus golden laurel wreath, three whisker marks on each cheek, chthonic skull pauldron over glowing Six-Paths orange chakra haori coat, leaving disappearing Hellfire footsteps.',
+  skin_seeker_hollow_levi:
+    'Pop-culture mashup character skin for Seeker: Pure Vessel / The Knight (Hollow Knight) × Levi Ackerman (Attack on Titan). Curved porcelain-white Hollow Knight horned shell mask with crimson Vizard war-stripes, one abyssal void eye and one blazing cyan Ackerman eye, emerald Survey Corps Wings of Freedom cloak over tattered midnight Mothwing coat, dual Pure-Nail Ultrahard Steel blades, leaving disappearing Void-Shade & ODM steam steps.',
+  skin_herbalist_frieren_strange:
+    'Pop-culture mashup character skin for Herbalist: Frieren (Beyond Journey’s End) × Doctor Strange × Edward Elric (Fullmetal Alchemist). Silver-white Frieren twin-tails and pointed elf ears, heterochromia teal-and-gold alchemist eyes, Doctor Strange crimson Cloak of Levitation with golden arcane collar, glowing emerald Eye of Agamotto amulet, gleaming silver Automail right arm holding a crescent eclipse staff, leaving disappearing Eldritch Transmutation runes.',
+  skin_stormcaller_gojo_killua:
+    'Pop-culture mashup character skin for Stormcaller (Thander Rein): Raiden (Mortal Kombat) × Thor Odinson (Marvel). Iconic wide conical woven bamboo/straw hat, flowing crimson-red Asgardian cloak with twin silver Mjolnir chest discs, dark blue thunder-god armor and white sash, levitating flight stance, and blazing cyan-white lightning eyes that leave electric light trails on movement.',
   enemy_chaser_norm:
     'Stylized 2D cartoon enemy sprite, top-down 3/4 mobile game perspective, skittering vine beast with four thorny branch legs, a snapping bulb maw with rose-thorn teeth, glowing yellow cartoon eyes, bold dark plum outlines, pastel olive and sage cel-shading, isolated on pure white background.',
   enemy_chaser_elite:
@@ -92,7 +104,7 @@ export const CATALOG_SPRITE_PROMPTS: Readonly<Record<SpriteKey, string>> = {
 
 const CELL_SIZE = 256;
 const ATLAS_COLS = 6;
-const ATLAS_ROWS = 4;
+const ATLAS_ROWS = 5;
 const PLUM = '#2D1E2F';
 
 const ALL_SPRITE_KEYS: readonly SpriteKey[] = [
@@ -100,6 +112,10 @@ const ALL_SPRITE_KEYS: readonly SpriteKey[] = [
   'hero_seeker',
   'hero_herbalist',
   'hero_stormcaller',
+  'skin_warden_zagreus_naruto',
+  'skin_seeker_hollow_levi',
+  'skin_herbalist_frieren_strange',
+  'skin_stormcaller_gojo_killua',
   'enemy_chaser_norm',
   'enemy_chaser_elite',
   'enemy_dasher_norm',
@@ -124,6 +140,7 @@ const ALL_SPRITE_KEYS: readonly SpriteKey[] = [
 
 let cachedTextures: Map<SpriteKey, Texture> | null = null;
 const cachedPortraitUrls = new Map<SpriteKey, string>();
+const cachedSilhouetteUrls = new Map<SpriteKey, string>();
 
 // ============================================================================
 // LOW-LEVEL CEL-SHADING & CARTOON VECTOR DRAWING PRIMITIVES
@@ -930,6 +947,475 @@ function paintBossSprite(
   drawCuteEye(ctx, 154, 104, 6.5, PLUM, -0.35);
 }
 
+// ============================================================================
+// POP-CULTURE MASHUP ARCANA SKINS (AD-UNLOCKED ONLY)
+// ============================================================================
+
+function paintSkinWardenZagreusNaruto(
+  ctx: CanvasRenderingContext2D,
+  includeStaticLegs = true
+): void {
+  // Warden Skin: Zagreus (Hades) × Naruto Uzumaki (Six Paths Sage Mode)
+  // Blazing Hellfire steps, Six-Paths Truth-Seeking Orbs, Chthonic Skull Pauldron,
+  // Konoha Laurel Headband, Whisker Marks, and Heterochromia Eyes (Left Red #F43F5E, Right Green #22C55E).
+  if (includeStaticLegs) {
+    // Blazing Stygian-Chakra Flame Footsteps under boots
+    for (const dx of [-24, 24]) {
+      ctx.beginPath();
+      ctx.ellipse(128 + dx, 206, 22, 9, 0, 0, Math.PI * 2);
+      fillAndStroke(ctx, '#F97316', 4, '#F43F5E');
+      ctx.beginPath();
+      ctx.ellipse(128 + dx, 206, 13, 5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#FDFFB6';
+      ctx.fill();
+
+      // Shinobi-Stygian greaves
+      ctx.beginPath();
+      ctx.roundRect(128 + dx - 13, 182, 26, 24, 10);
+      fillAndStroke(ctx, '#1E1B2E', 6);
+    }
+  }
+
+  // Flowing Six-Paths Golden-Orange Chakra Haori Coat tails
+  ctx.beginPath();
+  ctx.moveTo(68, 192);
+  ctx.quadraticCurveTo(62, 132, 88, 106);
+  ctx.lineTo(168, 106);
+  ctx.quadraticCurveTo(194, 132, 188, 192);
+  ctx.lineTo(162, 178);
+  ctx.lineTo(128, 194);
+  ctx.lineTo(94, 178);
+  ctx.closePath();
+  fillAndStroke(ctx, '#FB923C', 7.5);
+
+  // Inner Stygian Obsidian Chiton + Blood-Crimson Underworld Sash (Zagreus)
+  ctx.beginPath();
+  ctx.roundRect(94, 114, 68, 66, 12);
+  fillAndStroke(ctx, '#1E1B2E', 6.5);
+
+  ctx.beginPath();
+  ctx.moveTo(94, 120);
+  ctx.lineTo(156, 176);
+  ctx.lineTo(162, 152);
+  ctx.lineTo(114, 114);
+  ctx.closePath();
+  fillAndStroke(ctx, '#E11D48', 5.5);
+
+  // Six-Paths Black Magatama Tomoe markings across chest/collar
+  for (const mx of [110, 128, 146]) {
+    ctx.beginPath();
+    ctx.arc(mx, 128, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#FDFFB6';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(mx, 128, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = PLUM;
+    ctx.fill();
+  }
+
+  // Golden Hades Skull Belt Buckle
+  ctx.beginPath();
+  ctx.roundRect(84, 160, 88, 13, 6);
+  fillAndStroke(ctx, '#27272A', 5.5);
+  drawCelCircle(ctx, 128, 166, 11, '#FBBF24', '#D97706', '#FFFDF0', 4.5);
+
+  // Left Shoulder: Zagreus Chthonic Skull Pauldron with blazing red eye sockets
+  drawCelCircle(ctx, 86, 122, 22, '#E2E8F0', '#94A3B8', '#FFFDF0', 6);
+  ctx.fillStyle = '#F43F5E';
+  ctx.beginPath();
+  ctx.arc(80, 122, 4, 0, Math.PI * 2);
+  ctx.arc(92, 122, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Right Shoulder: Swirling Kurama Chakra Flame Pauldron
+  drawLeafShape(ctx, 168, 122, -0.35, 52, 22, '#F97316', '#FDFFB6', 6);
+  drawLeafShape(ctx, 166, 112, 0.15, 42, 16, '#FDFFB6', '#FFFDF0', 5);
+
+  // Orbiting Six-Paths Truth-Seeking Orbs (Black spheres with golden chakra halo)
+  for (const [ox, oy] of [
+    [54, 96],
+    [202, 96],
+    [60, 148],
+  ] as const) {
+    drawCelCircle(ctx, ox, oy, 10, '#18181B', '#09090B', '#FBBF24', 4, '#F97316');
+  }
+
+  // Static Portrait Weapon: Stygius × Kurama Chakra Great-Blade
+  if (includeStaticLegs) {
+    ctx.save();
+    ctx.translate(192, 138);
+    ctx.rotate(-0.42);
+    drawLeafShape(ctx, 0, 0, -Math.PI / 2, 82, 24, '#F43F5E', '#FDFFB6', 6.5);
+    drawLeafShape(ctx, 0, -6, -Math.PI / 2, 62, 13, '#1E1B2E', '#F97316', 4.5);
+    ctx.beginPath();
+    ctx.roundRect(-18, -6, 36, 11, 5);
+    fillAndStroke(ctx, '#FBBF24', 5);
+    ctx.restore();
+  }
+
+  // Spiky Naruto Golden-Yellow & Zagreus Flame-Crimson Hair Crown
+  const hairSpikes: ReadonlyArray<readonly [number, number, number, string]> = [
+    [92, 68, -2.4, '#1E1B2E'],
+    [104, 52, -1.9, '#FACC15'],
+    [120, 44, -1.6, '#F97316'],
+    [136, 44, -1.4, '#FACC15'],
+    [152, 52, -1.1, '#F43F5E'],
+    [164, 68, -0.7, '#1E1B2E'],
+  ];
+  for (const [sx, sy, ang, col] of hairSpikes) {
+    drawLeafShape(ctx, sx, sy, ang, 44, 18, col, '#FDFFB6', 6);
+  }
+
+  // Head & Face
+  drawCelCircle(ctx, 128, 90, 35, '#FFD3B6', '#F3B692', '#FFFDF0', 6.5);
+
+  // Naruto's 3 Iconic Whisker Marks on both cheeks
+  ctx.lineWidth = 3.2;
+  ctx.strokeStyle = PLUM;
+  ctx.lineCap = 'round';
+  for (let w = 0; w < 3; w++) {
+    const wy = 95 + w * 5.5;
+    ctx.beginPath();
+    ctx.moveTo(96, wy - 1);
+    ctx.lineTo(107, wy);
+    ctx.moveTo(149, wy);
+    ctx.lineTo(160, wy - 1);
+    ctx.stroke();
+  }
+
+  // HETEROCHROMIA EYES (Zagreus × Naruto Sage Mode):
+  // Left Eye (113, 90): Blazing Stygian Blood-Red (#F43F5E)
+  // Right Eye (143, 90): Verdant Laurel-Green (#22C55E) with Golden Toad-Sage pigment (#FBBF24)
+  ctx.beginPath();
+  ctx.arc(113, 90, 10.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(244, 63, 94, 0.35)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(143, 90, 10.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(251, 191, 36, 0.55)';
+  ctx.fill();
+
+  drawCuteEye(ctx, 113, 90, 7.5, '#F43F5E', 0.22);
+  drawCuteEye(ctx, 143, 90, 7.5, '#22C55E', -0.22);
+
+  // Konoha Forehead Protector Headband + Zagreus Golden-Emerald Laurel Wreath
+  ctx.beginPath();
+  ctx.roundRect(92, 62, 72, 15, 6);
+  fillAndStroke(ctx, '#334155', 5.5);
+  ctx.beginPath();
+  ctx.roundRect(108, 64, 40, 11, 4);
+  fillAndStroke(ctx, '#CBD5E1', 4);
+  // Zagreus Burning Laurel Leaves flanking headband
+  drawLeafShape(ctx, 94, 68, -Math.PI * 0.78, 30, 11, '#FBBF24', '#FFFDF0', 4.5);
+  drawLeafShape(ctx, 162, 68, -Math.PI * 0.22, 30, 11, '#22C55E', '#FDFFB6', 4.5);
+
+  drawStarGlint(ctx, 113, 86, 6, '#FFAAA6');
+  drawStarGlint(ctx, 143, 86, 6, '#A8E6CF');
+}
+
+function paintSkinSeekerHollowLevi(
+  ctx: CanvasRenderingContext2D,
+  includeStaticLegs = true
+): void {
+  // Seeker Skin: Pure Vessel / The Knight (Hollow Knight) × Levi Ackerman (Attack on Titan)
+  if (includeStaticLegs) {
+    // Abyssal Void puddles & ODM steam rings under boots
+    for (const dx of [-22, 22]) {
+      ctx.beginPath();
+      ctx.ellipse(128 + dx, 204, 18, 7, 0, 0, Math.PI * 2);
+      fillAndStroke(ctx, '#0F172A', 4, '#38BDF8');
+      ctx.beginPath();
+      ctx.roundRect(128 + dx - 12, 184, 24, 24, 9);
+      fillAndStroke(ctx, '#1E293B', 6);
+    }
+  }
+
+  // Tattered Midnight Mothwing Under-Cloak (Hollow Knight)
+  ctx.beginPath();
+  ctx.moveTo(64, 194);
+  ctx.lineTo(84, 108);
+  ctx.lineTo(172, 108);
+  ctx.lineTo(192, 194);
+  ctx.lineTo(166, 178);
+  ctx.lineTo(146, 194);
+  ctx.lineTo(128, 178);
+  ctx.lineTo(110, 194);
+  ctx.lineTo(90, 178);
+  ctx.closePath();
+  fillAndStroke(ctx, '#0F172A', 7.5);
+
+  // Survey Corps Emerald "Wings of Freedom" Cloak & Levi White Cravat
+  ctx.beginPath();
+  ctx.moveTo(76, 176);
+  ctx.quadraticCurveTo(72, 126, 94, 106);
+  ctx.lineTo(162, 106);
+  ctx.quadraticCurveTo(184, 126, 180, 176);
+  ctx.quadraticCurveTo(128, 166, 76, 176);
+  ctx.closePath();
+  fillAndStroke(ctx, '#15803D', 7);
+
+  // ODM Gear Crossed Harness Straps & Levi's White Cravat
+  ctx.beginPath();
+  ctx.moveTo(118, 112);
+  ctx.lineTo(138, 112);
+  ctx.lineTo(133, 138);
+  ctx.lineTo(123, 138);
+  ctx.closePath();
+  fillAndStroke(ctx, '#F8FAFC', 4.5);
+
+  // Dual Pure-Nail / ODM Ultrahard Steel Blades in Left & Right Hands
+  drawLeafShape(ctx, 64, 144, Math.PI * 0.78, 60, 15, '#E2E8F0', '#38BDF8', 6);
+  drawLeafShape(ctx, 192, 144, Math.PI * 0.22, 60, 15, '#E2E8F0', '#38BDF8', 6);
+
+  // Iconic Curved Porcelain-White Hollow Knight Horned Shell Mask
+  for (const dir of [-1, 1] as const) {
+    ctx.beginPath();
+    ctx.moveTo(128 + dir * 18, 72);
+    ctx.quadraticCurveTo(128 + dir * 64, 34, 128 + dir * 26, 12);
+    ctx.quadraticCurveTo(128 + dir * 36, 44, 128 + dir * 6, 66);
+    ctx.closePath();
+    fillAndStroke(ctx, '#F8FAFC', 7);
+  }
+
+  // Porcelain Mask Head with Crimson Vizard War-Stripe on Left
+  drawCelCircle(ctx, 128, 88, 36, '#F8FAFC', '#CBD5E1', '#FFFFFF', 7);
+  ctx.beginPath();
+  ctx.moveTo(102, 62);
+  ctx.quadraticCurveTo(98, 88, 108, 114);
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#E11D48';
+  ctx.stroke();
+
+  // Asymmetrical Eyes: Left Abyssal Void Socket (#0F172A), Right Blazing Ackerman Cyan (#38BDF8)
+  ctx.beginPath();
+  ctx.ellipse(113, 90, 8.5, 11, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#09090B';
+  ctx.fill();
+  drawCuteEye(ctx, 143, 90, 7.5, '#38BDF8', -0.25);
+  drawStarGlint(ctx, 143, 88, 8, '#E0F2FE');
+}
+
+function paintSkinHerbalistFrierenStrange(
+  ctx: CanvasRenderingContext2D,
+  includeStaticLegs = true
+): void {
+  // Herbalist Skin: Frieren (Beyond Journey's End) × Doctor Strange × Edward Elric (FMA)
+  if (includeStaticLegs) {
+    // Glowing Golden Eldritch Mandala Ring under feet
+    ctx.beginPath();
+    ctx.ellipse(128, 200, 52, 15, 0, 0, Math.PI * 2);
+    fillAndStroke(ctx, 'rgba(251, 191, 36, 0.35)', 5, '#FBBF24');
+    for (const dx of [-20, 20]) {
+      ctx.beginPath();
+      ctx.roundRect(128 + dx - 11, 184, 22, 22, 9);
+      fillAndStroke(ctx, '#7F1D1D', 6);
+    }
+  }
+
+  // Doctor Strange's High-Collared Crimson Cloak of Levitation + Gold Arcane Trim
+  ctx.beginPath();
+  ctx.moveTo(66, 190);
+  ctx.quadraticCurveTo(58, 118, 84, 72);
+  ctx.lineTo(172, 72);
+  ctx.quadraticCurveTo(198, 118, 190, 190);
+  ctx.closePath();
+  fillAndStroke(ctx, '#DC2626', 7.5);
+
+  // Frieren's Crisp White & Gold Mage Capelet over tunic
+  ctx.beginPath();
+  ctx.roundRect(88, 114, 80, 70, 20);
+  fillAndStroke(ctx, '#F8FAFC', 7);
+  ctx.beginPath();
+  ctx.roundRect(96, 114, 64, 34, 12);
+  fillAndStroke(ctx, '#FEF08A', 5.5);
+
+  // Glowing Emerald Eye of Agamotto Time-Stone Amulet on chest
+  drawCelCircle(ctx, 128, 134, 13, '#FBBF24', '#D97706', '#FFFDF0', 5);
+  drawCelCircle(ctx, 128, 134, 6.5, '#10B981', '#059669', '#A8E6CF', 3);
+
+  // Left Hand: Rotating Golden Eldritch Mandala Spell Shield
+  drawCelCircle(ctx, 68, 148, 20, 'rgba(251, 191, 36, 0.45)', '#F59E0B', '#FEF08A', 5, '#FBBF24');
+  drawStarGlint(ctx, 68, 148, 11, '#FEF08A');
+
+  // Right Arm: Edward Elric Silver Automail Arm gripping Frieren's Crescent Staff
+  drawCelCircle(ctx, 184, 146, 15, '#CBD5E1', '#64748B', '#F8FAFC', 5.5);
+  if (includeStaticLegs) {
+    ctx.save();
+    ctx.translate(192, 136);
+    ctx.rotate(0.28);
+    ctx.beginPath();
+    ctx.roundRect(-5, -48, 10, 86, 5);
+    fillAndStroke(ctx, '#78350F', 5);
+    drawCelCircle(ctx, 0, -52, 16, '#FBBF24', '#D97706', '#FFFDF0', 5);
+    drawCelCircle(ctx, 0, -52, 9, '#EF4444', '#B91C1C', '#FCA5A5', 3.5);
+    ctx.restore();
+  }
+
+  // Frieren's Iconic Long Silver-White Twin-Tails & Pointed Elf Ears
+  drawLeafShape(ctx, 84, 86, Math.PI * 0.72, 78, 22, '#F1F5F9', '#CBD5E1', 6.5);
+  drawLeafShape(ctx, 172, 86, Math.PI * 0.28, 78, 22, '#F1F5F9', '#CBD5E1', 6.5);
+  // Pointed Elf Ears
+  drawLeafShape(ctx, 94, 92, Math.PI * 0.95, 32, 11, '#FFD3B6', '#F3B692', 5);
+  drawLeafShape(ctx, 162, 92, Math.PI * 0.05, 32, 11, '#FFD3B6', '#F3B692', 5);
+
+  // Silver Hair & Face
+  drawCelCircle(ctx, 128, 84, 38, '#F1F5F9', '#CBD5E1', '#FFFFFF', 7);
+  drawCelCircle(ctx, 128, 92, 32, '#FFD3B6', '#F3B692', '#FFFDF0', 6);
+
+  // Heterochromia Eyes: Left Frieren Mana-Teal (#2DD4BF), Right Fullmetal Gold (#FBBF24)
+  drawCuteEye(ctx, 114, 92, 7, '#0D9488', 0);
+  drawCuteEye(ctx, 142, 92, 7, '#D97706', 0);
+  // Third-Eye Golden Transmutation Sigil on Forehead
+  drawStarGlint(ctx, 128, 74, 8, '#FBBF24');
+}
+
+function paintSkinStormcallerGojoKillua(
+  ctx: CanvasRenderingContext2D,
+  includeStaticLegs = true
+): void {
+  // Stormcaller Skin: THANDER REIN — Raiden (Mortal Kombat) × Thor Odinson (Marvel)
+  // 1. Flowing Marvel Thor Crimson-Red Cloak billowing wide behind the body
+  ctx.beginPath();
+  ctx.moveTo(82, 102);
+  ctx.quadraticCurveTo(42, 146, 48, 206);
+  ctx.quadraticCurveTo(88, 218, 128, 212);
+  ctx.quadraticCurveTo(168, 218, 208, 206);
+  ctx.quadraticCurveTo(214, 146, 174, 102);
+  ctx.closePath();
+  fillAndStroke(ctx, '#DC2626', 7.5);
+
+  // Crimson Cloak inner folds & highlight pleats
+  ctx.beginPath();
+  ctx.moveTo(78, 114);
+  ctx.quadraticCurveTo(60, 158, 66, 200);
+  ctx.lineTo(94, 204);
+  ctx.quadraticCurveTo(92, 156, 98, 114);
+  ctx.closePath();
+  fillAndStroke(ctx, '#EF4444', 5);
+
+  ctx.beginPath();
+  ctx.moveTo(178, 114);
+  ctx.quadraticCurveTo(196, 158, 190, 200);
+  ctx.lineTo(162, 204);
+  ctx.quadraticCurveTo(164, 156, 158, 114);
+  ctx.closePath();
+  fillAndStroke(ctx, '#B91C1C', 5);
+
+  if (includeStaticLegs) {
+    // Levitating Thunder-God Hover Cushion & Levitating Asgardian Boots (not walking on ground)
+    ctx.beginPath();
+    ctx.ellipse(128, 214, 46, 11, 0, 0, Math.PI * 2);
+    fillAndStroke(ctx, '#38BDF8', 4.5);
+
+    // Poised levitating boots tucked in mid-air flight
+    drawCelCircle(ctx, 112, 194, 11, '#1E293B', '#0F172A', '#64748B', 5.5);
+    drawCelCircle(ctx, 144, 190, 11, '#1E293B', '#0F172A', '#64748B', 5.5);
+  }
+
+  // 2. Raiden × Thor Dark Thunder-God Armor Tunic & White Mortal Kombat Tabard
+  ctx.beginPath();
+  ctx.moveTo(82, 184);
+  ctx.quadraticCurveTo(78, 126, 94, 104);
+  ctx.lineTo(162, 104);
+  ctx.quadraticCurveTo(178, 126, 174, 184);
+  ctx.quadraticCurveTo(128, 194, 82, 184);
+  ctx.closePath();
+  fillAndStroke(ctx, '#1E293B', 7.5);
+
+  // Raiden's Iconic White & Blue Mortal Kombat Thunder Tabard / Sash
+  ctx.beginPath();
+  ctx.moveTo(106, 108);
+  ctx.lineTo(150, 108);
+  ctx.lineTo(144, 184);
+  ctx.lineTo(112, 184);
+  ctx.closePath();
+  fillAndStroke(ctx, '#F8FAFC', 5.5);
+
+  // Golden Asgardian Belt & Thunder Clasp
+  ctx.beginPath();
+  ctx.roundRect(88, 152, 80, 14, 5);
+  fillAndStroke(ctx, '#F59E0B', 5.5);
+  drawCelCircle(ctx, 128, 159, 8, '#38BDF8', '#0284C7', '#E0F2FE', 4.5);
+
+  // Twin Silver Asgardian Cloak Discs (Marvel Thor chest clasps)
+  drawCelCircle(ctx, 98, 118, 12, '#E2E8F0', '#94A3B8', '#FFFFFF', 5.5);
+  drawCelCircle(ctx, 158, 118, 12, '#E2E8F0', '#94A3B8', '#FFFFFF', 5.5);
+
+  // Armored Thunder-God Gauntlets crackling with electricity (NO spinning orbs)
+  drawCelCircle(ctx, 72, 148, 13, '#334155', '#1E293B', '#94A3B8', 6);
+  drawCelCircle(ctx, 184, 148, 13, '#334155', '#1E293B', '#94A3B8', 6);
+
+  // 3. Shadowed Thunder-God Cowl & Face beneath Raiden's Hat
+  drawCelCircle(ctx, 128, 88, 32, '#0F172A', '#020617', '#1E293B', 6.5);
+
+  // Blazing Cyan-White Lightning Eyes with Electric Arcs
+  ctx.beginPath();
+  ctx.moveTo(100, 88);
+  ctx.lineTo(114, 84);
+  ctx.lineTo(121, 90);
+  ctx.lineTo(106, 94);
+  ctx.closePath();
+  fillAndStroke(ctx, '#38BDF8', 4.5);
+
+  ctx.beginPath();
+  ctx.moveTo(156, 88);
+  ctx.lineTo(142, 84);
+  ctx.lineTo(135, 90);
+  ctx.lineTo(150, 94);
+  ctx.closePath();
+  fillAndStroke(ctx, '#E0F2FE', 4.5);
+
+  drawStarGlint(ctx, 111, 88, 9, '#E0F2FE');
+  drawStarGlint(ctx, 145, 88, 9, '#38BDF8');
+
+  // Crackling lightning whiskers / eye-sparks flaring outward from eyes
+  ctx.save();
+  ctx.strokeStyle = '#7DD3FC';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(104, 88);
+  ctx.lineTo(84, 80);
+  ctx.lineTo(72, 86);
+  ctx.moveTo(152, 88);
+  ctx.lineTo(172, 80);
+  ctx.lineTo(184, 86);
+  ctx.stroke();
+  ctx.restore();
+
+  // 4. Raiden's Iconic Wide Conical Woven Bamboo / Straw Hat (Mortal Kombat)
+  // Under-brim shadow rim
+  ctx.beginPath();
+  ctx.ellipse(128, 72, 74, 16, 0, 0, Math.PI * 2);
+  fillAndStroke(ctx, '#78350F', 6.5);
+
+  // Main Conical Bamboo Hat Dome
+  ctx.beginPath();
+  ctx.moveTo(50, 72);
+  ctx.quadraticCurveTo(92, 42, 128, 24);
+  ctx.quadraticCurveTo(164, 42, 206, 72);
+  ctx.quadraticCurveTo(128, 84, 50, 72);
+  ctx.closePath();
+  fillAndStroke(ctx, '#F59E0B', 7);
+
+  // Woven straw ribs & golden bamboo rings on Raiden's conical hat
+  ctx.save();
+  ctx.strokeStyle = '#92400E';
+  ctx.lineWidth = 3.2;
+  for (const ribX of [78, 102, 128, 154, 178]) {
+    ctx.beginPath();
+    ctx.moveTo(128, 26);
+    ctx.lineTo(ribX, 74);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Hat top finial cap
+  ctx.beginPath();
+  ctx.ellipse(128, 26, 14, 5, 0, 0, Math.PI * 2);
+  fillAndStroke(ctx, '#FDE68A', 5);
+}
+
 function paintSpriteCell(
   ctx: CanvasRenderingContext2D,
   key: SpriteKey,
@@ -947,6 +1433,18 @@ function paintSpriteCell(
       break;
     case 'hero_stormcaller':
       paintHeroStormcaller(ctx, includeStaticLegs);
+      break;
+    case 'skin_warden_zagreus_naruto':
+      paintSkinWardenZagreusNaruto(ctx, includeStaticLegs);
+      break;
+    case 'skin_seeker_hollow_levi':
+      paintSkinSeekerHollowLevi(ctx, includeStaticLegs);
+      break;
+    case 'skin_herbalist_frieren_strange':
+      paintSkinHerbalistFrierenStrange(ctx, includeStaticLegs);
+      break;
+    case 'skin_stormcaller_gojo_killua':
+      paintSkinStormcallerGojoKillua(ctx, includeStaticLegs);
       break;
     case 'enemy_chaser_norm':
       paintEnemyChaser(ctx, false, includeStaticLegs);
@@ -1012,7 +1510,7 @@ function paintSpriteCell(
 }
 
 /**
- * Builds (or returns cached) shared single-atlas PixiJS Textures for all 24 characters & enemies.
+ * Builds (or returns cached) shared single-atlas PixiJS Textures for all characters, skins & enemies.
  * Uses includeStaticLegs = false so PixiRenderer can animate articulated feet & legs at 60fps.
  */
 export function getSharedSpriteAtlasTextures(): Map<SpriteKey, Texture> {
@@ -1069,7 +1567,56 @@ export function getSpritePortraitDataUrl(key: SpriteKey): string {
   return url;
 }
 
-export function resolveHeroSpriteKey(professionId: ProfessionId): SpriteKey {
+/**
+ * Generates and caches a mysterious dark shadow silhouette 256x256 PNG Data-URL
+ * for locked Ad-Arcana skins in the Store until they are opened by the player.
+ */
+export function getSpriteSilhouetteDataUrl(key: SpriteKey): string {
+  const existing = cachedSilhouetteUrls.get(key);
+  if (existing) return existing;
+
+  if (typeof document === 'undefined') return '';
+  const c = document.createElement('canvas');
+  c.width = CELL_SIZE;
+  c.height = CELL_SIZE;
+  const ctx = c.getContext('2d');
+  if (!ctx) return '';
+
+  paintSpriteCell(ctx, key, true);
+  // Mask all non-transparent pixels into a deep pitch-shadow silhouette (#0B0711)
+  ctx.globalCompositeOperation = 'source-in';
+  ctx.fillStyle = '#0B0711';
+  ctx.fillRect(0, 0, CELL_SIZE, CELL_SIZE);
+  ctx.globalCompositeOperation = 'source-over';
+
+  const url = c.toDataURL('image/png');
+  cachedSilhouetteUrls.set(key, url);
+  return url;
+}
+
+export function resolvePersonaSkinSpriteKey(personaId?: string | null): SpriteKey | null {
+  switch (personaId) {
+    case 'warden_zagreus_naruto':
+      return 'skin_warden_zagreus_naruto';
+    case 'seeker_hollow_levi':
+      return 'skin_seeker_hollow_levi';
+    case 'herbalist_frieren_strange':
+      return 'skin_herbalist_frieren_strange';
+    case 'stormcaller_gojo_killua':
+      return 'skin_stormcaller_gojo_killua';
+    default:
+      return null;
+  }
+}
+
+export function resolveHeroSpriteKey(
+  professionId: ProfessionId,
+  personaId?: string | null
+): SpriteKey {
+  const skinKey = resolvePersonaSkinSpriteKey(personaId);
+  if (skinKey) {
+    return skinKey;
+  }
   switch (professionId) {
     case 'warden':
       return 'hero_warden';

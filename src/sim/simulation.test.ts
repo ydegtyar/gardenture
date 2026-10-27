@@ -29,7 +29,7 @@ import {
   updateDailyRunStreak,
 } from '../meta/SaveManager';
 import { createPlatformFacade } from '../platform/Adapters';
-import { CARDS, POWER_UPS } from '../content/data/catalog';
+import { CARDS, PERSONAS, POWER_UPS } from '../content/data/catalog';
 import { isDevelopmentProcess, IS_DEV } from '../app/debug/devGate';
 
 test('Current Daily Streak consecutive-day tracking (updateDailyRunStreak) & milestone highlight rules', () => {
@@ -773,25 +773,37 @@ test('Arena Limiting: no hard world border, Final Boss thorn circle deals DPS ou
   assert.ok(powerUpDrop, 'Destroyed Big Arena Flower should drop a random power_up item');
   assert.ok(powerUpDrop.powerUpId, 'Dropped power_up item should have a valid powerUpId');
 
-  // 3. Hard world border is removed: hero can walk beyond 40u without being clamped back
-  sim.heroX = 45.0;
+  // 3. Thorn arena starts active from the beginning of the game at 28.0u and slowly collapses toward Final Boss size (13.5u)
+  assert.equal(sim.arenaActive, true, 'Thorn circle arena should be active from the start of the game');
+  assert.equal(
+    sim.arenaRadiusU,
+    Simulation.INITIAL_ARENA_RADIUS_U,
+    'Thorn circle arena should start at 28.0u radius'
+  );
+
+  // Walking inside the 28.0u initial thorn arena does not trigger outside-arena damage
+  sim.heroX = 20.0;
   sim.heroY = 0;
   sim.setMoveIntent(1, 0);
   sim.tick();
-  assert.ok(sim.heroX > 45.0, 'Hero should not be clamped by a hard 40u border when Final Boss arena is inactive');
-  assert.equal(sim.isOutsideArena, false);
+  assert.ok(sim.heroX > 20.0, 'Hero can move freely without hard world border');
+  assert.equal(sim.isOutsideArena, false, 'Hero at 20u is inside initial 28u thorn arena');
 
-  // 4. Final Boss fight activates circular thorn arena limiting and outside-arena DPS to hero HP
+  // 4. Final Boss fight centers the thorn arena with spacious 13.5u radius (and deals DPS outside it)
   sim.heroX = 10.0;
   sim.heroY = 10.0;
   (sim as any).spawnBoss(true);
-  assert.equal(sim.arenaActive, true, 'Spawning Final Boss should activate the thorn circle arena');
+  assert.equal(sim.arenaActive, true);
   assert.equal(sim.arenaCenterX, 10.0);
   assert.equal(sim.arenaCenterY, 10.0);
-  assert.equal(sim.arenaRadiusU, 8.5, 'Thorn circle arena should have a small 8.5u radius');
+  assert.equal(
+    sim.arenaRadiusU,
+    Simulation.FINAL_BOSS_ARENA_RADIUS_P1_U,
+    'Final Boss Phase 1 thorn circle should leave more space (13.5u radius)'
+  );
 
-  // Move hero outside the thorn circle (> 8.5u from center)
-  sim.heroX = sim.arenaCenterX + 11.0;
+  // Move hero outside the thorn circle (> 13.5u from center)
+  sim.heroX = sim.arenaCenterX + 16.0;
   sim.heroY = sim.arenaCenterY;
   sim.currentHp = sim.maxHp;
   const hpBeforeOutside = sim.currentHp;
@@ -800,7 +812,7 @@ test('Arena Limiting: no hard world border, Final Boss thorn circle deals DPS ou
   sim.setMoveIntent(0, 0);
   for (let i = 0; i < 30; i++) sim.tick();
   assert.equal(sim.isOutsideArena, true, 'Hero outside arenaRadiusU should be flagged isOutsideArena');
-  assert.ok(sim.currentHp < hpBeforeOutside, 'Hero outside Final Boss thorn arena should take continuous DPS to HP');
+  assert.ok(sim.currentHp < hpBeforeOutside, 'Hero outside thorn arena should take continuous DPS to HP');
 });
 
 test('Seed Blades applies small Venom Poison DPS starting from Level 2', () => {
@@ -1167,6 +1179,306 @@ test('Development process gate (isDevelopmentProcess) enables lazy debug feature
   assert.equal(isDevelopmentProcess(true), true, 'Debug features should be enabled when DEV is true');
   assert.equal(isDevelopmentProcess(false), false, 'Debug features must be disabled when DEV is false (production)');
   assert.equal(typeof IS_DEV, 'boolean');
+});
+
+test('Card Draft allows up to 3 Ad Watch rerolls and up to 3 Coin rerolls per run and preserves counts across checkpoints', () => {
+  const sim = new Simulation({ seed: 9191, professionId: 'warden' });
+  sim.triggerLevelUpCardDraft();
+
+  assert.equal(Simulation.MAX_AD_REROLLS, 3);
+  assert.equal(Simulation.MAX_COIN_REROLLS, 3);
+  assert.equal(sim.adRerollsUsed, 0);
+  assert.equal(sim.coinRerollsUsed, 0);
+
+  // 1. Up to 3 Ad Watch rerolls succeed; 4th is rejected
+  sim.rerollCardDraft('ad');
+  assert.equal(sim.adRerollsUsed, 1);
+  sim.rerollCardDraft('ad');
+  assert.equal(sim.adRerollsUsed, 2);
+  sim.rerollCardDraft('ad');
+  assert.equal(sim.adRerollsUsed, 3);
+  const offersAfter3Ad = sim.pendingCardOffers.map((o) => o.offerId);
+  sim.rerollCardDraft('ad');
+  assert.equal(sim.adRerollsUsed, 3, '4th ad reroll should be blocked after 3 uses');
+  assert.deepEqual(
+    sim.pendingCardOffers.map((o) => o.offerId),
+    offersAfter3Ad,
+    'Blocked 4th ad reroll should not change card offers'
+  );
+
+  // 2. Up to 3 Coin rerolls succeed independently; 4th is rejected
+  sim.rerollCardDraft('coins');
+  assert.equal(sim.coinRerollsUsed, 1);
+  sim.rerollCardDraft('coins');
+  assert.equal(sim.coinRerollsUsed, 2);
+  sim.rerollCardDraft('coins');
+  assert.equal(sim.coinRerollsUsed, 3);
+  const offersAfter3Coins = sim.pendingCardOffers.map((o) => o.offerId);
+  sim.rerollCardDraft('coins');
+  assert.equal(sim.coinRerollsUsed, 3, '4th coin reroll should be blocked after 3 uses');
+  assert.deepEqual(
+    sim.pendingCardOffers.map((o) => o.offerId),
+    offersAfter3Coins,
+    'Blocked 4th coin reroll should not change card offers'
+  );
+
+  // 3. Checkpoint serialization preserves both adRerollsUsed and coinRerollsUsed
+  const cp = sim.serializeCheckpoint();
+  const restored = Simulation.fromCheckpoint(cp, ['garden_blade']);
+  assert.equal(restored.adRerollsUsed, 3);
+  assert.equal(restored.coinRerollsUsed, 3);
+});
+
+test('Reworked Arcana Persona skins are ad-exclusive, cover all 4 professions with pop-culture mashups & heterochromia eyes, and leave disappearing step effects', () => {
+  const defaultSave = createDefaultSaveData();
+
+  assert.equal(PERSONAS.length, 4, 'There should be 4 reworked Arcana Persona skins');
+  const expectedSkins = [
+    {
+      id: 'warden_zagreus_naruto',
+      professionId: 'warden',
+      stepEffectKind: 'zagreus_fire_step',
+    },
+    {
+      id: 'seeker_hollow_levi',
+      professionId: 'seeker',
+      stepEffectKind: 'void_soul_step',
+    },
+    {
+      id: 'herbalist_frieren_strange',
+      professionId: 'herbalist',
+      stepEffectKind: 'alchemy_rune_step',
+    },
+    {
+      id: 'stormcaller_gojo_killua',
+      professionId: 'stormcaller',
+      stepEffectKind: 'godspeed_lightning_step',
+    },
+  ] as const;
+
+  for (const exp of expectedSkins) {
+    const p = PERSONAS.find((item) => item.id === exp.id);
+    assert.ok(p, `Persona ${exp.id} should exist in PERSONAS catalog`);
+    assert.equal(p.professionId, exp.professionId);
+    assert.equal(p.stepEffectKind, exp.stepEffectKind);
+    assert.equal(p.adPipsRequired, 3, 'Each Arcana Persona skin must require watching 3 ads');
+    assert.equal(p.unlockCostSeeds, 0, 'Arcana Persona skins must only be unlockable via ads');
+    assert.notEqual(
+      p.eyeLeftColor,
+      p.eyeRightColor,
+      'Each Arcana Persona skin should have distinct heterochromia eye colors'
+    );
+    assert.equal(
+      defaultSave.unlocks.personas.includes(exp.id),
+      false,
+      `${exp.id} must start locked as a shadow silhouette in default save data`
+    );
+
+    // Verify moving with the skin equipped spawns disappearing step effects
+    const sim = new Simulation({
+      seed: 4242,
+      professionId: exp.professionId,
+      personaId: exp.id,
+    });
+    sim.setMoveIntent(1, 0);
+    for (let t = 0; t < 15; t++) {
+      sim.tick();
+    }
+    const stepFx = sim.visualEffects.filter((fx) => fx.kind === exp.stepEffectKind);
+    assert.ok(
+      stepFx.length > 0,
+      `Moving with ${exp.id} should leave ${exp.stepEffectKind} footsteps behind the character`
+    );
+
+    // Stop moving and advance ticks -> footsteps must disappear after their timer expires
+    sim.setMoveIntent(0, 0);
+    sim.heroVx = 0;
+    sim.heroVy = 0;
+    for (let t = 0; t < 60; t++) {
+      sim.tick();
+    }
+    assert.equal(
+      sim.visualEffects.filter((fx) => fx.kind === exp.stepEffectKind).length,
+      0,
+      `${exp.stepEffectKind} footsteps must disappear after the character`
+    );
+  }
+});
+
+test('Gameplay Polish: 0.5s silent invulnerability after card choice, single initial coin farther from spawn, decreased basic coin drop rate amplified by Lucky Clover, Heal +20HP drop, collapsing thorn arena, and Boss death -> Angel Wings victory sequence', () => {
+  const sim = new Simulation({ seed: 31415, professionId: 'warden' });
+
+  // 1. Single initial coin near hero spawn placed farther away at (3.2, -0.85)
+  const initialCoins = sim.pickups.filter((p) => p.kind === 'gold_coin');
+  assert.equal(initialCoins.length, 1, 'Should spawn only 1 coin near hero spawn');
+  const distCoin = Math.hypot(initialCoins[0]!.x, initialCoins[0]!.y);
+  assert.ok(distCoin >= 3.0, `Single initial coin should lay farther from spawn (>=3.0u), got ${distCoin}`);
+
+  // 2. Decreased basic coin drop rate (10% base) amplified by Lucky Clover & Luck
+  const baseCoinChance = sim.getBasicCoinDropChance();
+  assert.ok(
+    Math.abs(baseCoinChance - 0.1) < 1e-6,
+    `Base coin drop chance should be 10% (0.10), got ${baseCoinChance}`
+  );
+  sim.debugSetCardLevel('lucky_clover', 3);
+  const cloverCoinChance = sim.getBasicCoinDropChance();
+  assert.ok(
+    cloverCoinChance > 0.45,
+    `Lucky Clover Lv 3 should amplify basic coin drop chance significantly (>45%), got ${cloverCoinChance}`
+  );
+
+  // 3. After card choice (or skip), hero gets 0.5s silent invulnerability (cardPickInvisTimer) without dash visual
+  sim.triggerLevelUpCardDraft();
+  const firstOfferId = sim.pendingCardOffers[0]!.offerId;
+  sim.applyCardOffer(firstOfferId);
+  assert.equal(sim.cardPickInvisTimer, 0.5, 'Picking a card should grant 0.5s cardPickInvisTimer');
+  assert.equal(sim.dashIframeTimer, 0, 'Card choice invulnerability should not trigger dash visual iframe timer');
+  const hpBeforeHit = sim.currentHp;
+  (sim as any).damageHero(35);
+  assert.equal(sim.currentHp, hpBeforeHit, 'Hero should ignore damage during 0.5s cardPickInvisTimer');
+
+  // 4. Dash strike burst & Aegis burst visual effects
+  sim.debugTriggerPowerUp('shield');
+  assert.ok(
+    sim.visualEffects.some((fx) => fx.kind === 'aegis_burst'),
+    'Activating Aegis Orb should emit aegis_burst visual effect'
+  );
+  sim.visualEffects.length = 0;
+  sim.requestDash();
+  for (let i = 0; i < 20; i++) sim.tick();
+  assert.ok(
+    sim.visualEffects.some((fx) => fx.kind === 'dash_strike_burst'),
+    'Warden dash strike should emit dash_strike_burst visual effect'
+  );
+
+  // 5. New item drop Heal +20HP ('heal_potion') appears in hero pockets (heldPowerUps) and heals +20 HP when used
+  sim.currentHp = Math.max(10, sim.maxHp - 35);
+  const hpBeforePotion = sim.currentHp;
+  sim.heldPowerUps.length = 0;
+  const potion = sim.debugSpawnHeal20Drop();
+  assert.equal(potion.kind, 'heal_potion');
+  assert.equal(potion.value, 20);
+  // Move hero onto the potion to collect it into pocket slot
+  sim.heroX = potion.x;
+  sim.heroY = potion.y;
+  sim.tick();
+  assert.equal(
+    sim.heldPowerUps[0],
+    'heal_potion',
+    'Collecting heal_potion should place it in hero pockets (heldPowerUps[0]) like Ember Guard or Aegis'
+  );
+  assert.equal(
+    sim.currentHp,
+    hpBeforePotion,
+    'Collecting heal_potion into pockets should not heal until activated from pocket'
+  );
+  sim.requestUsePowerUp(0);
+  sim.tick();
+  assert.equal(sim.heldPowerUps.length, 0, 'Activating heal_potion consumes it from hero pockets');
+  assert.equal(sim.currentHp, hpBeforePotion + 20, 'Activating heal_potion from pocket should heal +20 HP');
+
+  // 6. Thorn area slowly collapses from 28.0u at 0s toward 13.5u at 225s (FINAL_BOSS_SPAWN_SEC)
+  assert.equal(Simulation.FINAL_BOSS_SPAWN_SEC, 225, 'Final Boss spawn time should be 225s (+30s)');
+  const halfBossSec = Simulation.FINAL_BOSS_SPAWN_SEC * 0.5; // 112.5s
+  sim.elapsedTicks = Math.round(halfBossSec * 60);
+  sim.elapsedSeconds = halfBossSec;
+  sim.tick();
+  const midExpected = (Simulation.INITIAL_ARENA_RADIUS_U + Simulation.FINAL_BOSS_ARENA_RADIUS_P1_U) * 0.5;
+  assert.ok(
+    Math.abs(sim.arenaRadiusU - midExpected) < 0.25,
+    `Thorn arena should collapse halfway (~${midExpected}u) at ${halfBossSec}s, got ${sim.arenaRadiusU}`
+  );
+
+  // 7. On winning: despawn all enemies except Final Boss, play bossDeathTimer (0.85s), and only after that despawn boss & finish Angel Wings ascension
+  const minion1 = sim.spawnEnemy('chaser', sim.heroX + 3, sim.heroY, false)!;
+  const minion2 = sim.spawnEnemy('brute', sim.heroX - 3, sim.heroY, false)!;
+  const finalBoss = sim.debugSpawnFinalBossArena()!;
+  assert.ok(sim.enemies.includes(minion1) && sim.enemies.includes(minion2));
+
+  (sim as any).applyDamageToEnemy(finalBoss, finalBoss.hp + 9999, false, 0, ['slash']);
+  assert.equal(
+    sim.enemies.filter((e) => !e.isFinalBoss).length,
+    0,
+    'Winning should immediately despawn all enemies except the Final Boss'
+  );
+  assert.equal(
+    sim.enemies.filter((e) => e.isFinalBoss).length,
+    1,
+    'Final Boss should remain on arena during its death animation (bossDeathTimer > 0)'
+  );
+  assert.ok(sim.bossDeathTimer > 0.7, 'bossDeathTimer should be active right after lethal blow');
+
+  // Tick through bossDeathTimer (~55 ticks = ~0.91s) -> Final Boss despawns, victorySequenceTimer continues for Angel Wings
+  for (let i = 0; i < 55; i++) sim.tick();
+  assert.equal(sim.bossDeathTimer, 0, 'bossDeathTimer should finish after ~0.85s');
+  assert.equal(sim.enemies.length, 0, 'Final Boss should despawn once bossDeathTimer reaches 0');
+  assert.ok(sim.victorySequenceTimer > 0.8, 'Angel Wings victorySequenceTimer should still be playing');
+  assert.equal(sim.runEnded, false, 'Final screen should not appear until Angel Wings animation completes');
+
+  // Tick remaining ~70 ticks -> run ends in victory
+  for (let i = 0; i < 75; i++) sim.tick();
+  assert.equal(sim.runEnded, true);
+  assert.equal(sim.runOutcome, 'victory');
+});
+
+test('Quick Hands increases Petal Orbs spinning speed, Thander Rein persona rework, Final Boss +30s spawn time & reduced minion spawn rate', () => {
+  // 1. Thander Rein persona metadata check
+  const thander = PERSONAS.find((p) => p.id === 'stormcaller_gojo_killua');
+  assert.ok(thander, 'stormcaller_gojo_killua persona should exist');
+  assert.equal(thander.name, 'Thander Rein', 'Stormcaller persona should be named Thander Rein');
+  assert.ok(
+    thander.popCultureMashup.includes('Raiden') && thander.popCultureMashup.includes('Thor'),
+    'Thander Rein should reference Raiden (Mortal Kombat) and Thor (Marvel)'
+  );
+  assert.equal(thander.cloakColor, 0xdc2626, 'Thander Rein should wear Thor crimson cloak');
+
+  // 2. Quick Hands leveling increases Petal Orbs angular spin speed (bonusOrbitAngle)
+  const simNoQuick = new Simulation({ seed: 1010, professionId: 'warden' });
+  simNoQuick.debugSetWeaponLevel('petal_orbit', 1, false);
+  simNoQuick.bonusOrbitAngle = 0;
+  for (let i = 0; i < 60; i++) simNoQuick.tick();
+  const angleWithoutQuickHands = simNoQuick.bonusOrbitAngle;
+
+  const simWithQuick = new Simulation({ seed: 1010, professionId: 'warden' });
+  simWithQuick.debugSetWeaponLevel('petal_orbit', 1, false);
+  simWithQuick.debugSetCardLevel('quick_hands', 4);
+  simWithQuick.bonusOrbitAngle = 0;
+  for (let i = 0; i < 60; i++) simWithQuick.tick();
+  const angleWithQuickHands = simWithQuick.bonusOrbitAngle;
+
+  assert.ok(
+    angleWithQuickHands > angleWithoutQuickHands * 1.8,
+    `Quick Hands Lv 4 should significantly increase Petal Orbs spin speed (${angleWithQuickHands} vs ${angleWithoutQuickHands})`
+  );
+
+  // 3. Final Boss spawns at 225s (not 195s) and has decreased regular enemy spawn rate
+  const simBossTiming = new Simulation({ seed: 2020, professionId: 'warden' });
+  simBossTiming.elapsedTicks = 200 * 60;
+  simBossTiming.elapsedSeconds = 200;
+  simBossTiming.tick();
+  assert.equal(
+    simBossTiming.finalBossSpawned,
+    false,
+    'Final Boss should NOT spawn at 200s because spawn time was increased by +30s to 225s'
+  );
+
+  simBossTiming.elapsedTicks = 225 * 60;
+  simBossTiming.elapsedSeconds = 225;
+  simBossTiming.tick();
+  assert.equal(
+    simBossTiming.finalBossSpawned,
+    true,
+    'Final Boss should spawn at 225s (FINAL_BOSS_SPAWN_SEC)'
+  );
+
+  // Check spawnTimer cooldown after spawning a wave during Final Boss is slower (>= 2.0s)
+  simBossTiming.directorBankedBudget = 20;
+  simBossTiming.spawnTimer = 0;
+  (simBossTiming as any).updateWaveDirector(1 / 60);
+  assert.ok(
+    simBossTiming.spawnTimer >= 2.0,
+    `Expected decreased spawn rate (spawnTimer >= 2.0s) during Final Boss, got ${simBossTiming.spawnTimer}`
+  );
 });
 
 
