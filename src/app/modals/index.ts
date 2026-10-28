@@ -4,9 +4,9 @@
  * @llm-context Re-exports all individual game modals and types from the modals module.
  */
 
-export { CardDraftModal, type CardDraftModalProps } from './CardDraftModal';
+export { CardDraftModal } from './CardDraftModal';
 export { RescueReviveModal } from './RescueReviveModal';
-export { PauseModal, type PauseModalProps } from './PauseModal';
+export { PauseModal } from './PauseModal';
 export { RunSummaryModal, type RunSummarySnapshot } from './RunSummaryModal';
-export { LoadoutAndStoreModal, type LoadoutAndStoreModalProps } from './LoadoutAndStoreModal';
+export { LoadoutAndStoreModal } from './LoadoutAndStoreModal';
 export { DebugCardModal, type DebugCardModalProps } from './DebugCardModal';

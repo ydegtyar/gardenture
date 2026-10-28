@@ -1,63 +1,62 @@
 # Gardenture: Mystic Garden Roguelite — itch.io Page Content
 
 ## Short Description (tagline, ≤ 160 chars)
-Fast-paced 2D pastel survival roguelite. Pick up tarot cards, evolve weapons, and survive endless waves in a botanical fantasy garden.
+Fast-paced 2D pastel survival roguelite. Draft botanical tarot cards, awaken weapon evolutions, and survive endless waves in an enchanted garden.
 
 ---
 
-## Full Description (HTML for itch.io)
+## Full Description (Formatted for itch.io)
 
 ```html
-<p><strong>🌿 Gardenture: Mystic Garden Roguelite</strong> is a fast-paced 2D top-down survival roguelite set in a pastel botanical fantasy world. Every run is a race against escalating waves of creatures — dodge, dash, evolve your weapons, and stack synergy cards inspired by vintage botanical tarot arcana.</p>
+<p><strong>🌿 Gardenture: Mystic Garden Roguelite</strong> is a fast-paced survival action game set in a pastel botanical fantasy world. Every run thrusts you into an enchanted glade swarming with strange wild creatures. Dodge oncoming swarms, dash through enemy ranks, evolve your weapons, and stack synergies drawn from vintage botanical tarot cards.</p>
 
-<h2>🃏 Draft Tarot Cards. Build Insane Synergies.</h2>
-<p>On every level-up, three ornate <strong>Botanical Tarot Cards</strong> emerge from the arcane ether. Choose wisely — your picks build toward devastating weapon evolutions and cross-card combos:</p>
+<h2>🃏 Draft Tarot Cards. Build Devastating Synergies.</h2>
+<p>Each time you level up, three ornate <strong>Botanical Tarot Cards</strong> reveal themselves. Every pick shapes your build, setting up powerful combos and awakening mythical weapon evolutions:</p>
 <ul>
-  <li>🌿 <strong>30 unique cards</strong> across Stat, Behavior, Synergy, Risk &amp; Reward, and Evolution tiers</li>
-  <li>⚔️ <strong>6 weapons</strong> each with a powered-up evolution form unlocked by specific card combos</li>
-  <li>🔗 Cards that chain, echo, burn, freeze, and explode off each other</li>
-  <li>☠️ Risk &amp; Reward cards like <em>Glass Blade</em> (max damage, 0 armor) and <em>Blood Pact</em> (HP = power)</li>
+  <li>🌿 <strong>30 unique cards</strong> spanning direct stat buffs, special behaviors, elemental triggers, and game-changing evolutions</li>
+  <li>⚔️ <strong>6 signature weapons</strong> that each ascend into a powerful legendary form when combined with the right passive cards</li>
+  <li>🔗 Endless synergies — chain lightning across swarms, sprout explosive spore rings, freeze charging brutes, and summon petal vortexes</li>
+  <li>☠️ High-risk, high-reward cards like <em>Glass Blade</em> (maximum damage, zero armor) and <em>Blood Pact</em> (convert vitality into destructive power)</li>
 </ul>
 
-<h2>🧑‍🌾 4 Professions. Completely Different Playstyles.</h2>
+<h2>🧑‍🌾 4 Hero Classes. 4 Distinct Playstyles.</h2>
 <ul>
-  <li>🛡️ <strong>Warden</strong> — Wide-arc blade sweeps + Thorn Burst dash. Tanky melee cleaver.</li>
-  <li>🏹 <strong>Seeker</strong> — Winged seed blade barrage + Seed Trap dash. Fast, critting ranged assassin.</li>
-  <li>🌸 <strong>Herbalist</strong> — Spinning petal orbit + Heal Pulse dash. Orbital sustain specialist.</li>
-  <li>⚡ <strong>Stormcaller</strong> — Chaining sky lightning + Phase Teleport dash. Glass-cannon chain burst mage.</li>
+  <li>🛡️ <strong>Warden</strong> — Sweeps broad arcs with a heavy leaf blade and erupts into thorny brambles upon dashing. Sturdy, reliable melee powerhouse.</li>
+  <li>🏹 <strong>Seeker</strong> — Rains piercing seed daggers from afar and lays volatile seed traps. Nimble, high-critical-hit ranged specialist.</li>
+  <li>🌸 <strong>Herbalist</strong> — Surrounded by a whirlwind of protective petals with an emerald healing wave dash. Master of aura defense and sustain.</li>
+  <li>⚡ <strong>Stormcaller</strong> — Arcs crackling sky-lightning across dense packs and blinks straight through swarms. Pure burst offense.</li>
 </ul>
 
-<h2>🗺️ 4 Biomes. Infinite Replayability.</h2>
+<h2>🗺️ 4 Distinct Biomes</h2>
 <ul>
-  <li>🌿 <strong>Mystic Garden</strong> — Sunlit clover turf, mossy stones, blooming briars</li>
-  <li>🪨 <strong>Subterranean Ruin</strong> — Lavender-slate flagstones with bioluminescent moss</li>
-  <li>🌸 <strong>Sakura Twilight Grove</strong> — Plum-blossom glade with rose quartz paths</li>
-  <li>☀️ <strong>Golden Amber Meadow</strong> — Warm harvest-gold turf, sunlit sandstone, marigold blooms</li>
+  <li>🌿 <strong>Mystic Garden</strong> — Sunlit clover turf, ancient mossy stones, and blooming briars</li>
+  <li>🪨 <strong>Subterranean Ruin</strong> — Pale lavender flagstones overgrown with bioluminescent flora</li>
+  <li>🌸 <strong>Sakura Twilight Grove</strong> — Moonlit plum-blossom glades drifting with glowing pink petals</li>
+  <li>☀️ <strong>Golden Amber Meadow</strong> — Sunbaked golden fields, sandstone pathways, and vibrant marigolds</li>
 </ul>
 
-<h2>👾 6 Enemy Types + 4 Special Monsters</h2>
-<p>Face relentless botanical horrors — Vine Chasers, Spitters, Brutes, Splitters, and Shielded Guardians. Boss-tier specials arrive as the run heats up: <em>Golden Beast, Bloom Giant, Brood Mother,</em> and <em>Mirror Wisp</em>.</p>
+<h2>👾 Swarms, Elites &amp; Bosses</h2>
+<p>Survive against relentless waves of garden horrors: quick vine chasers, ranged seed spitters, armored brutes, dividing splitters, and warding shielders. When the bells toll, gargantuan guardian bosses enter the arena: the <em>Golden Beast, Bloom Giant, Brood Mother,</em> and the elusive <em>Mirror Wisp</em>.</p>
 
-<h2>💎 DMC-Style Style Rank System</h2>
-<p>A live <strong>Devil May Cry–inspired rank meter</strong> grades your combat flow: <strong>D → C → B → A → S → SS → SSS</strong>. Chain kills without taking damage to climb. Let it drop and your rank crumbles. High ranks unlock bonus XP and card rerolls.</p>
+<h2>💎 Stylish Combat Rank Meter</h2>
+<p>Fight with rhythm and precision to push your combat rank from <strong>D → C → B → A → S → SS → SSS</strong>. String together fluid takedowns without taking damage to maintain maximum flow, unlocking bonus vitality and free upgrade rerolls.</p>
 
-<h2>🎮 Controls</h2>
+<h2>🎮 Easy-to-Learn Controls</h2>
 <ul>
-  <li>📱 <strong>Mobile:</strong> Floating one-thumb joystick + flick-dash gesture</li>
-  <li>🖥️ <strong>Desktop:</strong> WASD / Arrow keys + Space to dash</li>
+  <li>📱 <strong>Touch / Mobile:</strong> Move with one-finger virtual joystick; quick flick to dash</li>
+  <li>🖥️ <strong>Keyboard:</strong> WASD or Arrow keys to move; Spacebar to dash</li>
 </ul>
 
-<h2>✨ Features</h2>
+<h2>✨ Highlights</h2>
 <ul>
-  <li>✅ No download — plays instantly in your browser</li>
-  <li>✅ Mobile-first design with responsive layout</li>
-  <li>✅ Vintage botanical tarot card art for every upgrade</li>
-  <li>✅ Unlockable personas with unique permanent visual effects</li>
-  <li>✅ Progressive Web App — install it to your home screen</li>
-  <li>✅ Powered by PixiJS for silky-smooth 60 fps rendering</li>
+  <li>✅ Instant play — launch directly in your browser with zero installation</li>
+  <li>✅ Smooth experience across mobile, tablet, and desktop</li>
+  <li>✅ Hand-crafted antique tarot card art for every upgrade</li>
+  <li>✅ Unlockable heroes, traits, and cosmetics</li>
+  <li>✅ Fast, bite-sized runs under 5 minutes</li>
 </ul>
 
-<p><em>Built with love using React, PixiJS, and a sprinkle of Gemini AI magic. 🌱</em></p>
+<p><em>Gather your seeds, trust the draw of the cards, and see how long you can survive the wild. 🌱</em></p>
 ```
 
 ---
@@ -68,13 +67,13 @@ Fast-paced 2D pastel survival roguelite. Pick up tarot cards, evolve weapons, an
 |---|---|
 | **Title** | Gardenture: Mystic Garden Roguelite |
 | **Slug** | gardenture |
-| **Kind** | HTML (browser game) |
-| **Genre** | Roguelite / Action |
-| **Tags** | roguelite, survival, top-down, action, browser, mobile, fantasy, botanical, tarot, pixijs, react |
+| **Kind** | HTML (playable in browser) |
+| **Genre** | Action / Roguelite |
+| **Tags** | roguelite, survival, top-down, action, fantasy, casual, singleplayer, bullet-hell, cards, nature, fast-paced |
 | **Classification** | Game |
 | **Release Status** | In Development (Early Access) |
-| **Pricing** | Free |
-| **Visibility** | Public |
-| **Short description** | Fast-paced 2D pastel survival roguelite. Pick up tarot cards, evolve weapons, and survive endless waves in a botanical fantasy garden. |
-| **Cover image** | `public/itch-cover.png` (630×500) |
-| **Screenshots** | `public/itch-screenshot.png` |
+| **Pricing** | $0 or donate (Free) |
+| **Visibility** | Public (or Draft while previewing) |
+| **Short description** | Fast-paced 2D pastel survival roguelite. Draft botanical tarot cards, awaken weapon evolutions, and survive endless waves in an enchanted garden. |
+| **Cover image** | `public/itch-cover.jpg` (630×500) |
+| **Screenshots** | `public/itch-screenshot.jpg` |

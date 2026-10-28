@@ -9,6 +9,7 @@ import React from 'react';
 import { STYLE_RANKS } from '../../content/data/catalog';
 import { getDailyStreakHighlight } from '../../meta/SaveManager';
 import { CoinIcon } from '../SvgIcons';
+import { useGameShell } from '../context/GameShellContext';
 
 export interface RunSummarySnapshot {
   outcome: 'victory' | 'defeat' | 'timeout';
@@ -27,25 +28,27 @@ export interface RunSummarySnapshot {
   dailyStreakIncremented: boolean;
 }
 
-export interface Props {
-  summary: RunSummarySnapshot;
-  canWatchDoubleAd: boolean;
-  onWatchDoubleCoinsAd: () => void;
-  onPlayAgain: () => void;
-  onReturnToTitle: () => void;
-}
-
 /**
  * @llm-component RunSummaryModal
  * @llm-hook run-summary: displays expedition stats, score records, streak progress, and coin reward doubling
  */
-export function RunSummaryModal({
-  summary,
-  canWatchDoubleAd,
-  onWatchDoubleCoinsAd,
-  onPlayAgain,
-  onReturnToTitle,
-}: Props) {
+export function RunSummaryModal() {
+  const {
+    runSummary,
+    canWatchRewardedAd,
+    handleWatchDoubleCoinsAd,
+    startNewOrResumedRun,
+    handleReturnToTitleFromSummary,
+  } = useGameShell();
+
+  if (!runSummary) return null;
+
+  const summary = runSummary;
+  const canWatchDoubleAd = canWatchRewardedAd;
+  const onWatchDoubleCoinsAd = handleWatchDoubleCoinsAd;
+  const onPlayAgain = () => startNewOrResumedRun(false);
+  const onReturnToTitle = handleReturnToTitleFromSummary;
+
   const peakRank = STYLE_RANKS[summary.peakRankIndex] ?? STYLE_RANKS[0]!;
   const mins = Math.floor(summary.elapsedSeconds / 60);
   const secs = summary.elapsedSeconds % 60;

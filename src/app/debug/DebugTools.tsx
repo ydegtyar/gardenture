@@ -6,6 +6,7 @@ import type {
   DevStubStorageMode,
   YtSdkDiagnosticsState,
 } from '../../platform/ports/PlatformFacade';
+import { platform, PlatformFeature } from '../../platform/Adapters';
 import { PowerUpAbilityIcon } from '../SvgIcons';
 
 export interface DebugCardModalProps {
@@ -166,74 +167,104 @@ export function YouTubeDevStubControls({
   const adMode = ytDiagnostics.adOutcomeMode;
   const cloudMode = ytDiagnostics.cloudStorageMode;
   return (
-    <div className="pt-2 border-t border-[#FFFDF0]/10 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[#DED2F9] font-bold">Ad Stub Mode:</span>
-        {(
-          [
-            ['grant', 'Grant Reward', 'yt-stub-ad-grant'],
-            ['skip', 'Skip Ad', 'yt-stub-ad-skip'],
-            ['error', 'Ad Error', 'yt-stub-ad-error'],
-          ] as const
-        ).map(([mode, label, testId]) => (
+    <div className="pt-2 border-t border-[#FFFDF0]/10 flex flex-col gap-2 text-[11px]">
+      <div className="w-full flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-[#FFFDF0]/10">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[#f2bf52] font-bold">Platform Provider:</span>
+          <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-[#59dbc3]/20 text-[#59dbc3] border border-[#59dbc3]/40">
+            {platform.provider}
+          </span>
+          <span className="text-[10px] text-[#EDE6D0]/60">
+            (Rewarded: {platform.canUse(PlatformFeature.REWARDED_ADS) ? '✓' : '✗'}, Interstitial: {platform.canUse(PlatformFeature.INTERSTITIAL_ADS) ? '✓' : '✗'})
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
           <button
-            key={mode}
             type="button"
-            data-testid={testId}
-            onClick={() => onSetDevAdOutcomeMode?.(mode)}
-            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
-              adMode === mode
-                ? 'bg-[#E8B64A] text-[#201A09]'
-                : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
-            }`}
+            onClick={() => void platform.requestRewardAd('debug_reward_test')}
+            className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#f2bf52]/20 text-[#f2bf52] border border-[#f2bf52]/40 hover:bg-[#f2bf52]/30 whitespace-nowrap"
           >
-            {label}
+            ▶ Test Rewarded Ad
           </button>
-        ))}
+          <button
+            type="button"
+            onClick={() => void platform.requestInterstitialAd('debug_interstitial_test')}
+            className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#A8E6CF]/20 text-[#A8E6CF] border border-[#A8E6CF]/40 hover:bg-[#A8E6CF]/30 whitespace-nowrap"
+          >
+            ▶ Test Interstitial
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[#A8E6CF] font-bold">Cloud Save Stub:</span>
-        {(
-          [
-            ['synced', 'Cloud Synced', 'yt-stub-cloud-synced'],
-            ['offline', 'Offline (Fallback)', 'yt-stub-cloud-offline'],
-          ] as const
-        ).map(([mode, label, testId]) => (
-          <button
-            key={mode}
-            type="button"
-            data-testid={testId}
-            onClick={() => onSetDevCloudStorageMode?.(mode)}
-            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
-              cloudMode === mode
-                ? 'bg-[#6FA36B] text-[#101F12]'
-                : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-        {onSimulateYtAudioToggle && (
-          <button
-            type="button"
-            data-testid="yt-stub-audio-toggle"
-            onClick={onSimulateYtAudioToggle}
-            className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#E8B64A] font-bold hover:border-[#E8B64A] whitespace-nowrap"
-          >
-            YT Audio: {ytDiagnostics.simulatedAudioEnabled ? 'ON' : 'MUTED'}
-          </button>
-        )}
-        {onSyncScoreNow && (
-          <button
-            type="button"
-            data-testid="yt-stub-sync-score"
-            onClick={onSyncScoreNow}
-            className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#6FA36B] font-bold hover:border-[#6FA36B] whitespace-nowrap"
-          >
-            Send Score
-          </button>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[#DED2F9] font-bold">Ad Stub Mode:</span>
+          {(
+            [
+              ['grant', 'Grant Reward', 'yt-stub-ad-grant'],
+              ['skip', 'Skip Ad', 'yt-stub-ad-skip'],
+              ['error', 'Ad Error', 'yt-stub-ad-error'],
+            ] as const
+          ).map(([mode, label, testId]) => (
+            <button
+              key={mode}
+              type="button"
+              data-testid={testId}
+              onClick={() => onSetDevAdOutcomeMode?.(mode)}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
+                adMode === mode
+                  ? 'bg-[#E8B64A] text-[#201A09]'
+                  : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[#A8E6CF] font-bold">Cloud Save Stub:</span>
+          {(
+            [
+              ['synced', 'Cloud Synced', 'yt-stub-cloud-synced'],
+              ['offline', 'Offline (Fallback)', 'yt-stub-cloud-offline'],
+            ] as const
+          ).map(([mode, label, testId]) => (
+            <button
+              key={mode}
+              type="button"
+              data-testid={testId}
+              onClick={() => onSetDevCloudStorageMode?.(mode)}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors whitespace-nowrap ${
+                cloudMode === mode
+                  ? 'bg-[#6FA36B] text-[#101F12]'
+                  : 'bg-[#1E1C0E] border border-[#3D392A] text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {onSimulateYtAudioToggle && (
+            <button
+              type="button"
+              data-testid="yt-stub-audio-toggle"
+              onClick={onSimulateYtAudioToggle}
+              className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#E8B64A] font-bold hover:border-[#E8B64A] whitespace-nowrap"
+            >
+              YT Audio: {ytDiagnostics.simulatedAudioEnabled ? 'ON' : 'MUTED'}
+            </button>
+          )}
+          {onSyncScoreNow && (
+            <button
+              type="button"
+              data-testid="yt-stub-sync-score"
+              onClick={onSyncScoreNow}
+              className="px-2 py-0.5 rounded text-[10px] bg-[#1E1C0E] border border-[#3D392A] text-[#6FA36B] font-bold hover:border-[#6FA36B] whitespace-nowrap"
+            >
+              Send Score
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

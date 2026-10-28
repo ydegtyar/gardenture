@@ -2018,5 +2018,65 @@ test('Task Verification: Charger channel follow, Brute danger bump & moving char
   assert.equal(simClover3.freeRerollsRemaining, 3);
 });
 
+test('Unified Ads & Platform Manager: Lazy-loading, Capability queries, STUB provider simulation, and NoOp fallback', async () => {
+  const { PlatformManager } = await import('../platform/PlatformManager');
+  const { PlatformFeature } = await import('../platform/types');
+  const { StubPlatformAdapter } = await import('../platform/providers/StubPlatformAdapter');
+  const { NoOpLocalAdapter } = await import('../platform/providers/NoOpLocalAdapter');
+
+  let paused = false;
+  let muted = false;
+  const hooks = {
+    onPauseGame: () => { paused = true; },
+    onResumeGame: () => { paused = false; },
+    onMuteAudio: () => { muted = true; },
+    onUnmuteAudio: () => { muted = false; },
+  };
+
+  // 1. Test STUB provider (default)
+  const stubAdapter = new StubPlatformAdapter({ adDurationMs: 0 });
+  const pm = new PlatformManager();
+  await pm.initialize(hooks, stubAdapter);
+
+  assert.equal(pm.provider, 'STUB');
+  assert.equal(pm.canUse(PlatformFeature.REWARDED_ADS), true);
+  assert.equal(pm.canUse(PlatformFeature.INTERSTITIAL_ADS), true);
+  assert.equal(pm.canUse(PlatformFeature.CLOUD_SAVE), true);
+  assert.equal(pm.canUse(PlatformFeature.LEADERBOARDS), true);
+  assert.equal(pm.canUse(PlatformFeature.GAMEPLAY_TELEMETRY), true);
+
+  // Rewarded ad simulates pause/mute and grants bonuses
+  const rewardResult = await pm.requestRewardAd('reward_double_coins_v1');
+  assert.equal(rewardResult.rewarded, true);
+  assert.equal(rewardResult.rewardId, 'reward_double_coins_v1');
+  assert.equal(paused, false, 'Audio/Game should resume after ad completion');
+  assert.equal(muted, false, 'Audio should unmute after ad completion');
+
+  // Interstitial ad
+  const interstitialOk = await pm.requestInterstitialAd('post_run');
+  assert.equal(interstitialOk, true);
+
+  // Cloud Save & Load
+  const saveOk = await pm.save('test_player_data', { coins: 999, level: 12 });
+  assert.equal(saveOk, true);
+  const loaded = await pm.load<{ coins: number; level: number }>('test_player_data');
+  assert.deepEqual(loaded, { coins: 999, level: 12 });
+
+  // 2. Test NoOp / Local / Itch.io fallback
+  const noOpAdapter = new NoOpLocalAdapter();
+  const pmNoOp = new PlatformManager();
+  await pmNoOp.initialize(hooks, noOpAdapter);
+
+  assert.equal(pmNoOp.provider, 'LocalOrItchIo');
+  assert.equal(pmNoOp.canUse(PlatformFeature.REWARDED_ADS), false, 'Rewarded ads must be disabled on NoOp');
+  assert.equal(pmNoOp.canUse(PlatformFeature.INTERSTITIAL_ADS), false, 'Interstitials must be disabled on NoOp');
+
+  const noOpReward = await pmNoOp.requestRewardAd('reward_revive_run_v1');
+  assert.equal(noOpReward.rewarded, false, 'NoOp must return false for rewarded ads');
+  const noOpInterstitial = await pmNoOp.requestInterstitialAd();
+  assert.equal(noOpInterstitial, false, 'NoOp must return false for interstitials');
+});
+
+
 
 

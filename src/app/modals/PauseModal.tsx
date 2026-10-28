@@ -7,36 +7,34 @@
 
 import React from 'react';
 import { CARDS, WEAPONS } from '../../content/data/catalog';
-import type { SaveDataV1 } from '../../meta/SaveManager';
+import { useGameShell } from '../context/GameShellContext';
 import { LazyModalDebugCardsButton } from '../debug/LazyDebugComponents';
-
-export interface PauseModalProps {
-  weapons: ReadonlyArray<{ id: string; level: number; evolved: boolean }>;
-  ownedCards: Readonly<Record<string, number>>;
-  settings: SaveDataV1['settings'];
-  onUpdateSettings: (partial: Partial<SaveDataV1['settings']>) => void;
-  onResume: () => void;
-  onRestart: () => void;
-  onEndRunAndSummary: () => void;
-  onReturnToTitle: () => void;
-  onOpenDebugCards?: () => void;
-}
+import { IS_DEV } from '../debug/devGate';
 
 /**
  * @llm-component PauseModal
  * @llm-hook run-pause: mid-run game pause modal with equipment list and audio/graphics settings
  */
-export function PauseModal({
-  weapons,
-  ownedCards,
-  settings,
-  onUpdateSettings,
-  onResume,
-  onRestart,
-  onEndRunAndSummary,
-  onReturnToTitle,
-  onOpenDebugCards,
-}: PauseModalProps) {
+export function PauseModal() {
+  const {
+    hud,
+    saveData,
+    updateSettings,
+    resumeRun,
+    startNewOrResumedRun,
+    endRunWithSuddenDeath,
+    updateShellState,
+    openDebugMenu,
+  } = useGameShell();
+
+  const { weapons, ownedCards } = hud;
+  const { settings } = saveData;
+  const onUpdateSettings = updateSettings;
+  const onResume = resumeRun;
+  const onRestart = () => startNewOrResumedRun(false);
+  const onEndRunAndSummary = endRunWithSuddenDeath;
+  const onReturnToTitle = () => updateShellState('title');
+  const onOpenDebugCards = IS_DEV ? openDebugMenu : undefined;
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-[#140E16]/85 pointer-events-auto"

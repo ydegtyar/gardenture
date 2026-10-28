@@ -19,7 +19,7 @@ import type { BiomeId, PowerUpId, ProfessionId } from '../../content/schema/type
 import { Simulation } from '../../sim/Simulation';
 import type { DraftOfferItem } from '../../sim/systems/cardDraft';
 import { InputManager } from '../../input/InputManager';
-import { createPlatformFacade } from '../../platform/Adapters';
+import { createPlatformFacade, platform, PlatformFeature } from '../../platform/Adapters';
 import type {
   DevStubAdOutcomeMode,
   DevStubStorageMode,
@@ -116,6 +116,7 @@ export interface GameShellContextValue {
   adRerollsRemaining: number;
   coinRerollsRemaining: number;
   canWatchRewardedAd: boolean;
+  platformProvider: string;
 
   // Core Actions
   startNewOrResumedRun: (resumeExisting?: boolean) => void;
@@ -272,6 +273,11 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     shellStateRef.current = next;
     setShellState(next);
     document.body.dataset.state = next;
+    if (next === 'playing') {
+      platform.notifyGameplayStart();
+    } else {
+      platform.notifyGameplayStop();
+    }
     if (next !== 'playing') {
       document.exitPointerLock?.();
     }
@@ -647,7 +653,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     const container = canvasContainerRef.current;
     if (!container) return;
 
-    const platform = platformRef.current;
+    const facade = platformRef.current;
     const renderer = new PixiGameRenderer();
     rendererRef.current = renderer;
 
@@ -691,7 +697,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     let lastTimeMs = performance.now();
     let hudSyncCounter = 0;
 
-    platform.lifecycle.registerHandlers({
+    facade.lifecycle.registerHandlers({
       onPause: () => {
         inputRef.current.clearAllIntents();
         audioRef.current.onPlatformPause();
@@ -702,11 +708,11 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         }
       },
       onResume: () => {
-        audioRef.current.onPlatformResume(platform.audio.isAudioEnabled());
+        audioRef.current.onPlatformResume(facade.audio.isAudioEnabled());
       },
     });
 
-    platform.audio.onMuteChange((enabled) => {
+    facade.audio.onMuteChange((enabled) => {
       audioRef.current.setPlatformAudioEnabled(enabled);
     });
 
@@ -714,12 +720,34 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
     void (async () => {
       await renderer.init(container);
-      platform.lifecycle.notifyFirstFrameReady();
+      facade.lifecycle.notifyFirstFrameReady();
+
+      // Initialize Unified Platform Manager
+      await platform.initialize({
+        onPauseGame: () => {
+          inputRef.current.clearAllIntents();
+          audioRef.current.onPlatformPause();
+          if (shellStateRef.current === 'playing' && simRef.current) {
+            saveDataRef.current.activeRun = simRef.current.serializeCheckpoint();
+            void saveManagerRef.current.flushImmediate();
+            updateShellState('paused');
+          }
+        },
+        onResumeGame: () => {
+          audioRef.current.onPlatformResume(platform.canUse(PlatformFeature.REWARDED_ADS));
+        },
+        onMuteAudio: () => {
+          audioRef.current.setPlatformAudioEnabled(false);
+        },
+        onUnmuteAudio: () => {
+          audioRef.current.setPlatformAudioEnabled(true);
+        },
+      });
 
       const loadedSave = await saveManagerRef.current.loadAndReconcile();
       saveDataRef.current = loadedSave;
       setSaveData({ ...loadedSave });
-      audioRef.current.setPlatformAudioEnabled(platform.audio.isAudioEnabled());
+      audioRef.current.setPlatformAudioEnabled(facade.audio.isAudioEnabled());
       audioRef.current.setVolumes(loadedSave.settings.musicVolume, loadedSave.settings.sfxVolume);
       inputRef.current.setJoystickScale(loadedSave.settings.joystickSizeScale);
       renderer.setPreferences({
@@ -729,7 +757,8 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         biome: loadedSave.loadout.biomeId,
       });
 
-      platform.lifecycle.notifyGameReady();
+      facade.lifecycle.notifyGameReady();
+      platform.notifyGameReady();
       refreshYtDiagnostics();
 
       const params = new URLSearchParams(window.location.search);
@@ -1530,7 +1559,9 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   const coinRerollsRemaining = simRef.current
     ? Math.max(0, Simulation.MAX_COIN_REROLLS - simRef.current.coinRerollsUsed)
     : Simulation.MAX_COIN_REROLLS;
-  const canWatchRewardedAd = saveManagerRef.current.canWatchRewardedAd();
+  const canWatchRewardedAd =
+    saveManagerRef.current.canWatchRewardedAd() &&
+    (!platform.activeAdapter || platform.canUse(PlatformFeature.REWARDED_ADS));
   const canAdReroll = Boolean(
     simRef.current && adRerollsRemaining > 0 && canWatchRewardedAd
   );
@@ -1561,6 +1592,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     adRerollsRemaining,
     coinRerollsRemaining,
     canWatchRewardedAd,
+    platformProvider: platform.provider,
     startNewOrResumedRun,
     updateShellState,
     toggleMute,

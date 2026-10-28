@@ -4,6 +4,7 @@ import type {
   DevStubStorageMode,
   YtSdkDiagnosticsState,
 } from '../../platform/ports/PlatformFacade';
+import { useGameShell } from '../context/GameShellContext';
 import type { DebugCardModalProps } from './DebugTools';
 import { IS_DEV } from './devGate';
 
@@ -77,11 +78,33 @@ const LazyBestiaryEnemyDebugSpawnerInner = IS_DEV
     )
   : null;
 
-export function LazyDebugCardModal(props: DebugCardModalProps) {
+export function LazyDebugCardModal() {
   if (!IS_DEV || !LazyDebugCardModalInner) return null;
+  return <LazyDebugCardModalInnerWithShell />;
+}
+
+function LazyDebugCardModalInnerWithShell() {
+  const gameShell = useGameShell();
+
   return (
     <Suspense fallback={null}>
-      <LazyDebugCardModalInner {...props} />
+      {LazyDebugCardModalInner && (
+        <LazyDebugCardModalInner
+          weapons={gameShell.hud.weapons}
+          ownedCards={gameShell.hud.ownedCards}
+          heldPowerUps={gameShell.hud.heldPowerUps}
+          onSetCardLevel={gameShell.handleDebugSetCardLevel}
+          onSetWeaponLevel={gameShell.handleDebugSetWeaponLevel}
+          onSpawnPowerUpDrop={gameShell.handleDebugSpawnPowerUpDrop}
+          onGivePowerUp={gameShell.handleDebugGivePowerUp}
+          onTriggerPowerUp={gameShell.handleDebugTriggerPowerUp}
+          onSpawnArenaFlower={gameShell.handleDebugSpawnArenaFlower}
+          onSpawnFinalBossArena={gameShell.handleDebugSpawnFinalBossArena}
+          onTestHealHero={gameShell.handleDebugTestHealHero}
+          onResetAllCards={gameShell.handleDebugResetAllCards}
+          onClose={gameShell.closeDebugMenu}
+        />
+      )}
     </Suspense>
   );
 }

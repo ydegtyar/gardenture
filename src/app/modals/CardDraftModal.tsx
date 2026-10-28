@@ -10,45 +10,42 @@ import { Simulation } from '../../sim/Simulation';
 import type { DraftOfferItem } from '../../sim/systems/cardDraft';
 import { CoinIcon } from '../SvgIcons';
 import { getTarotMetadata, TarotCardBackSvg, TarotIllustrationSvg } from '../TarotCardArt';
+import { useGameShell } from '../context/GameShellContext';
 import { LazyModalDebugCardsButton } from '../debug/LazyDebugComponents';
-
-export interface CardDraftModalProps {
-  level: number;
-  offers: DraftOfferItem[];
-  freeRerollAvailable: boolean;
-  canAdReroll: boolean;
-  adRerollsRemaining?: number;
-  coinRerollsRemaining?: number;
-  isAdLoading?: boolean;
-  coins: number;
-  onSelectOffer: (offerId: string) => void;
-  onRerollFree: () => void;
-  onRerollAd: () => void;
-  onRerollCoins: () => void;
-  onSkip: () => void;
-  onOpenDebugCards?: () => void;
-}
+import { IS_DEV } from '../debug/devGate';
 
 /**
  * @llm-component CardDraftModal
  * @llm-hook level-up-draft: presents 3 tarot card choices on player level up
  */
-export function CardDraftModal({
-  level,
-  offers,
-  freeRerollAvailable,
-  canAdReroll,
-  adRerollsRemaining = Simulation.MAX_AD_REROLLS,
-  coinRerollsRemaining = Simulation.MAX_COIN_REROLLS,
-  isAdLoading = false,
-  coins,
-  onSelectOffer,
-  onRerollFree,
-  onRerollAd,
-  onRerollCoins,
-  onSkip,
-  onOpenDebugCards,
-}: CardDraftModalProps) {
+export function CardDraftModal() {
+  const {
+    hud,
+    draftOffers,
+    freeRerollAvailable,
+    canAdReroll,
+    adRerollsRemaining,
+    coinRerollsRemaining,
+    isAdLoading,
+    saveData,
+    handleSelectCardOffer,
+    handleRerollFree,
+    handleRerollAd,
+    handleRerollCoins,
+    handleSkipDraft,
+    openDebugMenu,
+  } = useGameShell();
+
+  const level = hud.level;
+  const offers = draftOffers;
+  const coins = saveData.currencies.coins;
+  const onSelectOffer = handleSelectCardOffer;
+  const onRerollFree = handleRerollFree;
+  const onRerollAd = handleRerollAd;
+  const onRerollCoins = handleRerollCoins;
+  const onSkip = handleSkipDraft;
+  const onOpenDebugCards = IS_DEV ? openDebugMenu : undefined;
+
   const [isFlipping, setIsFlipping] = useState(false);
   const [hasRerolled, setHasRerolled] = useState(false);
   const flipTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);

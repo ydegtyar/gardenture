@@ -13,6 +13,16 @@ import type {
   YtGameSdk,
   YtSdkDiagnosticsState,
 } from './ports/PlatformFacade';
+import { platform, PlatformManager } from './PlatformManager';
+import {
+  PlatformFeature,
+  type IPlatformAdapter,
+  type RewardResult,
+  type GameSystemHooks,
+} from './types';
+
+export { platform, PlatformManager, PlatformFeature };
+export type { IPlatformAdapter, RewardResult, GameSystemHooks };
 
 export const LOCAL_STORAGE_KEY = 'swipe_roguelite_save_v1';
 export const YT_CLOUD_STUB_STORAGE_KEY = 'swipe_roguelite_ytcloud_stub_v1';
@@ -320,6 +330,7 @@ export class YouTubePlatformAdapter implements PlatformFacade {
       if (this.gameReadySignaled) return;
       this.gameReadySignaled = true;
       try {
+        platform.notifyGameReady();
         this.sdk.game.gameReady();
       } catch {
         this.health.logWarning();
@@ -357,6 +368,14 @@ export class YouTubePlatformAdapter implements PlatformFacade {
 
   public readonly storage = {
     loadCloudRaw: async (): Promise<string> => {
+      if (platform.activeAdapter && platform.provider !== 'YouTubePlayables' && platform.provider !== 'UNINITIALIZED') {
+        const cloudData = await platform.load<string>(LOCAL_STORAGE_KEY);
+        if (cloudData && cloudData.length > 2) {
+          this.lastSavedCloudBytes = getUtf8ByteLength(cloudData);
+          return cloudData;
+        }
+        return '';
+      }
       try {
         const cloud = await this.sdk.game.loadData();
         if (cloud && cloud.length > 2) {
@@ -382,6 +401,12 @@ export class YouTubePlatformAdapter implements PlatformFacade {
         this.health.logWarning();
       }
       writeLocalBackup(serialized);
+      if (platform.activeAdapter && platform.provider !== 'YouTubePlayables' && platform.provider !== 'UNINITIALIZED') {
+        const ok = await platform.save(LOCAL_STORAGE_KEY, serialized);
+        this.lastSavedCloudBytes = byteLen;
+        this.lastSavedAtEpochMs = Date.now();
+        return ok;
+      }
       try {
         await this.sdk.game.saveData(serialized);
         this.lastSavedCloudBytes = byteLen;
@@ -397,6 +422,15 @@ export class YouTubePlatformAdapter implements PlatformFacade {
   public readonly ads = {
     requestRewardedAd: async (rewardId: RewardAdPlacementId): Promise<boolean> => {
       this.lastAdPlacement = rewardId;
+      if (platform.activeAdapter && platform.provider !== 'YouTubePlayables' && platform.provider !== 'UNINITIALIZED') {
+        const res = await platform.requestRewardAd(rewardId);
+        const granted = Boolean(res.rewarded);
+        this.lastAdResult = granted ? 'granted' : 'skipped';
+        if (granted) {
+          this.totalAdsGranted++;
+        }
+        return granted;
+      }
       try {
         const earned = await this.sdk.ads.requestRewardedAd(rewardId);
         const granted = Boolean(earned);
@@ -411,6 +445,10 @@ export class YouTubePlatformAdapter implements PlatformFacade {
       }
     },
     requestInterstitialAd: async (): Promise<void> => {
+      if (platform.activeAdapter && platform.provider !== 'YouTubePlayables' && platform.provider !== 'UNINITIALIZED') {
+        await platform.requestInterstitialAd();
+        return;
+      }
       try {
         await this.sdk.ads.requestInterstitialAd();
       } catch {

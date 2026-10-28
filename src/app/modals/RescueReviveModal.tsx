@@ -6,30 +6,23 @@
  */
 
 import React from 'react';
-
-export interface Props {
-  coins: number;
-  canWatchAd: boolean;
-  isAdLoading: boolean;
-  onWatchAdRevive: () => void;
-  onSpendCoinsRevive: () => void;
-  onDeclineRevive: () => void;
-}
-
-export type RescueReviveModalProps = Props;
+import { useGameShell } from '../context/GameShellContext';
 
 /**
  * @llm-component RescueReviveModal
  * @llm-hook death-rescue: mid-run death prompt with rewarded video or coin revive matching Stitch Occult Botanica Rite design
  */
-export function RescueReviveModal({
-                                    coins,
-                                    canWatchAd,
-                                    isAdLoading,
-                                    onWatchAdRevive,
-                                    onSpendCoinsRevive,
-                                    onDeclineRevive,
-                                  }: Props) {
+export function RescueReviveModal() {
+  const {
+    saveData,
+    canWatchRewardedAd,
+    isAdLoading,
+    handleWatchAdRevive,
+    handleSpendCoinsRevive,
+    handleDeclineRevive,
+  } = useGameShell();
+
+  const coins = saveData.currencies.coins;
   const canAffordCoins = coins >= 150;
 
   return (
@@ -187,12 +180,12 @@ export function RescueReviveModal({
         {/* ACTION BUTTONS: Thumb-Zone Optimized */}
         <div className="w-full flex flex-col gap-2.5">
           {/* Action 1: Rewarded Ad Revive */}
-          {canWatchAd && (
+          {canWatchRewardedAd && (
             <button
               type="button"
               data-testid="revive-ad-btn"
               disabled={isAdLoading}
-              onClick={onWatchAdRevive}
+              onClick={handleWatchAdRevive}
               className="w-full btn-herbarium-lichen justify-between px-4 py-2.5 flex items-center text-left group"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -242,7 +235,7 @@ export function RescueReviveModal({
             <button
               type="button"
               data-testid="revive-coins-btn"
-              onClick={onSpendCoinsRevive}
+              onClick={handleSpendCoinsRevive}
               className="w-full btn-herbarium-primary justify-between px-4 py-2.5 flex items-center text-left group"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -295,7 +288,7 @@ export function RescueReviveModal({
           <button
             type="button"
             data-testid="decline-revive-btn"
-            onClick={onDeclineRevive}
+            onClick={handleDeclineRevive}
             className="w-full btn-herbarium-danger px-4 py-2.5 flex items-center justify-between text-left group mt-1 cursor-pointer"
           >
             <div className="flex items-center gap-2">

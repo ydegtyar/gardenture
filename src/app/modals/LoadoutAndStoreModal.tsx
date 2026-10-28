@@ -32,6 +32,7 @@ import {
 } from '../../view/SpriteAtlas';
 import { CoinIcon, SeedGemIcon } from '../SvgIcons';
 import { getTarotMetadata, TarotIllustrationSvg } from '../TarotCardArt';
+import { useGameShell } from '../context/GameShellContext';
 import {
   LazyBestiaryEnemyDebugBadge,
   LazyBestiaryEnemyDebugSpawner,
@@ -41,71 +42,65 @@ import {
   LazyStoreDebugTreasuryPanel,
   LazyYouTubeDevStubControls,
 } from '../debug/LazyDebugComponents';
-
-export interface LoadoutAndStoreModalProps {
-  saveData: SaveDataV1;
-  initialTab: 'loadout' | 'store' | 'quests' | 'bestiary';
-  ytDiagnostics?: YtSdkDiagnosticsState;
-  lastSyncSource?: 'cloud' | 'local' | 'merged' | 'default';
-  statusBannerText?: string | null;
-  isAdLoading?: boolean;
-  onClose: () => void;
-  onSelectLoadout: (partial: Partial<SaveDataV1['loadout']>) => void;
-  onUnlockProfession: (profId: ProfessionId, cost: number) => void;
-  onUnlockTrinket: (trinketId: string, cost: number) => void;
-  onUpgradeTrinket?: (trinketId: string) => void;
-  onUnlockCurse: (curseId: string, cost: number) => void;
-  onWatchPersonaPipAd: (personaId: string) => void;
-  onWatchSanctuaryRewardAd?: () => void;
-  onIncrementPersonaAdPip?: (personaId: string) => void;
-  onIncrementAllPersonaAdPips?: () => void;
-  onSavePlayerStateNow?: () => void;
-  onReloadAndReconcileSave?: () => void;
-  onSetDevAdOutcomeMode?: (mode: DevStubAdOutcomeMode) => void;
-  onSetDevCloudStorageMode?: (mode: DevStubStorageMode) => void;
-  onSimulateYtAudioToggle?: () => void;
-  onSyncScoreNow?: () => void;
-  onSpawnBestiaryEnemy?: (
-    bestiaryKey: string,
-    mode: 'infinite_hp' | 'swarm' | 'respawn_on_death'
-  ) => void;
-  onClaimQuest: (questId: string) => void;
-  onAddDebugGold: (amount: number) => void;
-  onStartRun: () => void;
-}
+import { IS_DEV } from '../debug/devGate';
 
 /**
  * @llm-component LoadoutAndStoreModal
  * @llm-hook garden-sanctuary: multi-tab hub for professions, trinkets, curses, quests, bestiary, and YT SDK diagnostics
  */
-export function LoadoutAndStoreModal({
-  saveData,
-  initialTab,
-  ytDiagnostics,
-  lastSyncSource = 'default',
-  statusBannerText = null,
-  isAdLoading = false,
-  onClose,
-  onSelectLoadout,
-  onUnlockProfession,
-  onUnlockTrinket,
-  onUpgradeTrinket,
-  onUnlockCurse,
-  onWatchPersonaPipAd,
-  onWatchSanctuaryRewardAd,
-  onIncrementPersonaAdPip,
-  onIncrementAllPersonaAdPips,
-  onSavePlayerStateNow,
-  onReloadAndReconcileSave,
-  onSetDevAdOutcomeMode,
-  onSetDevCloudStorageMode,
-  onSimulateYtAudioToggle,
-  onSyncScoreNow,
-  onSpawnBestiaryEnemy,
-  onClaimQuest,
-  onAddDebugGold,
-  onStartRun,
-}: LoadoutAndStoreModalProps) {
+export function LoadoutAndStoreModal() {
+  const {
+    saveData,
+    sanctuaryTab,
+    setSanctuaryTab,
+    ytDiagnostics,
+    ytSdkBanner,
+    lastSyncSource,
+    isAdLoading,
+    handleSelectLoadout,
+    handleUnlockProfession,
+    handleUnlockTrinket,
+    handleUpgradeTrinket,
+    handleUnlockCurse,
+    handleWatchPersonaPipAd,
+    handleWatchSanctuaryRewardAd,
+    handleDebugIncrementPersonaAdPip,
+    handleDebugIncrementAllPersonaAdPips,
+    handleSavePlayerStateNow,
+    handleReloadAndReconcileSave,
+    handleSetDevAdOutcomeMode,
+    handleSetDevCloudStorageMode,
+    handleSimulateYtAudioToggle,
+    handleSyncScoreNow,
+    handleDebugSpawnBestiaryEnemy,
+    handleClaimQuest,
+    handleDebugAddGold,
+    startNewOrResumedRun,
+  } = useGameShell();
+
+  const initialTab = (sanctuaryTab ?? 'loadout') as 'loadout' | 'store' | 'quests' | 'bestiary';
+  const statusBannerText = ytSdkBanner ?? null;
+  const onClose = () => setSanctuaryTab(null);
+  const onSelectLoadout = handleSelectLoadout;
+  const onUnlockProfession = handleUnlockProfession;
+  const onUnlockTrinket = handleUnlockTrinket;
+  const onUpgradeTrinket = handleUpgradeTrinket;
+  const onUnlockCurse = handleUnlockCurse;
+  const onWatchPersonaPipAd = handleWatchPersonaPipAd;
+  const onWatchSanctuaryRewardAd = handleWatchSanctuaryRewardAd;
+  const onIncrementPersonaAdPip = IS_DEV ? handleDebugIncrementPersonaAdPip : undefined;
+  const onIncrementAllPersonaAdPips = IS_DEV ? handleDebugIncrementAllPersonaAdPips : undefined;
+  const onSavePlayerStateNow = handleSavePlayerStateNow;
+  const onReloadAndReconcileSave = handleReloadAndReconcileSave;
+  const onSetDevAdOutcomeMode = IS_DEV ? handleSetDevAdOutcomeMode : undefined;
+  const onSetDevCloudStorageMode = IS_DEV ? handleSetDevCloudStorageMode : undefined;
+  const onSimulateYtAudioToggle = IS_DEV ? handleSimulateYtAudioToggle : undefined;
+  const onSyncScoreNow = IS_DEV ? handleSyncScoreNow : undefined;
+  const onSpawnBestiaryEnemy = IS_DEV ? handleDebugSpawnBestiaryEnemy : undefined;
+  const onClaimQuest = handleClaimQuest;
+  const onAddDebugGold = handleDebugAddGold;
+  const onStartRun = () => startNewOrResumedRun(false);
+
   const [tab, setTab] = useState<'loadout' | 'store' | 'quests' | 'bestiary'>(initialTab);
   const [activeDebugEnemyKey, setActiveDebugEnemyKey] = useState<string | null>(null);
   const { loadout, unlocks, currencies, retention } = saveData;
