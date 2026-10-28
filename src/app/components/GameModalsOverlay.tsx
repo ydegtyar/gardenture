@@ -52,6 +52,7 @@ export function GameModalsOverlay() {
     handleSelectLoadout,
     handleUnlockProfession,
     handleUnlockTrinket,
+    handleUpgradeTrinket,
     handleUnlockCurse,
     handleWatchPersonaPipAd,
     handleWatchSanctuaryRewardAd,
@@ -165,6 +166,7 @@ export function GameModalsOverlay() {
           onSelectLoadout={handleSelectLoadout}
           onUnlockProfession={handleUnlockProfession}
           onUnlockTrinket={handleUnlockTrinket}
+          onUpgradeTrinket={handleUpgradeTrinket}
           onUnlockCurse={handleUnlockCurse}
           onWatchPersonaPipAd={handleWatchPersonaPipAd}
           onWatchSanctuaryRewardAd={handleWatchSanctuaryRewardAd}

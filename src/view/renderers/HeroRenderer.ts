@@ -768,6 +768,7 @@ export class HeroRenderer {
       phase: string;
       phaseTimer: number;
       swingCounter: number;
+      lockedAngle?: number;
     },
     _elapsedSeconds: number,
     isBackSlung = false,
@@ -812,8 +813,8 @@ export class HeroRenderer {
     }
 
     const attackAngle =
-      typeof (spearWpn as { lockedAngle?: number }).lockedAngle === 'number'
-        ? (spearWpn as { lockedAngle: number }).lockedAngle
+      typeof spearWpn.lockedAngle === 'number'
+        ? spearWpn.lockedAngle
         : facingAngle;
     const totalAngle = isBackSlung
       ? flipX >= 0

@@ -29,7 +29,7 @@ import {
   updateDailyRunStreak,
 } from '../meta/SaveManager';
 import { createPlatformFacade } from '../platform/Adapters';
-import { CARDS, PERSONAS, POWER_UPS } from '../content/data/catalog';
+import { BALANCE_CONFIG, CARDS, PERSONAS, POWER_UPS } from '../content/data/catalog';
 import { isDevelopmentProcess, IS_DEV } from '../app/debug/devGate';
 
 test('Current Daily Streak consecutive-day tracking (updateDailyRunStreak) & milestone highlight rules', () => {
@@ -1330,11 +1330,11 @@ test('Gameplay Polish: 0.5s silent invulnerability after card choice, single ini
   const distCoin = Math.hypot(initialCoins[0]!.x, initialCoins[0]!.y);
   assert.ok(distCoin >= 3.0, `Single initial coin should lay farther from spawn (>=3.0u), got ${distCoin}`);
 
-  // 2. Decreased basic coin drop rate (3.5% base) amplified by Lucky Clover & Luck
+  // 2. Decreased basic coin drop rate (1.5% base) amplified by Lucky Clover & Luck
   const baseCoinChance = sim.getBasicCoinDropChance();
   assert.ok(
-    Math.abs(baseCoinChance - 0.035) < 1e-6,
-    `Base coin drop chance should be 3.5% (0.035), got ${baseCoinChance}`
+    Math.abs(baseCoinChance - BALANCE_CONFIG.BASE_COIN_DROP_RATE) < 1e-6,
+    `Base coin drop chance should be ${BALANCE_CONFIG.BASE_COIN_DROP_RATE}, got ${baseCoinChance}`
   );
   sim.debugSetCardLevel('lucky_clover', 3);
   const cloverCoinChance = sim.getBasicCoinDropChance();
@@ -1552,7 +1552,7 @@ test('Arbalete (replaces Thorn Spear) has increased default range, fires arbalet
   bystander.maxHp = 600;
 
   // Fire evolved Arbalete along +X axis
-  sim.facingAngle = 0;
+  sim.heroFacingAngle = 0;
   let sawExplosionFx = false;
   for (let i = 0; i < 65; i++) {
     bystander.x = sim.heroX + evolvedReach;
@@ -1879,5 +1879,144 @@ test('Losti Seige persona lore, overheal prevention, Crit Burst starfall visual 
   assert.ok(starfallFx, 'Crit Burst proc should spawn a crit_starfall visual effect');
   assert.equal(starfallFx.arcRad, 2);
 });
+
+test('Task Verification: Charger channel follow, Brute danger bump & moving charge, Ad revive freeze, Piercing Slash gap coverage, Tarot draft enemy gating, and Trinket Lv 1-3 progression', () => {
+  // 1. Charger enemy (dasher) follows hero at reduced speed while channeling
+  const simCharger = new Simulation({ seed: 1111, professionId: 'warden' });
+  simCharger.enemies.length = 0;
+  const charger = simCharger.spawnEnemy('dasher', simCharger.heroX + 4.0, simCharger.heroY, false)!;
+  assert.equal(charger.archetypeId, 'dasher');
+
+  // Step 1 tick -> charger enters telegraph
+  simCharger.tick();
+  assert.equal(charger.aiState, 'telegraph');
+  assert.equal(charger.telegraphDuration, BALANCE_CONFIG.CHARGER_TELEGRAPH_DURATION_SEC);
+
+  const prevX = charger.x;
+  // Step 10 ticks (0.166s) during telegraph
+  for (let i = 0; i < 10; i++) simCharger.tick();
+  assert.equal(charger.aiState, 'telegraph');
+  assert.ok(charger.x < prevX, 'Charger must keep moving towards hero during telegraph channel');
+  const progress = 1 - charger.aiTimer / charger.telegraphDuration;
+  assert.ok(progress > 0 && progress < 1, 'Telegraph progress must advance with timer');
+
+  // 2. Brute enemy: bumped speed & damage, moving slam channel, and brute_slam_flash
+  const simBrute = new Simulation({ seed: 2222, professionId: 'warden' });
+  simBrute.enemies.length = 0;
+  const brute = simBrute.spawnEnemy('brute', simBrute.heroX + 1.9, simBrute.heroY, false)!;
+  assert.equal(brute.contactDamage, BALANCE_CONFIG.BRUTE_BASE_CONTACT_DAMAGE);
+  assert.equal(brute.speed, BALANCE_CONFIG.BRUTE_BASE_SPEED);
+
+  simBrute.tick();
+  assert.equal(brute.aiState, 'telegraph');
+  assert.equal(brute.telegraphDuration, BALANCE_CONFIG.BRUTE_TELEGRAPH_DURATION_SEC);
+
+  const bruteStartX = brute.x;
+  simBrute.tick();
+  assert.ok(brute.x < bruteStartX, 'Brute must move towards hero while channeling slam');
+
+  // Advance brute telegraph until attack frame
+  simBrute.visualEffects.length = 0;
+  while (brute.aiState === 'telegraph') {
+    simBrute.tick();
+  }
+  assert.equal(brute.aiState, 'recover');
+  const slamFlash = simBrute.visualEffects.find((fx) => fx.kind === 'brute_slam_flash');
+  assert.ok(slamFlash, 'brute_slam_flash must spawn on the exact frame the slam attack resolves');
+
+  // 3. Rewarded Ad Revive freezes all enemies for 2 seconds
+  const simRevive = new Simulation({ seed: 3333, professionId: 'warden' });
+  simRevive.enemies.length = 0;
+  const e1 = simRevive.spawnEnemy('chaser', simRevive.heroX + 3.0, simRevive.heroY, false)!;
+  const e2 = simRevive.spawnEnemy('brute', simRevive.heroX - 2.5, simRevive.heroY, false)!;
+
+  simRevive.applyPlayerRevive({ isAdRevive: true });
+  assert.equal(e1.freezeTimer, BALANCE_CONFIG.AD_REVIVE_FREEZE_SECONDS);
+  assert.equal(e2.freezeTimer, BALANCE_CONFIG.AD_REVIVE_FREEZE_SECONDS);
+
+  const e1FrozenX = e1.x;
+  const e2FrozenX = e2.x;
+  for (let i = 0; i < 30; i++) simRevive.tick(); // 0.5s into freeze
+  assert.equal(e1.x, e1FrozenX, 'Frozen enemy 1 must not move');
+  assert.equal(e2.x, e2FrozenX, 'Frozen enemy 2 must not move');
+  assert.ok(e1.freezeTimer > 0, 'Freeze timer should still be active');
+
+  // Advance past 2.0s
+  for (let i = 0; i < 100; i++) simRevive.tick();
+  assert.equal(e1.freezeTimer, 0);
+  assert.equal(e2.freezeTimer, 0);
+  simRevive.tick();
+  assert.notEqual(e1.x, e1FrozenX, 'Normal enemy movement must resume after freeze expires');
+
+  // 4. Piercing Slash weapon gap coverage
+  const simSlash = new Simulation({ seed: 4444, professionId: 'warden' });
+  simSlash.enemies.length = 0;
+  const blade = simSlash.weapons.find((w) => w.id === 'garden_blade')!;
+  blade.cooldownTimer = 0;
+
+  // An enemy placed at 3.5u (outside basic blade reach 1.85+1.0 = 2.85u)
+  const farEnemy = simSlash.spawnEnemy('chaser', simSlash.heroX + 3.5, simSlash.heroY, false)!;
+  simSlash.tick();
+  assert.equal(blade.phase, 'ready', 'Without Piercing Slash, enemy at 3.5u should not trigger blade');
+
+  // Now give Piercing Slash card
+  simSlash.cards.piercing_slash = 1;
+  simSlash.tick();
+  assert.equal(blade.phase, 'windup', 'With Piercing Slash, enemy at 3.5u must trigger blade to cover the gap');
+
+  // 5. Botanical Tarot draft safe-distance gating
+  const simDraft = new Simulation({ seed: 5555, professionId: 'warden' });
+  simDraft.enemies.length = 0;
+  // Hero spawn near enemy within basic blade reach (1.85u)
+  simDraft.spawnEnemy('chaser', simDraft.heroX + 1.2, simDraft.heroY, false);
+  assert.equal(simDraft.isHeroSafeForCardDraft(), false, 'Hero should not be safe for draft when enemy is within blade range');
+
+  simDraft.enemies.length = 0;
+  simDraft.spawnEnemy('chaser', simDraft.heroX + 4.0, simDraft.heroY, false);
+  assert.equal(simDraft.isHeroSafeForCardDraft(), true, 'Hero is safe for draft when enemy is outside blade range');
+
+  // 6. Trinket 3-tier upgrades and stat scaling
+  const statsLv1 = computeHeroStats('warden', {}, ['aegis_leaf', 'clover_charm', 'magnet_root', 'wind_anklet'], [], {
+    aegis_leaf: 1,
+    clover_charm: 1,
+    magnet_root: 1,
+    wind_anklet: 1,
+  });
+  const statsLv2 = computeHeroStats('warden', {}, ['aegis_leaf', 'clover_charm', 'magnet_root', 'wind_anklet'], [], {
+    aegis_leaf: 2,
+    clover_charm: 2,
+    magnet_root: 2,
+    wind_anklet: 2,
+  });
+  const statsLv3 = computeHeroStats('warden', {}, ['aegis_leaf', 'clover_charm', 'magnet_root', 'wind_anklet'], [], {
+    aegis_leaf: 3,
+    clover_charm: 3,
+    magnet_root: 3,
+    wind_anklet: 3,
+  });
+
+  // Aegis Leaf: +10 max HP per level (+10 / +20 / +30)
+  assert.equal(statsLv2.maxHp - statsLv1.maxHp, 10);
+  assert.equal(statsLv3.maxHp - statsLv2.maxHp, 10);
+
+  // Amber Magnet: +10% pickup radius per level (+20% base, +30%, +40%)
+  assert.ok(statsLv2.pickupRadius > statsLv1.pickupRadius);
+  assert.ok(statsLv3.pickupRadius > statsLv2.pickupRadius);
+
+  // Sylph Feather Anklet: +3% speed/lv, Lv 2 grants +5% dodge, Lv 3 grants +1 extra dash
+  assert.equal(statsLv1.dodgeChance, 0);
+  assert.equal(statsLv2.dodgeChance, 0.05);
+  assert.equal(statsLv3.dodgeChance, 0.05);
+  assert.equal(statsLv1.extraDashCharges, 0);
+  assert.equal(statsLv2.extraDashCharges, 0);
+  assert.equal(statsLv3.extraDashCharges, 1);
+
+  // Gilded Clover Charm: free rerolls up to 3 total
+  const simClover1 = new Simulation({ seed: 7771, professionId: 'warden', equippedTrinkets: ['clover_charm'], trinketLevels: { clover_charm: 1 } });
+  assert.equal(simClover1.freeRerollsRemaining, 1);
+  const simClover3 = new Simulation({ seed: 7773, professionId: 'warden', equippedTrinkets: ['clover_charm'], trinketLevels: { clover_charm: 3 } });
+  assert.equal(simClover3.freeRerollsRemaining, 3);
+});
+
 
 

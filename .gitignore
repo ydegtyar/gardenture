@@ -13,3 +13,6 @@ coverage/
 .aistudio/*.png
 .aistuido/**/*.png
 .aistuido/*.png
+
+# Agent state
+.agents/

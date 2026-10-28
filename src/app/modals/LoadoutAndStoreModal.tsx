@@ -53,6 +53,7 @@ export interface LoadoutAndStoreModalProps {
   onSelectLoadout: (partial: Partial<SaveDataV1['loadout']>) => void;
   onUnlockProfession: (profId: ProfessionId, cost: number) => void;
   onUnlockTrinket: (trinketId: string, cost: number) => void;
+  onUpgradeTrinket?: (trinketId: string) => void;
   onUnlockCurse: (curseId: string, cost: number) => void;
   onWatchPersonaPipAd: (personaId: string) => void;
   onWatchSanctuaryRewardAd?: () => void;
@@ -88,6 +89,7 @@ export function LoadoutAndStoreModal({
   onSelectLoadout,
   onUnlockProfession,
   onUnlockTrinket,
+  onUpgradeTrinket,
   onUnlockCurse,
   onWatchPersonaPipAd,
   onWatchSanctuaryRewardAd,
@@ -359,22 +361,26 @@ export function LoadoutAndStoreModal({
                   <button
                     type="button"
                     data-testid={`wear-persona-${persona.id}`}
-                    onClick={() =>
-                      onSelectLoadout({
-                        personaId: persona.id,
-                        professionId: persona.professionId,
-                        startingWeaponId:
-                          PROFESSIONS[persona.professionId]?.startingWeaponId ??
-                          loadout.startingWeaponId,
-                      })
-                    }
+                    onClick={() => {
+                      if (selected) {
+                        onSelectLoadout({ personaId: 'adventurer_default' });
+                      } else {
+                        onSelectLoadout({
+                          personaId: persona.id,
+                          professionId: persona.professionId,
+                          startingWeaponId:
+                            PROFESSIONS[persona.professionId]?.startingWeaponId ??
+                            loadout.startingWeaponId,
+                        });
+                      }
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors ${
                       selected
-                        ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
+                        ? 'bg-[#E11D48] hover:bg-[#BE123C] text-[#FFFDF0] shadow-sm'
                         : 'btn-herbarium-secondary-compact'
                     }`}
                   >
-                    {selected ? 'Wearing Skin' : 'Wear Skin'}
+                    {selected ? 'Unequip' : 'Wear Skin'}
                   </button>
                 ) : (
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -632,43 +638,90 @@ export function LoadoutAndStoreModal({
                   {TRINKETS.map((trinket) => {
                     const unlocked = unlocks.trinkets.includes(trinket.id);
                     const equipped = loadout.trinketIds.includes(trinket.id);
+                    const currentLv = Math.max(
+                      1,
+                      Math.min(3, Math.floor(unlocks.trinketLevels?.[trinket.id] ?? 1))
+                    );
+                    const levelDesc = unlocked
+                      ? trinket.levelDescriptions?.[currentLv - 1] ?? trinket.description
+                      : trinket.description;
+                    const canAffordLv2 = currencies.coins >= trinket.upgradeCostCoinsLv2;
+                    const canAffordLv3 = currencies.gems >= trinket.upgradeCostSeedsLv3;
+
                     return (
                       <div
                         key={trinket.id}
                         className="p-3.5 rounded-xl bg-[#1E1520] border border-[#FFFDF0]/15 flex flex-col justify-between"
                       >
                         <div>
-                          <div className="font-bold text-sm text-[#FDFFB6]">{trinket.name}</div>
-                          <p className="text-xs text-[#FFFDF0]/80 mt-1">{trinket.description}</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-sm text-[#FDFFB6]">{trinket.name}</span>
+                            {unlocked && (
+                              <span
+                                data-testid={`trinket-level-${trinket.id}`}
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                  currentLv === 3
+                                    ? 'bg-[#FDFFB6]/20 text-[#FDFFB6] border border-[#FDFFB6]/40'
+                                    : 'bg-[#A8E6CF]/20 text-[#A8E6CF] border border-[#A8E6CF]/30'
+                                }`}
+                              >
+                                {currentLv === 3 ? 'Lv 3 (MAX)' : `Lv ${currentLv}`}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[#FFFDF0]/80 mt-1">{levelDesc}</p>
                         </div>
-                        <div className="mt-3 flex justify-end">
-                          {unlocked ? (
+                        <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                          {unlocked && currentLv < 3 ? (
                             <button
                               type="button"
-                              onClick={() => {
-                                const next = equipped
-                                  ? loadout.trinketIds.filter((id) => id !== trinket.id)
-                                  : [...loadout.trinketIds, trinket.id].slice(-3);
-                                onSelectLoadout({ trinketIds: next });
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                                equipped
-                                  ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
-                                  : 'btn-herbarium-secondary-compact'
+                              data-testid={`upgrade-trinket-${trinket.id}`}
+                              disabled={currentLv === 1 ? !canAffordLv2 : !canAffordLv3}
+                              onClick={() => onUpgradeTrinket?.(trinket.id)}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                currentLv === 1
+                                  ? 'bg-[#E8B64A]/20 hover:bg-[#E8B64A]/30 text-[#E8B64A] border border-[#E8B64A]/40 disabled:opacity-40'
+                                  : 'bg-[#88D49E]/20 hover:bg-[#88D49E]/30 text-[#88D49E] border border-[#88D49E]/40 disabled:opacity-40'
                               }`}
                             >
-                              {equipped ? 'Equipped' : 'Equip'}
+                              {currentLv === 1
+                                ? `Upgrade to Lv 2 (${trinket.upgradeCostCoinsLv2} Coins)`
+                                : `Upgrade to Lv 3 (${trinket.upgradeCostSeedsLv3} Seeds)`}
                             </button>
                           ) : (
-                            <button
-                              type="button"
-                              disabled={currencies.coins < trinket.costCoins}
-                              onClick={() => onUnlockTrinket(trinket.id, trinket.costCoins)}
-                              className="btn-herbarium-secondary-compact px-3 py-1.5 text-xs text-[#E8B64A] disabled:opacity-40"
-                            >
-                              Buy ({trinket.costCoins} Coins)
-                            </button>
+                            <div />
                           )}
+                          <div className="ml-auto">
+                            {unlocked ? (
+                              <button
+                                type="button"
+                                data-testid={`equip-trinket-${trinket.id}`}
+                                onClick={() => {
+                                  const next = equipped
+                                    ? loadout.trinketIds.filter((id) => id !== trinket.id)
+                                    : [...loadout.trinketIds, trinket.id].slice(-3);
+                                  onSelectLoadout({ trinketIds: next });
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                  equipped
+                                    ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
+                                    : 'btn-herbarium-secondary-compact'
+                                }`}
+                              >
+                                {equipped ? 'Equipped' : 'Equip'}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                data-testid={`buy-trinket-${trinket.id}`}
+                                disabled={currencies.coins < trinket.costCoins}
+                                onClick={() => onUnlockTrinket(trinket.id, trinket.costCoins)}
+                                className="btn-herbarium-secondary-compact px-3 py-1.5 text-xs text-[#E8B64A] disabled:opacity-40"
+                              >
+                                Buy ({trinket.costCoins} Coins)
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

@@ -16,6 +16,7 @@ import { RNGStreams, type RNGStreamsState } from '../core/rng/rng';
 import { TICK_S } from '../core/time/clock';
 import { TypedEventBus } from '../core/events/eventBus';
 import {
+  BALANCE_CONFIG,
   CARDS,
   CURSES,
   ENEMY_ARCHETYPES,
@@ -983,7 +984,7 @@ export class Simulation {
   }
 
   public isHeroSafeForCardDraft(): boolean {
-    const basicBladeRange = WEAPONS.garden_blade?.baseReach ?? 1.85;
+    const basicBladeRange = WEAPONS.garden_blade?.baseReach ?? BALANCE_CONFIG.SAFE_CARD_DRAFT_RANGE;
     for (const e of this.enemies) {
       if (e.hp <= 0 || e.koTimer > 0 || e.isArenaFlower || e.isHeroGrave) continue;
       if (dist(this.heroX, this.heroY, e.x, e.y) <= basicBladeRange) {
@@ -1062,7 +1063,7 @@ export class Simulation {
     const kbForce = params?.knockbackForceU ?? 3.5;
     const isAdRevive = Boolean(params?.isAdRevive);
     if (isAdRevive) {
-      this.freezeAuraTimer = Math.max(this.freezeAuraTimer, 2.0);
+      this.freezeAuraTimer = Math.max(this.freezeAuraTimer, BALANCE_CONFIG.AD_REVIVE_FREEZE_SECONDS);
     }
     for (const e of this.enemies) {
       if (e.isArenaFlower || e.isHeroGrave) continue;
@@ -1074,7 +1075,7 @@ export class Simulation {
         e.y += ny * kbForce * (1 - e.knockbackResist * 0.5);
       }
       if (isAdRevive && e.hp > 0) {
-        e.freezeTimer = Math.max(e.freezeTimer, 2.0);
+        e.freezeTimer = Math.max(e.freezeTimer, BALANCE_CONFIG.AD_REVIVE_FREEZE_SECONDS);
       }
     }
   }
@@ -1834,7 +1835,7 @@ export class Simulation {
       if (e.webSlowTimer > 0) e.webSlowTimer = Math.max(0, e.webSlowTimer - dt);
       if (e.freezeTimer > 0) {
         e.freezeTimer = Math.max(0, e.freezeTimer - dt);
-        if (!e.isFinalBoss && !e.isMiniBoss && !e.isArenaFlower && !e.isHeroGrave) continue;
+        if (!e.isArenaFlower && !e.isHeroGrave) continue;
       }
 
       // Stationary Big Arena Flowers & Hero Graves: stay rooted in place, never move, and never deal contact damage
@@ -2064,8 +2065,8 @@ export class Simulation {
           e.y += Math.sin(angleToHero) * moveSpeed * dt;
           if (!heroInvisible && dHero <= 4.5 && activeTelegraphs < 5) {
             e.aiState = 'telegraph';
-            e.aiTimer = 0.6; // Spec Section 8: 0.6s telegraph
-            e.telegraphDuration = 0.6;
+            e.aiTimer = BALANCE_CONFIG.CHARGER_TELEGRAPH_DURATION_SEC;
+            e.telegraphDuration = BALANCE_CONFIG.CHARGER_TELEGRAPH_DURATION_SEC;
             e.telegraphAngle = angleToHero;
             e.telegraphTargetX = e.x + Math.cos(angleToHero) * 3.2;
             e.telegraphTargetY = e.y + Math.sin(angleToHero) * 3.2;
@@ -2075,11 +2076,11 @@ export class Simulation {
           // Slowly follow the hero with the charge indicator while channeling the charge
           if (!heroInvisible) {
             const diff = angleDifference(e.telegraphAngle, angleToHero);
-            const maxTurn = 2.8 * dt;
+            const maxTurn = BALANCE_CONFIG.CHARGER_CHANNEL_MAX_TURN_RAD_PER_SEC * dt;
             e.telegraphAngle += clamp(diff, -maxTurn, maxTurn);
             e.facingAngle = e.telegraphAngle;
           }
-          const channelFollowSpeed = moveSpeed * 0.38;
+          const channelFollowSpeed = moveSpeed * BALANCE_CONFIG.CHARGER_CHANNEL_FOLLOW_SPEED_MULT;
           e.x += Math.cos(e.telegraphAngle) * channelFollowSpeed * dt;
           e.y += Math.sin(e.telegraphAngle) * channelFollowSpeed * dt;
           e.telegraphTargetX = e.x + Math.cos(e.telegraphAngle) * 3.2;
@@ -2087,11 +2088,11 @@ export class Simulation {
           e.aiTimer -= dt;
           if (e.aiTimer <= 0) {
             e.aiState = 'charge';
-            e.aiTimer = 0.35;
+            e.aiTimer = BALANCE_CONFIG.CHARGER_CHARGE_DURATION_SEC;
           }
         } else if (e.aiState === 'charge') {
           e.aiTimer -= dt;
-          const chargeSpeed = 7.0 * timeSlowFactor;
+          const chargeSpeed = BALANCE_CONFIG.CHARGER_CHARGE_SPEED * timeSlowFactor;
           e.x += Math.cos(e.telegraphAngle) * chargeSpeed * dt;
           e.y += Math.sin(e.telegraphAngle) * chargeSpeed * dt;
           if (e.aiTimer <= 0) {
@@ -2454,7 +2455,7 @@ export class Simulation {
             activeTelegraphs < 5
           ) {
             e.aiState = 'telegraph';
-            e.telegraphDuration = e.isMiniBoss ? 0.8 : 0.68;
+            e.telegraphDuration = e.isMiniBoss ? 0.8 : BALANCE_CONFIG.BRUTE_TELEGRAPH_DURATION_SEC;
             e.aiTimer = e.telegraphDuration;
             e.telegraphTargetX = e.x;
             e.telegraphTargetY = e.y;
@@ -2464,7 +2465,7 @@ export class Simulation {
           // Allow brutes to charge on the move while channeling their ground slam
           if (!heroInvisible && dHero > 0.25) {
             e.facingAngle = angleToHero;
-            const channelMoveMult = e.isMiniBoss ? 0.68 : 0.82;
+            const channelMoveMult = e.isMiniBoss ? 0.68 : BALANCE_CONFIG.BRUTE_SLAM_CHARGE_SPEED_MULT;
             e.x += Math.cos(angleToHero) * moveSpeed * channelMoveMult * dt;
             e.y += Math.sin(angleToHero) * moveSpeed * channelMoveMult * dt;
           }
@@ -2829,10 +2830,14 @@ export class Simulation {
       if (w.phase === 'ready') {
         if (w.cooldownTimer <= 0) {
           // Acquire target within reach + 1.0u (or a little closer than Piercing Slash projectile range when Piercing Slash is picked)
-          const piercingSlashRange = 8.5 * 0.55; // 4.675u piercing wave range
+          const piercingSlashRange =
+            BALANCE_CONFIG.PIERCING_SLASH_PROJECTILE_SPEED * BALANCE_CONFIG.PIERCING_SLASH_LIFE_TIMER;
           const acquireRange =
             w.id === 'garden_blade' && (this.cards.piercing_slash ?? 0) > 0
-              ? Math.max(effectiveReach + 1.0, piercingSlashRange * 0.88)
+              ? Math.max(
+                  effectiveReach + 1.0,
+                  piercingSlashRange * BALANCE_CONFIG.PIERCING_SLASH_ATTACK_BUFFER_RATIO
+                )
               : effectiveReach + 1.0;
           const target = this.acquireTarget(acquireRange);
           if (target) {
@@ -3016,13 +3021,13 @@ export class Simulation {
           y: this.heroY,
           prevX: this.heroX,
           prevY: this.heroY,
-          vx: Math.cos(attackAngle) * 8.5,
-          vy: Math.sin(attackAngle) * 8.5,
+          vx: Math.cos(attackAngle) * BALANCE_CONFIG.PIERCING_SLASH_PROJECTILE_SPEED,
+          vy: Math.sin(attackAngle) * BALANCE_CONFIG.PIERCING_SLASH_PROJECTILE_SPEED,
           radius: 0.45 * areaMult,
           damage: damage * (w.evolved ? 0.65 : 0.45),
           isCrit,
           pierceRemaining: 2 + piercingSlashLv,
-          lifeTimer: 0.55,
+          lifeTimer: BALANCE_CONFIG.PIERCING_SLASH_LIFE_TIMER,
           color,
           weaponTags: ['slash', 'pierce'],
           hitEnemyIds: new Set(),
@@ -3754,7 +3759,11 @@ export class Simulation {
   public getBasicCoinDropChance(): number {
     const cloverLv = this.cards.lucky_clover ?? 0;
     const luckBonus = Math.max(0, this.stats.luck) * 0.005 + cloverLv * 0.065;
-    return clamp(0.015 + luckBonus, 0.015, 0.75);
+    return clamp(
+      BALANCE_CONFIG.BASE_COIN_DROP_RATE + luckBonus,
+      BALANCE_CONFIG.BASE_COIN_DROP_RATE,
+      0.75
+    );
   }
 
   private spawnDropsForEnemy(enemy: SimEnemy): void {

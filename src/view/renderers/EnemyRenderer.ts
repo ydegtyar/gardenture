@@ -587,7 +587,6 @@ export class EnemyRenderer {
       g.moveTo(tPos - 7, -halfW * 0.65)
         .lineTo(tPos + 3, 0)
         .lineTo(tPos - 7, halfW * 0.65)
-        .setTransform(m)
         .stroke({
           color: PALETTE.BUTTER_YELLOW,
           width: 2.6,
@@ -602,11 +601,24 @@ export class EnemyRenderer {
       .lineTo(len + 6, 0)
       .lineTo(len - 10, halfW * 0.95)
       .closePath()
-      .setTransform(m)
       .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.85 })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
 
     g.setTransform(new PIXI.Matrix());
+
+    // Overhead charge indicator fill bar directly above the charger
+    const barW = rPx * 1.8;
+    const barH = 5;
+    const barX = ex - barW / 2;
+    const barY = ey - rPx - 16;
+    g.roundRect(barX, barY, barW, barH, 2.5)
+      .fill({ color: 0x18111a, alpha: 0.85 })
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.4 });
+    g.roundRect(barX + 1, barY + 1, Math.max(0, (barW - 2) * progress), barH - 2, 1.5)
+      .fill({
+        color: progress > 0.82 ? PALETTE.BUTTER_YELLOW : PALETTE.CRIMSON_WARN,
+        alpha: 0.95,
+      });
 
     // Target lock reticle at destination
     g.circle(tx, ty, 9 * (1.2 - progress * 0.35)).stroke({

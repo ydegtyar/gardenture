@@ -847,8 +847,8 @@ export const ENEMY_ARCHETYPES: Record<EnemyArchetypeId, EnemyArchetypeDef> = {
     gardenName: 'Moss Golem',
     dungeonName: 'Obsidian Golem',
     baseHp: 110,
-    speed: 1.2,
-    contactDamage: 18,
+    speed: 1.3,
+    contactDamage: 22,
     radius: 0.7,
     xpValue: 5,
     budgetCost: 8,
@@ -1153,3 +1153,33 @@ export const CURSES: CurseDef[] = [
     costCoins: 200,
   },
 ];
+
+export const BALANCE_CONFIG = {
+  // Economy
+  BASE_COIN_DROP_RATE: 0.015,
+
+  // Revive Mechanics
+  AD_REVIVE_FREEZE_SECONDS: 2.0,
+
+  // Enemy Mechanics: Charger (dasher)
+  CHARGER_CHANNEL_FOLLOW_SPEED_MULT: 0.38,
+  CHARGER_CHANNEL_MAX_TURN_RAD_PER_SEC: 2.8,
+  CHARGER_TELEGRAPH_DURATION_SEC: 0.6,
+  CHARGER_CHARGE_SPEED: 7.0,
+  CHARGER_CHARGE_DURATION_SEC: 0.35,
+
+  // Enemy Mechanics: Brute (brute)
+  BRUTE_BASE_SPEED: 1.3,
+  BRUTE_BASE_CONTACT_DAMAGE: 22,
+  BRUTE_SLAM_CHARGE_SPEED_MULT: 0.82,
+  BRUTE_TELEGRAPH_DURATION_SEC: 0.68,
+
+  // Hero Weapons & Synergies
+  PIERCING_SLASH_ATTACK_BUFFER_RATIO: 0.88,
+  PIERCING_SLASH_PROJECTILE_SPEED: 8.5,
+  PIERCING_SLASH_LIFE_TIMER: 0.55,
+
+  // Botanical Tarot Draft Safety
+  SAFE_CARD_DRAFT_RANGE: 1.85,
+} as const;
+

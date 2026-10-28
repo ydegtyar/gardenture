@@ -664,16 +664,16 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           hp: Math.round(s.currentHp),
           maxHp: Math.round(s.maxHp),
           score: s.score,
-          kills: s.killsCount,
+          kills: s.kills,
           elapsedSeconds: Number(s.elapsedSeconds.toFixed(2)),
-          victory: s.victory,
+          victory: s.runOutcome === 'victory',
           runEnded: s.runEnded,
           bossDeathTimer: Number(s.bossDeathTimer.toFixed(2)),
           victorySequenceTimer: Number(s.victorySequenceTimer.toFixed(2)),
           deathSequenceTimer: Number(s.deathSequenceTimer.toFixed(2)),
           enemiesCount: s.enemies.length,
           projectilesCount: s.projectiles.length,
-          powerUpDropsCount: s.powerUpDrops.length,
+          powerUpDropsCount: s.pickups.filter((p) => p.kind === 'power_up').length,
         });
       };
       win.advanceTime = (ms: number) => {
