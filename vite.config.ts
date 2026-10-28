@@ -2,6 +2,7 @@ import * as babel from '@babel/core';
 import locatorPkg from '@locator/babel-jsx';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'url';
 import path from 'path';
 import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
@@ -36,6 +37,8 @@ function locatorPlugin() {
     },
   };
 }
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(() => {
   return {
