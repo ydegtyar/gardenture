@@ -1,20 +1,122 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Gardenture: Mystic Garden Roguelite</title>
-    <meta name="description" content="A fast-paced 2D pastel botanical survival roguelite with one-thumb floating joystick & flick-dash controls, 30 synergy cards, weapon evolutions, and a Devil May Cry style rank meter." />
-    <meta property="og:title" content="Gardenture: Mystic Garden Roguelite" />
-    <meta property="og:description" content="A fast-paced 2D pastel botanical survival roguelite with one-thumb floating joystick & flick-dash controls, 30 synergy cards, weapon evolutions, and a Devil May Cry style rank meter." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- ═══════════════════════════════════════════════════
+         PRIMARY SEO METADATA
+    ═══════════════════════════════════════════════════ -->
+    <title>Gardenture: Mystic Garden Roguelite — Play Free in Browser</title>
+    <meta name="description" content="Drag to move, let the blade swing itself. A fast-paced 2D pastel botanical survival roguelite — 30 synergy cards, weapon evolutions, a DMC-style rank meter, and runs under 5 minutes. Play free in your browser, no install needed." />
+    <meta name="keywords" content="gardenture, mystic garden roguelite, browser roguelite, HTML5 survival game, mobile roguelite, swipe game, pastel game, botanical game, YouTube Playables, free browser game, casual roguelite, vampire survivors style" />
+    <meta name="author" content="Gardenture" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     <meta name="theme-color" content="#18241E" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href="https://gardenture.vercel.app/" />
+
+    <!-- ═══════════════════════════════════════════════════
+         OPEN GRAPH — Facebook, LinkedIn, Discord, Slack, iMessage
+    ═══════════════════════════════════════════════════ -->
+    <meta property="og:site_name" content="Gardenture" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://gardenture.vercel.app/" />
+    <meta property="og:title" content="Gardenture: Mystic Garden Roguelite — Play Free" />
+    <meta property="og:description" content="Drag to move, let the blade swing itself. Fast runs (2–5 min), 30 synergy cards, weapon evolutions, and a DMC-style style rank. Free browser game — no install needed." />
+    <meta property="og:image" content="https://gardenture.vercel.app/og-image.png" />
+    <meta property="og:image:secure_url" content="https://gardenture.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Gardenture game — a glowing crystal hero in a pastel botanical garden, surrounded by synergy cards and enemies" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- ═══════════════════════════════════════════════════
+         TWITTER / X CARD
+    ═══════════════════════════════════════════════════ -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@gardenture" />
+    <meta name="twitter:creator" content="@gardenture" />
+    <meta name="twitter:title" content="Gardenture: Mystic Garden Roguelite — Play Free" />
+    <meta name="twitter:description" content="Drag to move, let the blade swing itself. Fast runs (2–5 min), 30 synergy cards, weapon evolutions &amp; DMC-style rank. Free browser game." />
+    <meta name="twitter:image" content="https://gardenture.vercel.app/og-image.png" />
+    <meta name="twitter:image:alt" content="Gardenture — pastel botanical roguelite browser game" />
+
+    <!-- ═══════════════════════════════════════════════════
+         STRUCTURED DATA — VideoGame (Google Rich Results)
+    ═══════════════════════════════════════════════════ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      "name": "Gardenture: Mystic Garden Roguelite",
+      "description": "A fast-paced 2D pastel botanical survival roguelite with one-thumb drag-to-move controls, 30 synergy cards, weapon evolutions, and a Devil May Cry style rank meter. Runs last 2–5 minutes — perfect for short sessions.",
+      "url": "https://gardenture.vercel.app/",
+      "image": "https://gardenture.vercel.app/og-image.png",
+      "genre": ["Roguelite", "Survival", "Action", "Arcade"],
+      "gamePlatform": ["Web Browser", "YouTube Playables", "Progressive Web App"],
+      "applicationCategory": "Game",
+      "operatingSystem": "Any (browser-based)",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      },
+      "playMode": "SinglePlayer",
+      "numberOfPlayers": {
+        "@type": "QuantitativeValue",
+        "minValue": 1,
+        "maxValue": 1
+      },
+      "accessibilityFeature": ["Single-touch controls", "Auto-attack combat", "Short session length"],
+      "typicalAgeRange": "All ages",
+      "contentRating": "Everyone",
+      "inLanguage": "en",
+      "datePublished": "2026-10-01",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Gardenture"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "Yuriy"
+      }
+    }
+    </script>
+
+    <!-- ═══════════════════════════════════════════════════
+         STRUCTURED DATA — WebSite + sitelinks search / play action
+    ═══════════════════════════════════════════════════ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Gardenture",
+      "url": "https://gardenture.vercel.app/",
+      "description": "Play Gardenture free in your browser — a fast pastel botanical roguelite.",
+      "potentialAction": {
+        "@type": "PlayAction",
+        "target": "https://gardenture.vercel.app/"
+      }
+    }
+    </script>
+
+    <!-- ═══════════════════════════════════════════════════
+         ICONS & PWA MANIFEST
+    ═══════════════════════════════════════════════════ -->
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- ═══════════════════════════════════════════════════
+         FONTS
+    ═══════════════════════════════════════════════════ -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,900&family=JetBrains+Mono:wght@600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+
     <!-- Load YouTube Playables SDK FIRST per specification [F] -->
     <script src="https://www.youtube.com/game_api/v1"></script>
   </head>
@@ -23,4 +125,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

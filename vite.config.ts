@@ -58,12 +58,23 @@ export default defineConfig(() => {
         manifest: {
           name: 'Gardenture: Mystic Garden Roguelite',
           short_name: 'Gardenture',
-          description: 'A fast-paced 2D pastel botanical survival roguelite.',
+          description: 'Drag to move, let the blade swing itself. A fast-paced 2D pastel botanical survival roguelite — 30 synergy cards, weapon evolutions, DMC-style rank meter, runs under 5 minutes.',
           theme_color: '#18241E',
           background_color: '#18241E',
           display: 'standalone',
           orientation: 'portrait',
           start_url: '/',
+          lang: 'en',
+          scope: '/',
+          categories: ['games'],
+          screenshots: [
+            {
+              src: '/og-image.png',
+              sizes: '1200x630',
+              type: 'image/png',
+              label: 'Gardenture: Mystic Garden Roguelite',
+            },
+          ],
           icons: [
             {
               src: '/icon.svg',
