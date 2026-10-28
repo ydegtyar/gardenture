@@ -271,7 +271,9 @@ export class HeroRenderer {
       );
     }
 
-    // Draw attached weapons & articulated hero arm in front of hero sprite
+    // Draw attached weapons:
+    // - Arbalete ('thorn_spear') is slung in a static diagonal position BEHIND the hero's back (on gUnder) when 'ready',
+    //   and brought to the FRONT (on gOver) ONLY during attack phases ('windup', 'active', 'recovery')!
     if (!isDyingSequence) {
       const swordWpn = sim.weapons.find((w) => w.id === 'garden_blade');
       if (swordWpn) {
@@ -288,13 +290,16 @@ export class HeroRenderer {
       }
       const spearWpn = sim.weapons.find((w) => w.id === 'thorn_spear');
       if (spearWpn) {
+        const isAttacking = spearWpn.phase !== 'ready';
         HeroRenderer.drawHeroHalberd(
-          gOver,
+          isAttacking ? gOver : gUnder,
           hx,
           cy,
           displayFacingAngle,
           spearWpn,
-          sim.elapsedSeconds
+          sim.elapsedSeconds,
+          !isAttacking,
+          flipX
         );
       }
     }
@@ -323,12 +328,14 @@ export class HeroRenderer {
     const rightEyeX = hx + 4.2 * flipX;
     const eyePulse = 0.78 + 0.22 * Math.sin(elapsedSeconds * 9);
 
-    gOver
-      .circle(leftEyeX, eyeY, 2.2)
-      .fill({ color: eyeLeftColor, alpha: 0.95 * eyePulse });
-    gOver
-      .circle(rightEyeX, eyeY, 2.2)
-      .fill({ color: eyeRightColor, alpha: 0.95 * eyePulse });
+    if (personaId !== 'stormcaller_gojo_killua') {
+      gOver
+        .circle(leftEyeX, eyeY, 2.2)
+        .fill({ color: eyeLeftColor, alpha: 0.95 * eyePulse });
+      gOver
+        .circle(rightEyeX, eyeY, 2.2)
+        .fill({ color: eyeRightColor, alpha: 0.95 * eyePulse });
+    }
 
     if (personaId === 'warden_zagreus_naruto') {
       // Stygian Hellfire underfoot ring + Six-Paths Truth-Seeking Orbs
@@ -381,23 +388,30 @@ export class HeroRenderer {
           .fill({ color: i === 0 ? 0x2dd4bf : 0xfbbf24, alpha: 0.9 });
       }
     } else if (personaId === 'stormcaller_gojo_killua') {
-      // THANDER REIN (Raiden × Marvel Thor):
-      // No spinning orbs! Levitating electric hover aura + blazing lightning eyes leaving a light trail on movement.
-      const hoverPulse = 0.88 + 0.14 * Math.sin(elapsedSeconds * 10);
-      gUnder
-        .ellipse(hx, groundY + 11, 18 * hoverPulse, 8 * hoverPulse)
-        .fill({ color: 0x38bdf8, alpha: 0.22 })
-        .stroke({ color: 0xe0f2fe, width: 2.0, alpha: 0.82 });
+      // THANDER REIN:
+      // - No blue circle under the hero (uses the dark ground shadow circle instead).
+      // - No blue circles on the eyes; both eyes share the same electric color and emit trailing lightning lines directly from the eyes!
+      const eyeColor = eyeLeftColor; // Both eyes have identical color (0x38bdf8)
+      const coreColor = 0xe0f2fe;
 
-      // Blazing Lightning Eyes under Raiden's conical hat brim
-      gOver
-        .circle(leftEyeX, eyeY, 3.4)
-        .fill({ color: 0x38bdf8, alpha: 0.92 })
-        .stroke({ color: 0xe0f2fe, width: 1.3, alpha: 0.98 });
-      gOver
-        .circle(rightEyeX, eyeY, 3.4)
-        .fill({ color: 0x38bdf8, alpha: 0.92 })
-        .stroke({ color: 0xe0f2fe, width: 1.3, alpha: 0.98 });
+      // Crisp slanted lightning eye slits + ambient eye-corner spark lines (no circles!)
+      for (const exPos of [leftEyeX, rightEyeX]) {
+        const dir = exPos === leftEyeX ? -flipX : flipX;
+        const tailFlickX = -heroVx * 1.4 + dir * 4.8;
+        const tailFlickY = -heroVy * 1.4 - 2.2 + Math.sin(elapsedSeconds * 28 + exPos) * 1.2;
+
+        // Sharp glowing eye line + immediate trailing wisp line on each eye
+        gOver
+          .moveTo(exPos - 2.2 * dir, eyeY + 0.5)
+          .lineTo(exPos + 2.0 * dir, eyeY - 0.6)
+          .lineTo(exPos + tailFlickX, eyeY + tailFlickY)
+          .stroke({ color: eyeColor, width: 3.2, alpha: 0.92 * eyePulse, cap: 'round', join: 'round' });
+        gOver
+          .moveTo(exPos - 1.8 * dir, eyeY + 0.4)
+          .lineTo(exPos + 1.8 * dir, eyeY - 0.5)
+          .lineTo(exPos + tailFlickX * 0.85, eyeY + tailFlickY * 0.85)
+          .stroke({ color: coreColor, width: 1.5, alpha: 0.98, cap: 'round', join: 'round' });
+      }
 
       // Record & prune world-space eye trail points for movement light trails
       const trail = HeroRenderer.thunderEyeTrail;
@@ -443,8 +457,8 @@ export class HeroRenderer {
             .moveTo(p0.lx, p0.ly + jitter)
             .lineTo(p1.lx, p1.ly)
             .stroke({
-              color: 0x38bdf8,
-              width: 4.4 * ageRatio,
+              color: eyeColor,
+              width: 4.0 * ageRatio,
               alpha: 0.72 * ageRatio,
               cap: 'round',
             });
@@ -452,8 +466,8 @@ export class HeroRenderer {
             .moveTo(p0.rx, p0.ry - jitter)
             .lineTo(p1.rx, p1.ry)
             .stroke({
-              color: 0x38bdf8,
-              width: 4.4 * ageRatio,
+              color: eyeColor,
+              width: 4.0 * ageRatio,
               alpha: 0.72 * ageRatio,
               cap: 'round',
             });
@@ -463,8 +477,8 @@ export class HeroRenderer {
             .moveTo(p0.lx, p0.ly + jitter)
             .lineTo(p1.lx, p1.ly)
             .stroke({
-              color: 0xe0f2fe,
-              width: 1.9 * ageRatio,
+              color: coreColor,
+              width: 1.8 * ageRatio,
               alpha: 0.95 * ageRatio,
               cap: 'round',
             });
@@ -472,8 +486,8 @@ export class HeroRenderer {
             .moveTo(p0.rx, p0.ry - jitter)
             .lineTo(p1.rx, p1.ry)
             .stroke({
-              color: 0xe0f2fe,
-              width: 1.9 * ageRatio,
+              color: coreColor,
+              width: 1.8 * ageRatio,
               alpha: 0.95 * ageRatio,
               cap: 'round',
             });
@@ -486,13 +500,13 @@ export class HeroRenderer {
           .lineTo(leftEyeX, eyeY)
           .moveTo(newest.rx, newest.ry)
           .lineTo(rightEyeX, eyeY)
-          .stroke({ color: 0x38bdf8, width: 4.2, alpha: 0.85, cap: 'round' });
+          .stroke({ color: eyeColor, width: 3.8, alpha: 0.85, cap: 'round' });
         gOver
           .moveTo(newest.lx, newest.ly)
           .lineTo(leftEyeX, eyeY)
           .moveTo(newest.rx, newest.ry)
           .lineTo(rightEyeX, eyeY)
-          .stroke({ color: 0xe0f2fe, width: 2.0, alpha: 0.98, cap: 'round' });
+          .stroke({ color: coreColor, width: 1.8, alpha: 0.98, cap: 'round' });
       }
     }
   }
@@ -523,12 +537,13 @@ export class HeroRenderer {
       m.rotate(side * (-0.22 + flapAngle));
       m.translate(hx + side * 8, cy - 6);
 
+      g.setTransform(m);
+
       // Outer primary wing pinion
       g.moveTo(0, 0)
         .bezierCurveTo(14, -22, 34, -26, 44, -12)
         .bezierCurveTo(38, -2, 26, 6, 4, 8)
         .closePath()
-        .setTransform(m)
         .fill({ color: 0xffffff, alpha: 0.98 })
         .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
 
@@ -537,7 +552,6 @@ export class HeroRenderer {
         const fx = 10 + f * 7.5;
         const fy = -8 - f * 2.2;
         g.ellipse(fx, fy, 9 - f * 1.1, 4.2)
-          .setTransform(m)
           .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.96 })
           .stroke({ color: 0x93c5fd, width: 1.2, alpha: 0.7 });
       }
@@ -705,19 +719,18 @@ export class HeroRenderer {
     const m = new PIXI.Matrix();
     m.rotate(totalAngle);
     m.translate(hx, cy);
+    g.setTransform(m);
 
     const bladeLen = 22 + Math.min(8, swordWpn.level) * 1.1 + (swordWpn.evolved ? 5 : 0);
     const bladeHalfW = swordWpn.evolved ? 4.8 : 3.8;
 
     // Pommel & leather-wrapped hilt
     g.circle(reachOffset - 5.5, 2.5, 3.0)
-      .setTransform(m)
       .fill({ color: PALETTE.BUTTER_YELLOW })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
 
     g.moveTo(reachOffset - 4, 2.5)
       .lineTo(reachOffset + 2, 2.5)
-      .setTransform(m)
       .stroke({ color: 0x78350f, width: 4, cap: 'round' });
 
     // Leaf-shaped crossguard
@@ -726,7 +739,6 @@ export class HeroRenderer {
       .lineTo(reachOffset + 1, 9.5)
       .lineTo(reachOffset - 1, 2.5)
       .closePath()
-      .setTransform(m)
       .fill({ color: PALETTE.BUTTER_YELLOW })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
 
@@ -737,25 +749,29 @@ export class HeroRenderer {
       .lineTo(reachOffset + bladeLen - 5, 2.5 + bladeHalfW * 0.65)
       .lineTo(reachOffset + 2.5, 2.5 + bladeHalfW)
       .closePath()
-      .setTransform(m)
       .fill({ color: bladeColor })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
 
     // Central fuller highlight
     g.moveTo(reachOffset + 4, 2.5)
       .lineTo(reachOffset + bladeLen - 3, 2.5)
-      .setTransform(m)
       .stroke({ color: PALETTE.CREAM_WHITE, width: 1.5, alpha: 0.85 });
 
     // Gloved hero hand gripping the hilt
     g.circle(reachOffset - 1.2, 2.5, 3.8)
-      .setTransform(m)
       .fill({ color: PALETTE.CREAM_WHITE })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
 
     g.setTransform(new PIXI.Matrix());
   }
 
+  /**
+   * Renders the botanical Arbalete (crossbow):
+   * - When `isBackSlung` is true (`phase === 'ready'`), it is rendered behind the hero's back (`gUnder`)
+   *   in a static diagonal stowed position!
+   * - When `isBackSlung` is false (`phase` in `'windup' | 'active' | 'recovery'`), it is brought to the front (`gOver`)
+   *   with dynamic bowstring draw/release and recoil animation.
+   */
   public static drawHeroHalberd(
     g: PIXI.Graphics,
     hx: number,
@@ -768,83 +784,127 @@ export class HeroRenderer {
       phaseTimer: number;
       swingCounter: number;
     },
-    elapsedSeconds: number
+    _elapsedSeconds: number,
+    isBackSlung = false,
+    flipX = 1
   ): void {
     const def = WEAPONS.thorn_spear;
-    const headColor = spearWpn.evolved
+    const limbColor = spearWpn.evolved
       ? (def?.evolvedColor ?? PALETTE.CRIMSON_WARN)
       : (def?.color ?? PALETTE.BLUSH_ROSE);
 
-    let localAngleOffset = 0.42 + Math.sin(elapsedSeconds * 4.0) * 0.05;
-    let thrustOffset = 9;
+    let localAngleOffset = 0;
+    let recoilOffset = 12;
+    let stringPullX = 2; // relative to stockRear
+    let showLoadedBolt = true;
 
-    if (spearWpn.phase === 'windup') {
+    if (isBackSlung) {
+      // Static diagonal stowed position across the hero's back
+      recoilOffset = -4;
+      stringPullX = 2;
+      showLoadedBolt = true;
+    } else if (spearWpn.phase === 'windup') {
       const t = clamp(1 - spearWpn.phaseTimer / 0.06, 0, 1);
-      localAngleOffset = lerp(0.42, 0.06, t);
-      thrustOffset = lerp(9, 2, t);
+      localAngleOffset = lerp(0.18, 0.0, t);
+      recoilOffset = lerp(12, 9.5, t);
+      stringPullX = lerp(2, -1.5, t);
+      showLoadedBolt = true;
     } else if (spearWpn.phase === 'active') {
       const t = clamp(1 - spearWpn.phaseTimer / 0.08, 0, 1);
       const easeOut = 1 - Math.pow(1 - t, 3);
       localAngleOffset = 0;
-      thrustOffset = lerp(2, 24, easeOut);
+      // Sharp crossbow recoil kickback on release, then settling forward
+      recoilOffset = t < 0.35 ? lerp(9.5, 5.0, t / 0.35) : lerp(5.0, 10.5, easeOut);
+      // Bowstring snaps all the way forward to the prod limbs
+      stringPullX = lerp(12.5, 10.5, easeOut);
+      showLoadedBolt = false;
     } else if (spearWpn.phase === 'recovery') {
       const t = clamp(1 - spearWpn.phaseTimer / 0.05, 0, 1);
-      localAngleOffset = lerp(0, 0.42, t);
-      thrustOffset = lerp(24, 9, t);
+      localAngleOffset = lerp(0, 0.18, t);
+      recoilOffset = lerp(10.5, 12, t);
+      stringPullX = lerp(10.5, 2, t);
+      showLoadedBolt = t > 0.45;
     }
 
-    const totalAngle = facingAngle + localAngleOffset;
+    const totalAngle = isBackSlung
+      ? flipX >= 0
+        ? -Math.PI * 0.72
+        : -Math.PI * 0.28
+      : facingAngle + localAngleOffset;
     const m = new PIXI.Matrix();
     m.rotate(totalAngle);
-    m.translate(hx, cy);
+    m.translate(isBackSlung ? hx - flipX * 5 : hx, isBackSlung ? cy - 5 : cy);
+    g.setTransform(m);
 
-    const shaftStart = thrustOffset - 12;
-    const shaftEnd =
-      thrustOffset + 22 + Math.min(8, spearWpn.level) * 1.1 + (spearWpn.evolved ? 5 : 0);
+    const yOff = isBackSlung ? 0 : -3.0;
+    const stockRear = recoilOffset - 5;
+    const stockLen = 18 + Math.min(8, spearWpn.level) * 0.65 + (spearWpn.evolved ? 3 : 0);
+    const stockFront = stockRear + stockLen;
+    const limbSpan = 12.5 + (spearWpn.evolved ? 2.5 : 0);
+    const limbTipX = stockFront - 4.5;
+    const nockX = stockRear + stringPullX;
 
-    g.circle(shaftStart, -3, 2.6)
-      .setTransform(m)
-      .fill({ color: PALETTE.BUTTER_YELLOW })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
+    // 1. Taut golden bowstring (drawn from top limb tip -> nock -> bottom limb tip)
+    g.moveTo(limbTipX, yOff - limbSpan)
+      .lineTo(nockX, yOff)
+      .lineTo(limbTipX, yOff + limbSpan)
+      .stroke({ color: PALETTE.BUTTER_YELLOW, width: 1.8, alpha: 0.92, join: 'round' });
 
-    g.moveTo(shaftStart + 2, -3)
-      .lineTo(shaftEnd - 6, -3)
-      .setTransform(m)
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 5.5, cap: 'round' });
-    g.moveTo(shaftStart + 2, -3)
-      .lineTo(shaftEnd - 6, -3)
-      .setTransform(m)
-      .stroke({ color: 0x92400e, width: 2.8, cap: 'round' });
-
-    g.moveTo(shaftEnd - 12, -4)
-      .lineTo(shaftEnd - 5, -13)
-      .lineTo(shaftEnd - 1, -10)
-      .lineTo(shaftEnd - 4, -4)
-      .closePath()
-      .setTransform(m)
-      .fill({ color: headColor })
+    // 2. Carved ironwood crossbow tiller / stock
+    g.roundRect(stockRear, yOff - 2.8, stockLen, 5.6, 2.2)
+      .fill({ color: spearWpn.evolved ? 0x7f1d1d : 0x78350f })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
 
-    g.moveTo(shaftEnd - 11, -2)
-      .lineTo(shaftEnd - 9, 4)
-      .lineTo(shaftEnd - 5, -2)
-      .closePath()
-      .setTransform(m)
+    // Central flight groove & golden stock pommel
+    g.moveTo(stockRear + 2.5, yOff)
+      .lineTo(stockFront - 1.5, yOff)
+      .stroke({ color: PALETTE.CREAM_WHITE, width: 1.2, alpha: 0.65 });
+    g.circle(stockRear, yOff, 2.6)
       .fill({ color: PALETTE.BUTTER_YELLOW })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
 
-    g.moveTo(shaftEnd - 8, -6.5)
-      .lineTo(shaftEnd + 7, -3)
-      .lineTo(shaftEnd - 8, 0.5)
+    // 3. Curved botanical Arbalete prod limbs (top & bottom)
+    g.moveTo(stockFront - 1.5, yOff - 2)
+      .quadraticCurveTo(stockFront + 2.5, yOff - limbSpan * 0.65, limbTipX, yOff - limbSpan)
+      .quadraticCurveTo(stockFront - 2.5, yOff - limbSpan * 0.55, stockFront - 4.2, yOff - 2)
       .closePath()
-      .setTransform(m)
-      .fill({ color: headColor })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
+      .fill({ color: limbColor })
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
 
-    g.moveTo(shaftEnd - 6, -3)
-      .lineTo(shaftEnd + 4, -3)
-      .setTransform(m)
-      .stroke({ color: PALETTE.CREAM_WHITE, width: 1.4, alpha: 0.85 });
+    g.moveTo(stockFront - 1.5, yOff + 2)
+      .quadraticCurveTo(stockFront + 2.5, yOff + limbSpan * 0.65, limbTipX, yOff + limbSpan)
+      .quadraticCurveTo(stockFront - 2.5, yOff + limbSpan * 0.55, stockFront - 4.2, yOff + 2)
+      .closePath()
+      .fill({ color: limbColor })
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+
+    // Prod nose stirrup / golden collar
+    g.roundRect(stockFront - 3.2, yOff - 3.6, 4.4, 7.2, 1.5)
+      .fill({ color: PALETTE.BUTTER_YELLOW })
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
+
+    // 4. Loaded briar bolt sitting in the flight groove (or firing flash during 'active')
+    if (showLoadedBolt) {
+      const boltTailX = nockX;
+      const boltTipX = stockFront + 9.5;
+      // Bolt shaft
+      g.moveTo(boltTailX, yOff)
+        .lineTo(boltTipX - 4, yOff)
+        .stroke({ color: PALETTE.CREAM_WHITE, width: 2.2, cap: 'round' });
+      // Barbed briar broadhead tip
+      g.moveTo(boltTipX, yOff)
+        .lineTo(boltTipX - 6.5, yOff - 3.6)
+        .lineTo(boltTipX - 4.5, yOff)
+        .lineTo(boltTipX - 6.5, yOff + 3.6)
+        .closePath()
+        .fill({ color: spearWpn.evolved ? PALETTE.GOLD_STAR : limbColor })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
+    } else {
+      // Firing snap flash at the Arbalete nose when bolt launches
+      g.circle(stockFront + 3.5, yOff, 4.2)
+        .fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.9 })
+        .stroke({ color: limbColor, width: 1.8 });
+    }
 
     g.setTransform(new PIXI.Matrix());
   }

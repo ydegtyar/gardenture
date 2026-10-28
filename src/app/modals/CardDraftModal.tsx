@@ -50,9 +50,13 @@ export function CardDraftModal({
   onOpenDebugCards,
 }: CardDraftModalProps) {
   const [isFlipping, setIsFlipping] = useState(false);
+  const [hasRerolled, setHasRerolled] = useState(false);
   const flipTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
   const [activeSwipeIndex, setActiveSwipeIndex] = useState(0);
+  const offersSignature = offers.map((o) => o.offerId).join('|');
+  const prevOffersSigRef = useRef(offersSignature);
+  const internalFlipRef = useRef(false);
 
   // Mouse drag-to-swipe handling for narrow landscape screens
   const isDraggingRef = useRef(false);
@@ -67,6 +71,21 @@ export function CardDraftModal({
       }
     };
   }, []);
+
+  // Ensure any external reroll (e.g. keyboard shortcut or async ad callback) also triggers the 3D flip animation
+  React.useEffect(() => {
+    if (prevOffersSigRef.current !== offersSignature) {
+      prevOffersSigRef.current = offersSignature;
+      if (!internalFlipRef.current) {
+        setHasRerolled(true);
+        setIsFlipping(true);
+        if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
+        flipTimerRef.current = setTimeout(() => {
+          setIsFlipping(false);
+        }, 280);
+      }
+    }
+  }, [offersSignature]);
 
   // Track active scroll snap card on mobile landscape swiping
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -115,31 +134,36 @@ export function CardDraftModal({
     isDraggingRef.current = false;
   };
 
-  const triggerRerollWithFlip = (rerollAction: () => void) => {
+  const triggerRerollWithFlip = (rerollAction: () => unknown) => {
     if (isFlipping || isAdLoading) return;
+    internalFlipRef.current = true;
+    setHasRerolled(true);
     setIsFlipping(true);
 
     if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
 
     // Halfway through the 3D flip (~260ms), execute the reroll state change so new cards are revealed on unflip
     flipTimerRef.current = setTimeout(() => {
-      rerollAction();
-      flipTimerRef.current = setTimeout(() => {
-        setIsFlipping(false);
-      }, 320);
+      void Promise.resolve(rerollAction()).finally(() => {
+        flipTimerRef.current = setTimeout(() => {
+          setIsFlipping(false);
+          internalFlipRef.current = false;
+        }, 120);
+      });
     }, 260);
   };
 
-  const canSpendCoinsReroll = coins >= 40 && coinRerollsRemaining > 0 && !isFlipping && !isAdLoading;
+  const showCoinsRerollButton = coins >= 40 && coinRerollsRemaining > 0;
+  const canSpendCoinsReroll = showCoinsRerollButton && !isFlipping && !isAdLoading;
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-4 bg-[#140E16]/88 backdrop-blur-[2px] pointer-events-auto overflow-y-auto"
+      className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-4 bg-[#140E16]/88 backdrop-blur-[2px] pointer-events-auto overflow-y-auto overflow-x-hidden"
       role="dialog"
       aria-modal="true"
       aria-labelledby="draft-modal-title"
     >
-      <div className="w-full max-w-[560px] landscape:max-w-4xl rounded-2xl bg-gradient-to-b from-[#312334] via-[#2B1F2D] to-[#221724] border-4 border-[#2D1E2F] shadow-[0_24px_60px_rgba(0,0,0,0.75)] p-3.5 sm:p-5 landscape:p-5 text-[#FFFDF0] my-auto">
+      <div className="w-full max-w-[560px] landscape:max-w-4xl rounded-2xl bg-gradient-to-b from-[#312334] via-[#2B1F2D] to-[#221724] border-4 border-[#2D1E2F] shadow-[0_24px_60px_rgba(0,0,0,0.75)] p-3.5 sm:p-5 landscape:p-5 text-[#FFFDF0] my-auto overflow-visible">
         {/* Header Bar */}
         <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-[#FFFDF0]/15">
           <div className="min-w-0">
@@ -166,6 +190,7 @@ export function CardDraftModal({
         {/* Tarot Cards Container:
             - Portrait mode: Vertical stack of 3 lush horizontal Tarot banners (all 3 fit comfortably without scrolling).
             - Landscape mode: 3-column antique vertical Tarot cards with horizontal swipe support on compact landscape screens.
+            - Overflow is kept visible during 3D flips with generous padding so perspective rotation is never cropped.
         */}
         <div
           ref={sliderRef}
@@ -175,7 +200,11 @@ export function CardDraftModal({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUpOrLeave}
           onMouseLeave={handleMouseUpOrLeave}
-          className="flex flex-col landscape:flex-row lg:landscape:grid lg:landscape:grid-cols-3 overflow-y-visible max-lg:landscape:overflow-x-auto lg:landscape:overflow-visible snap-x snap-mandatory gap-2.5 sm:gap-3.5 pb-1.5 mb-3.5 -mx-1 px-1 touch-pan-x select-none items-stretch"
+          className={`flex flex-col landscape:flex-row lg:landscape:grid lg:landscape:grid-cols-3 ${
+            isFlipping
+              ? 'overflow-visible'
+              : 'overflow-visible max-lg:landscape:overflow-x-auto lg:landscape:overflow-visible'
+          } snap-x snap-mandatory gap-2.5 sm:gap-3.5 py-3 px-2.5 -my-1.5 -mx-2.5 mb-2.5 touch-pan-x select-none items-stretch`}
         >
           {offers.map((offer, idx) => {
             const tarotMeta = getTarotMetadata(offer.targetId);
@@ -211,11 +240,13 @@ export function CardDraftModal({
             return (
               <div
                 key={`tarot-slot-${idx}`}
-                className="perspective-1000 w-full max-lg:landscape:w-[262px] max-lg:landscape:max-w-[78vw] lg:landscape:w-auto shrink-0 snap-center flex flex-col"
+                className="perspective-1000 overflow-visible w-full max-lg:landscape:w-[262px] max-lg:landscape:max-w-[78vw] lg:landscape:w-auto shrink-0 snap-center flex flex-col"
               >
                 <div
+                  data-testid={`tarot-card-flip-wrapper-${idx}`}
                   data-flipping={isFlipping ? 'true' : 'false'}
-                  className="tarot-card-flip-3d animate-tarot-flip-in relative w-full h-full flex flex-col flex-1"
+                  data-rerolled={hasRerolled ? 'true' : 'false'}
+                  className="tarot-card-flip-3d animate-tarot-flip-in overflow-visible relative w-full h-full flex flex-col flex-1"
                   style={{
                     transitionDelay: `${staggerDelayMs}ms`,
                     animationDelay: `${staggerDelayMs}ms`,
@@ -471,42 +502,44 @@ export function CardDraftModal({
               </button>
             ) : null}
 
-            {/* Coin Reroll Button styled like Coin Revive Button from RescueReviveModal with space-between */}
-            <button
-              type="button"
-              data-testid="draft-reroll-coins-btn"
-              disabled={!canSpendCoinsReroll}
-              onClick={() => triggerRerollWithFlip(onRerollCoins)}
-              className="w-full lg:landscape:min-w-[255px] btn-herbarium-primary justify-between px-4 py-2 flex items-center text-left gap-4 group min-h-[50px]"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-[#201A09]/15 border border-[#201A09]/20 flex items-center justify-center shrink-0">
-                  <svg className="w-4 h-4 text-[#201A09]" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M6 9C6 6.5 8.5 4.5 12 4.5C15.5 4.5 18 6.5 18 9L19.5 17.5C19.8 19.2 18.5 20.5 16.8 20.5H7.2C5.5 20.5 4.2 19.2 4.5 17.5L6 9Z"
-                      fill="currentColor"
-                      fillOpacity="0.2"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                    />
-                    <circle cx="12" cy="13.5" r="3.5" fill="currentColor" />
-                  </svg>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs lg:text-sm font-display font-bold text-[#201A09] leading-tight whitespace-nowrap">
-                    Reroll with Coins
+            {/* Coin Reroll Button styled like Coin Revive Button from RescueReviveModal with space-between (hidden when coins < 40) */}
+            {showCoinsRerollButton && (
+              <button
+                type="button"
+                data-testid="draft-reroll-coins-btn"
+                disabled={!canSpendCoinsReroll}
+                onClick={() => triggerRerollWithFlip(onRerollCoins)}
+                className="w-full lg:landscape:min-w-[255px] btn-herbarium-primary justify-between px-4 py-2 flex items-center text-left gap-4 group min-h-[50px]"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#201A09]/15 border border-[#201A09]/20 flex items-center justify-center shrink-0">
+                    <svg className="w-4 h-4 text-[#201A09]" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M6 9C6 6.5 8.5 4.5 12 4.5C15.5 4.5 18 6.5 18 9L19.5 17.5C19.8 19.2 18.5 20.5 16.8 20.5H7.2C5.5 20.5 4.2 19.2 4.5 17.5L6 9Z"
+                        fill="currentColor"
+                        fillOpacity="0.2"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      />
+                      <circle cx="12" cy="13.5" r="3.5" fill="currentColor" />
+                    </svg>
                   </div>
-                  <div className="text-[10px] text-[#201A09]/80 font-sans font-bold font-mono-tabular whitespace-nowrap">
-                    Vault: {coins} · {coinRerollsRemaining}/{Simulation.MAX_COIN_REROLLS} Left
+                  <div className="min-w-0">
+                    <div className="text-xs lg:text-sm font-display font-bold text-[#201A09] leading-tight whitespace-nowrap">
+                      Reroll with Coins
+                    </div>
+                    <div className="text-[10px] text-[#201A09]/80 font-sans font-bold font-mono-tabular whitespace-nowrap">
+                      Vault: {coins} · {coinRerollsRemaining}/{Simulation.MAX_COIN_REROLLS} Left
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <span className="flex items-center gap-1 text-xs font-mono-tabular bg-[#201A09] text-[#EDE6D0] px-2.5 py-1 rounded-full font-bold shadow-sm shrink-0">
-                <CoinIcon className="w-3.5 h-3.5" />
-                40
-              </span>
-            </button>
+                <span className="flex items-center gap-1 text-xs font-mono-tabular bg-[#201A09] text-[#EDE6D0] px-2.5 py-1 rounded-full font-bold shadow-sm shrink-0">
+                  <CoinIcon className="w-3.5 h-3.5" />
+                  40
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Right Group: Lazy Dev Debug Button + Restorative Skip Button */}

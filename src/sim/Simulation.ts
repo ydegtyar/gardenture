@@ -6,7 +6,6 @@
 import {
   angleDifference,
   arcOverlapsCircle,
-  capsuleOverlapsCircle,
   ccdSegmentHitsCircle,
   circlesOverlap,
   clamp,
@@ -81,7 +80,16 @@ export interface SimEnemy {
   isInfiniteHp?: boolean;
   respawnOnDeath?: boolean;
   bestiaryKey?: string;
-  bossAttackMode?: 'sunflower_charge' | 'sunflower_seed_volley' | 'sunflower_leaf_spiral';
+  bossAttackMode?:
+    | 'sunflower_charge'
+    | 'sunflower_seed_volley'
+    | 'sunflower_leaf_spiral'
+    | 'boss_p1_vine_whip'
+    | 'boss_p1_root_slam'
+    | 'boss_p2_petal_spiral'
+    | 'boss_p2_bramble_charge'
+    | 'boss_p3_crimson_cross'
+    | 'boss_p3_abyssal_nova';
   bossPhase: 1 | 2 | 3;
 
   // AI State machine
@@ -110,7 +118,15 @@ export type BestiaryEnemySpawnMode = 'infinite_hp' | 'swarm' | 'respawn_on_death
 export interface SimProjectile {
   id: number;
   isEnemy: boolean;
-  projectileKind?: 'default' | 'sunflower_seed' | 'sunflower_leaf';
+  sourceEnemyId?: number;
+  projectileKind?:
+    | 'default'
+    | 'sunflower_seed'
+    | 'sunflower_leaf'
+    | 'arbalete_bolt'
+    | 'boss_vine_thorn'
+    | 'boss_magenta_petal'
+    | 'boss_abyssal_razor';
   x: number;
   y: number;
   prevX: number;
@@ -125,6 +141,9 @@ export interface SimProjectile {
   color: number;
   weaponTags: string[];
   hitEnemyIds: Set<number>;
+  explodesOnExpire?: boolean;
+  explosionDamage?: number;
+  explosionRadius?: number;
 }
 
 export interface SimPickup {
@@ -395,7 +414,9 @@ export class Simulation {
   public arenaRadiusU = Simulation.INITIAL_ARENA_RADIUS_U;
   public isOutsideArena = false;
   private arenaOutDpsAccumulator = 0;
-  private arenaFlowerSpawnTimer = 14.0;
+  private arenaFlowerSpawnTimer = 26.0;
+  public healPotionPulsesRemaining = 0;
+  public healPotionPulseTimer = 0;
 
   // Draft & Modal state
   public static readonly MAX_AD_REROLLS = 3;
@@ -1524,9 +1545,26 @@ export class Simulation {
       this.cloverStepDistanceAccum = 0;
     }
 
-    // Permanent Arcana Persona Skin step trail (e.g. Zagreus × Naruto Hellfire footsteps, Void-ODM steps, Alchemy runes, Godspeed lightning)
+    // Process multi-pulse Heal +20HP item (4 pulses of +5 HP with a small 0.25s delay between pulses)
+    if (this.healPotionPulsesRemaining > 0 && this.currentHp > 0 && !this.runEnded) {
+      this.healPotionPulseTimer -= dt;
+      while (this.healPotionPulseTimer <= 0 && this.healPotionPulsesRemaining > 0) {
+        this.healPotionPulsesRemaining--;
+        this.healHero(5);
+        if (this.healPotionPulsesRemaining > 0) {
+          this.healPotionPulseTimer += 0.25;
+        } else {
+          this.healPotionPulseTimer = 0;
+        }
+      }
+    }
+
+    // Permanent Arcana Persona Skin step trail (e.g. Zagreus × Naruto Hellfire footsteps, Void-ODM steps, Alchemy runes)
+    // Note: Thander Rein ('stormcaller_gojo_killua') levitates and has no ground footstep trail!
     const activePersona =
-      this.personaId && this.personaId !== 'adventurer_default'
+      this.personaId &&
+      this.personaId !== 'adventurer_default' &&
+      this.personaId !== 'stormcaller_gojo_killua'
         ? PERSONAS.find((p) => p.id === this.personaId)
         : undefined;
     if (activePersona) {
@@ -1621,7 +1659,12 @@ export class Simulation {
     } else if (powerUpId === 'time_slow') {
       this.timeSlowTimer = 4.0;
     } else if (powerUpId === 'heal_potion') {
-      this.healHero(20);
+      // Heal 4 times by +5 HP each with a small delay (first +5 HP immediately, then 3 pulses every 0.25s)
+      this.healHero(5);
+      this.healPotionPulsesRemaining += 3;
+      if (this.healPotionPulseTimer <= 0) {
+        this.healPotionPulseTimer = 0.25;
+      }
     }
     this.events.emit('PowerUpUsed', {
       powerUpId,
@@ -1957,6 +2000,7 @@ export class Simulation {
             this.projectiles.push({
               id: this.nextEntityId++,
               isEnemy: true,
+              sourceEnemyId: e.id,
               x: e.x,
               y: e.y,
               prevX: e.x,
@@ -1974,20 +2018,321 @@ export class Simulation {
             });
           }
         }
-      } else if (e.archetypeId === 'brute' || e.isMiniBoss || e.isFinalBoss) {
+      } else if (e.isFinalBoss) {
+        // Multi-Stage Final Boss AI with stage-specific telegraphed attacks & custom skin-matched projectiles
+        if (e.aiState === 'seek') {
+          e.facingAngle = angleToHero;
+          const bossStageSpeedMult = e.bossPhase === 3 ? 1.25 : e.bossPhase === 2 ? 1.12 : 1.0;
+          e.x += Math.cos(angleToHero) * moveSpeed * bossStageSpeedMult * dt;
+          e.y += Math.sin(angleToHero) * moveSpeed * bossStageSpeedMult * dt;
+          e.aiTimer -= dt;
+
+          if (!heroInvisible && (e.aiTimer <= 0 || dHero <= 3.0) && activeTelegraphs < 5) {
+            e.aiState = 'telegraph';
+            e.telegraphAngle = angleToHero;
+
+            if (e.bossPhase === 1) {
+              // Phase 1 (Primordial Thornheart - Emerald Tree God): Vine Tentacle Whip Line OR Root Quake Slam
+              const p1Modes = ['boss_p1_vine_whip', 'boss_p1_root_slam'] as const;
+              const picked = dHero > 3.6 ? 'boss_p1_vine_whip' : this.rng.combat.pick(p1Modes);
+              e.bossAttackMode = picked;
+              e.telegraphDuration = picked === 'boss_p1_vine_whip' ? 0.82 : 0.86;
+              e.aiTimer = e.telegraphDuration;
+              e.telegraphTargetX =
+                picked === 'boss_p1_vine_whip'
+                  ? e.x + Math.cos(angleToHero) * 6.0
+                  : e.x;
+              e.telegraphTargetY =
+                picked === 'boss_p1_vine_whip'
+                  ? e.y + Math.sin(angleToHero) * 6.0
+                  : e.y;
+            } else if (e.bossPhase === 2) {
+              // Phase 2 (Frenzied Bloom - Magenta Floral Core): Petal Nova Spiral OR Bramble Dash Charge
+              const p2Modes = ['boss_p2_petal_spiral', 'boss_p2_bramble_charge'] as const;
+              const picked = this.rng.combat.pick(p2Modes);
+              e.bossAttackMode = picked;
+              e.telegraphDuration = picked === 'boss_p2_bramble_charge' ? 0.72 : 0.78;
+              e.aiTimer = e.telegraphDuration;
+              e.telegraphTargetX =
+                picked === 'boss_p2_bramble_charge'
+                  ? e.x + Math.cos(angleToHero) * 5.2
+                  : e.x;
+              e.telegraphTargetY =
+                picked === 'boss_p2_bramble_charge'
+                  ? e.y + Math.sin(angleToHero) * 5.2
+                  : e.y;
+            } else {
+              // Phase 3 (Apex Briar Overlord - Crimson & Dark Purple): Crimson Cross Barrage OR Abyssal Overlord Nova
+              const p3Modes = ['boss_p3_crimson_cross', 'boss_p3_abyssal_nova'] as const;
+              const picked = this.rng.combat.pick(p3Modes);
+              e.bossAttackMode = picked;
+              e.telegraphDuration = 0.74;
+              e.aiTimer = e.telegraphDuration;
+              e.telegraphTargetX = e.x;
+              e.telegraphTargetY = e.y;
+            }
+            activeTelegraphs++;
+          }
+        } else if (e.aiState === 'telegraph') {
+          e.aiTimer -= dt;
+          const mode = e.bossAttackMode ?? 'boss_p1_root_slam';
+          if (mode === 'boss_p2_petal_spiral' || mode === 'boss_p3_crimson_cross') {
+            e.facingAngle += 6.5 * dt;
+          }
+
+          if (e.aiTimer <= 0) {
+            if (mode === 'boss_p1_vine_whip') {
+              // Directional thorny vine whip strike along telegraph corridor + 5 emerald vine thorn darts
+              const whipEndX = e.x + Math.cos(e.telegraphAngle) * 6.0;
+              const whipEndY = e.y + Math.sin(e.telegraphAngle) * 6.0;
+              if (
+                !this.isHeroDashInvisible() &&
+                ccdSegmentHitsCircle(
+                  e.x,
+                  e.y,
+                  whipEndX,
+                  whipEndY,
+                  0.85,
+                  this.heroX,
+                  this.heroY,
+                  this.heroRadius
+                )
+              ) {
+                this.damageHero(Math.round(e.contactDamage * 1.35), e);
+              }
+              for (let s = -2; s <= 2; s++) {
+                const a = e.telegraphAngle + s * 0.16;
+                this.projectiles.push({
+                  id: this.nextEntityId++,
+                  isEnemy: true,
+                  sourceEnemyId: e.id,
+                  projectileKind: 'boss_vine_thorn',
+                  x: e.x,
+                  y: e.y,
+                  prevX: e.x,
+                  prevY: e.y,
+                  vx: Math.cos(a) * 5.2,
+                  vy: Math.sin(a) * 5.2,
+                  radius: 0.26,
+                  damage: Math.round(e.contactDamage * 1.15),
+                  isCrit: false,
+                  pierceRemaining: 0,
+                  lifeTimer: 2.6,
+                  color: 0x10b981,
+                  weaponTags: [],
+                  hitEnemyIds: new Set(),
+                });
+              }
+              e.aiState = 'recover';
+              e.aiTimer = 1.65;
+            } else if (mode === 'boss_p1_root_slam') {
+              // Emerald Root Quake Slam + 8 radial boss_vine_thorn projectiles
+              const slamRadius = 2.5;
+              if (
+                !this.isHeroDashInvisible() &&
+                dist(this.heroX, this.heroY, e.telegraphTargetX, e.telegraphTargetY) <=
+                  slamRadius + this.heroRadius
+              ) {
+                this.damageHero(Math.round(e.contactDamage * 1.4), e);
+              }
+              for (let b = 0; b < 8; b++) {
+                const a = (b / 8) * Math.PI * 2 + e.telegraphAngle;
+                this.projectiles.push({
+                  id: this.nextEntityId++,
+                  isEnemy: true,
+                  sourceEnemyId: e.id,
+                  projectileKind: 'boss_vine_thorn',
+                  x: e.x,
+                  y: e.y,
+                  prevX: e.x,
+                  prevY: e.y,
+                  vx: Math.cos(a) * 4.4,
+                  vy: Math.sin(a) * 4.4,
+                  radius: 0.26,
+                  damage: Math.round(e.contactDamage * 1.1),
+                  isCrit: false,
+                  pierceRemaining: 0,
+                  lifeTimer: 2.6,
+                  color: 0x10b981,
+                  weaponTags: [],
+                  hitEnemyIds: new Set(),
+                });
+              }
+              e.aiState = 'recover';
+              e.aiTimer = 1.8;
+            } else if (mode === 'boss_p2_bramble_charge') {
+              // Enter high-speed Phase 2 Bramble Charge
+              e.aiState = 'charge';
+              e.aiTimer = 0.52;
+            } else if (mode === 'boss_p2_petal_spiral') {
+              // Phase 2 Magenta Frenzied Bloom: 10 glowing magenta petal projectiles in a twin spiral burst
+              const burstCount = 10;
+              for (let b = 0; b < burstCount; b++) {
+                const a = (b / burstCount) * Math.PI * 2 + this.elapsedSeconds;
+                const speed = b % 2 === 0 ? 5.0 : 3.9;
+                this.projectiles.push({
+                  id: this.nextEntityId++,
+                  isEnemy: true,
+                  sourceEnemyId: e.id,
+                  projectileKind: 'boss_magenta_petal',
+                  x: e.x,
+                  y: e.y,
+                  prevX: e.x,
+                  prevY: e.y,
+                  vx: Math.cos(a) * speed,
+                  vy: Math.sin(a) * speed,
+                  radius: 0.27,
+                  damage: Math.round(e.contactDamage * 1.2),
+                  isCrit: false,
+                  pierceRemaining: 0,
+                  lifeTimer: 2.8,
+                  color: 0xec4899,
+                  weaponTags: [],
+                  hitEnemyIds: new Set(),
+                });
+              }
+              e.aiState = 'recover';
+              e.aiTimer = 1.45;
+            } else if (mode === 'boss_p3_crimson_cross') {
+              // Phase 3 Apex Briar Overlord: 4-way Crimson Cross-Laser strike + 12 dark-purple/crimson abyssal razors
+              for (let arm = 0; arm < 4; arm++) {
+                const armAngle = e.telegraphAngle + (arm * Math.PI) / 2;
+                const endX = e.x + Math.cos(armAngle) * 7.2;
+                const endY = e.y + Math.sin(armAngle) * 7.2;
+                if (
+                  !this.isHeroDashInvisible() &&
+                  ccdSegmentHitsCircle(
+                    e.x,
+                    e.y,
+                    endX,
+                    endY,
+                    0.75,
+                    this.heroX,
+                    this.heroY,
+                    this.heroRadius
+                  )
+                ) {
+                  this.damageHero(Math.round(e.contactDamage * 1.45), e);
+                }
+              }
+              const burstCount = 12;
+              for (let b = 0; b < burstCount; b++) {
+                const a = e.telegraphAngle + (b / burstCount) * Math.PI * 2;
+                this.projectiles.push({
+                  id: this.nextEntityId++,
+                  isEnemy: true,
+                  sourceEnemyId: e.id,
+                  projectileKind: 'boss_abyssal_razor',
+                  x: e.x,
+                  y: e.y,
+                  prevX: e.x,
+                  prevY: e.y,
+                  vx: Math.cos(a) * 5.6,
+                  vy: Math.sin(a) * 5.6,
+                  radius: 0.28,
+                  damage: Math.round(e.contactDamage * 1.25),
+                  isCrit: false,
+                  pierceRemaining: 0,
+                  lifeTimer: 2.8,
+                  color: 0xe11d48,
+                  weaponTags: [],
+                  hitEnemyIds: new Set(),
+                });
+              }
+              e.aiState = 'recover';
+              e.aiTimer = 1.25;
+            } else {
+              // 'boss_p3_abyssal_nova': Heavy AoE slam + twin-speed dark-purple & crimson abyssal razor nova
+              const slamRadius = 2.8;
+              if (
+                !this.isHeroDashInvisible() &&
+                dist(this.heroX, this.heroY, e.telegraphTargetX, e.telegraphTargetY) <=
+                  slamRadius + this.heroRadius
+              ) {
+                this.damageHero(Math.round(e.contactDamage * 1.5), e);
+              }
+              for (let b = 0; b < 12; b++) {
+                const a = (b / 12) * Math.PI * 2 + this.elapsedSeconds;
+                const spd = b % 2 === 0 ? 5.8 : 4.2;
+                this.projectiles.push({
+                  id: this.nextEntityId++,
+                  isEnemy: true,
+                  sourceEnemyId: e.id,
+                  projectileKind: 'boss_abyssal_razor',
+                  x: e.x,
+                  y: e.y,
+                  prevX: e.x,
+                  prevY: e.y,
+                  vx: Math.cos(a) * spd,
+                  vy: Math.sin(a) * spd,
+                  radius: 0.28,
+                  damage: Math.round(e.contactDamage * 1.25),
+                  isCrit: false,
+                  pierceRemaining: 0,
+                  lifeTimer: 2.8,
+                  color: 0x9333ea,
+                  weaponTags: [],
+                  hitEnemyIds: new Set(),
+                });
+              }
+              e.aiState = 'recover';
+              e.aiTimer = 1.3;
+            }
+          }
+        } else if (e.aiState === 'charge') {
+          e.aiTimer -= dt;
+          const chargeSpeed = 8.4 * timeSlowFactor;
+          e.x += Math.cos(e.telegraphAngle) * chargeSpeed * dt;
+          e.y += Math.sin(e.telegraphAngle) * chargeSpeed * dt;
+          if (e.aiTimer <= 0) {
+            // Burst 6 magenta petals at end of charge
+            for (let b = 0; b < 6; b++) {
+              const a = e.telegraphAngle + (b / 6) * Math.PI * 2;
+              this.projectiles.push({
+                id: this.nextEntityId++,
+                isEnemy: true,
+                sourceEnemyId: e.id,
+                projectileKind: 'boss_magenta_petal',
+                x: e.x,
+                y: e.y,
+                prevX: e.x,
+                prevY: e.y,
+                vx: Math.cos(a) * 4.6,
+                vy: Math.sin(a) * 4.6,
+                radius: 0.26,
+                damage: Math.round(e.contactDamage * 1.15),
+                isCrit: false,
+                pierceRemaining: 0,
+                lifeTimer: 2.4,
+                color: 0xec4899,
+                weaponTags: [],
+                hitEnemyIds: new Set(),
+              });
+            }
+            e.aiState = 'recover';
+            e.aiTimer = 1.15;
+          }
+        } else {
+          e.aiTimer -= dt;
+          if (e.aiTimer <= 0) {
+            e.aiState = 'seek';
+            e.aiTimer = e.bossPhase === 3 ? 0.9 : e.bossPhase === 2 ? 1.25 : 1.6;
+          }
+        }
+      } else if (e.archetypeId === 'brute' || e.isMiniBoss) {
         if (e.aiState === 'seek') {
           e.facingAngle = angleToHero;
           e.x += Math.cos(angleToHero) * moveSpeed * dt;
           e.y += Math.sin(angleToHero) * moveSpeed * dt;
           e.aiTimer -= dt;
-          const slamRange = e.isFinalBoss ? 2.4 : 1.6;
+          const slamRange = 1.6;
           if (
             !heroInvisible &&
-            (dHero <= slamRange || (e.isFinalBoss && e.aiTimer <= 0)) &&
+            dHero <= slamRange &&
             activeTelegraphs < 5
           ) {
             e.aiState = 'telegraph';
-            e.telegraphDuration = e.isMiniBoss || e.isFinalBoss ? 0.85 : 0.75;
+            e.telegraphDuration = e.isMiniBoss ? 0.85 : 0.75;
             e.aiTimer = e.telegraphDuration;
             e.telegraphTargetX = e.x;
             e.telegraphTargetY = e.y;
@@ -1996,41 +2341,16 @@ export class Simulation {
         } else if (e.aiState === 'telegraph') {
           e.aiTimer -= dt;
           if (e.aiTimer <= 0) {
-            // Execute ground slam + radial boss burst in Phase 2/3
-            const slamRadius = e.isFinalBoss ? 2.3 : e.isMiniBoss ? 2.0 : 1.6;
+            const slamRadius = e.isMiniBoss ? 2.0 : 1.6;
             if (
               !this.isHeroDashInvisible() &&
               dist(this.heroX, this.heroY, e.telegraphTargetX, e.telegraphTargetY) <=
                 slamRadius + this.heroRadius
             ) {
-              this.damageHero(Math.round(e.contactDamage * 1.4));
-            }
-            if (e.isFinalBoss && e.bossPhase >= 2) {
-              const burstCount = e.bossPhase === 3 ? 10 : 8;
-              for (let b = 0; b < burstCount; b++) {
-                const a = (b / burstCount) * Math.PI * 2 + this.elapsedSeconds;
-                this.projectiles.push({
-                  id: this.nextEntityId++,
-                  isEnemy: true,
-                  x: e.x,
-                  y: e.y,
-                  prevX: e.x,
-                  prevY: e.y,
-                  vx: Math.cos(a) * 4.2,
-                  vy: Math.sin(a) * 4.2,
-                  radius: 0.25,
-                  damage: Math.round(e.contactDamage * 1.1),
-                  isCrit: false,
-                  pierceRemaining: 0,
-                  lifeTimer: 2.6,
-                  color: PALETTE.CRIMSON_WARN,
-                  weaponTags: [],
-                  hitEnemyIds: new Set(),
-                });
-              }
+              this.damageHero(Math.round(e.contactDamage * 1.4), e);
             }
             e.aiState = 'recover';
-            e.aiTimer = e.isFinalBoss && e.bossPhase === 3 ? 1.8 : 2.6;
+            e.aiTimer = 2.6;
           }
         } else {
           e.aiTimer -= dt;
@@ -2084,7 +2404,7 @@ export class Simulation {
           this.heroY += (dyHero / dHero) * 0.3 * dt;
         }
         const contactDmg = e.aiState === 'charge' ? e.contactDamage * 1.4 : e.contactDamage;
-        this.damageHero(Math.round(contactDmg));
+        this.damageHero(Math.round(contactDmg), e);
       }
     }
 
@@ -2135,6 +2455,9 @@ export class Simulation {
       p.lifeTimer -= dt;
 
       if (p.lifeTimer <= 0) {
+        if (p.explodesOnExpire) {
+          this.triggerProjectileExplosion(p);
+        }
         this.projectiles.splice(i, 1);
         continue;
       }
@@ -2153,7 +2476,11 @@ export class Simulation {
             this.heroRadius
           )
         ) {
-          this.damageHero(p.damage);
+          const sourceEnemy =
+            p.sourceEnemyId !== undefined
+              ? this.enemies.find((e) => e.id === p.sourceEnemyId && e.hp > 0)
+              : undefined;
+          this.damageHero(p.damage, sourceEnemy);
           this.projectiles.splice(i, 1);
         }
         continue;
@@ -2222,9 +2549,57 @@ export class Simulation {
       }
 
       if (consumed) {
+        if (p.explodesOnExpire) {
+          this.triggerProjectileExplosion(p);
+        }
         this.projectiles.splice(i, 1);
       }
     }
+  }
+
+  private triggerProjectileExplosion(p: SimProjectile): void {
+    const expDamage = p.explosionDamage ?? p.damage * 0.85;
+    const expRadius = p.explosionRadius ?? 1.85 * this.stats.areaMult;
+    if (expDamage <= 0) return;
+
+    this.damageEnemiesInCircle(
+      p.x,
+      p.y,
+      expRadius,
+      expDamage,
+      0.7,
+      ['area', 'pierce', 'fire', 'arbalete_explosion'],
+      p.isCrit
+    );
+
+    this.visualEffects.push({
+      id: this.nextEntityId++,
+      kind: 'ember_burst',
+      x: p.x,
+      y: p.y,
+      targetX: p.x,
+      targetY: p.y,
+      angle: Math.atan2(p.vy, p.vx),
+      radius: expRadius,
+      arcRad: 3,
+      color: 0xf43f5e,
+      timer: 0.42,
+      maxTimer: 0.42,
+    });
+    this.visualEffects.push({
+      id: this.nextEntityId++,
+      kind: 'circle_blast',
+      x: p.x,
+      y: p.y,
+      targetX: p.x,
+      targetY: p.y,
+      angle: Math.atan2(p.vy, p.vx),
+      radius: expRadius * 0.85,
+      arcRad: Math.PI * 2,
+      color: PALETTE.GOLD_STAR,
+      timer: 0.32,
+      maxTimer: 0.32,
+    });
   }
 
   public getOrbitPetalCount(): number {
@@ -2494,42 +2869,36 @@ export class Simulation {
         });
       }
     } else if (shape === 'line') {
-      const endX = this.heroX + Math.cos(attackAngle) * reach;
-      const endY = this.heroY + Math.sin(attackAngle) * reach;
-      const halfWidth = ((def.baseWidth ?? 0.5) * areaMult) / 2;
+      const boltReach = w.evolved ? reach * 1.25 : reach;
+      const endX = this.heroX + Math.cos(attackAngle) * boltReach;
+      const endY = this.heroY + Math.sin(attackAngle) * boltReach;
+      const halfWidth = ((def.baseWidth ?? 0.55) * areaMult) / 2;
       const maxPierce = (def.basePierce ?? 3) + (w.level >= 3 ? 2 : 0) + (w.evolved ? 3 : 0);
+      const boltSpeed = (def.baseProjSpeed ?? 15.0) * Math.max(1, this.stats.reachMult * 0.85);
 
-      const candidates = this.enemies
-        .filter(
-          (e) =>
-            e.hp > 0 &&
-            e.koTimer <= 0 &&
-            capsuleOverlapsCircle(
-              this.heroX,
-              this.heroY,
-              endX,
-              endY,
-              halfWidth,
-              e.x,
-              e.y,
-              e.radius
-            )
-        )
-        .sort(
-          (a, b) =>
-            distSq(this.heroX, this.heroY, a.x, a.y) -
-            distSq(this.heroX, this.heroY, b.x, b.y)
-        );
-
-      for (let i = 0; i < Math.min(maxPierce, candidates.length); i++) {
-        this.applyDamageToEnemy(
-          candidates[i]!,
-          damage,
-          isCrit,
-          def.baseKnockback,
-          def.tags
-        );
-      }
+      // Fire high-velocity piercing Arbalete bolt projectile that explodes at end of flight when evolved
+      this.projectiles.push({
+        id: this.nextEntityId++,
+        isEnemy: false,
+        projectileKind: 'arbalete_bolt',
+        x: this.heroX + Math.cos(attackAngle) * 0.35,
+        y: this.heroY + Math.sin(attackAngle) * 0.35,
+        prevX: this.heroX,
+        prevY: this.heroY,
+        vx: Math.cos(attackAngle) * boltSpeed,
+        vy: Math.sin(attackAngle) * boltSpeed,
+        radius: Math.max(0.28, halfWidth),
+        damage,
+        isCrit,
+        pierceRemaining: Math.max(0, maxPierce - 1),
+        lifeTimer: boltReach / boltSpeed,
+        color,
+        weaponTags: [...def.tags, 'arbalete_bolt'],
+        hitEnemyIds: new Set(),
+        explodesOnExpire: w.evolved,
+        explosionDamage: w.evolved ? damage * 0.85 : 0,
+        explosionRadius: w.evolved ? 1.85 * areaMult : 0,
+      });
 
       this.visualEffects.push({
         id: this.nextEntityId++,
@@ -2540,10 +2909,10 @@ export class Simulation {
         targetY: endY,
         angle: attackAngle,
         radius: halfWidth * 2,
-        arcRad: 0,
+        arcRad: w.evolved ? 1 : 0,
         color,
-        timer: isEcho ? 0.22 : 0.16,
-        maxTimer: isEcho ? 0.22 : 0.16,
+        timer: isEcho ? 0.24 : 0.18,
+        maxTimer: isEcho ? 0.24 : 0.18,
         isEcho,
       });
     } else if (shape === 'circle') {
@@ -3282,15 +3651,15 @@ export class Simulation {
       });
     }
 
-    // Elites (6% chance), Special Monsters with power_up reward, or every 45th kill drop a weighted Power-Up
+    // Decreased item spawn rate: Elites (3% chance), Special Monsters with power_up reward, or every 85th kill drop a weighted Power-Up
     // Ember Guard (fire_breath) has a significantly reduced spawn weight (6%) compared to other drops
     const isPowerUpSpecial =
       enemy.isSpecial &&
       (enemy.specialId === 'bloom_giant' || enemy.specialId === 'mirror_wisp');
     if (
       isPowerUpSpecial ||
-      (enemy.isElite && this.rng.drops.chance(0.06)) ||
-      (this.kills > 0 && this.kills % 45 === 0)
+      (enemy.isElite && this.rng.drops.chance(0.03)) ||
+      (this.kills > 0 && this.kills % 85 === 0)
     ) {
       this.pickups.push({
         id: this.nextEntityId++,
@@ -3315,12 +3684,12 @@ export class Simulation {
       }
     }
 
-    // New item drop: Heal +20HP ('heal_potion')
+    // Decreased spawn rate for Heal +20HP ('heal_potion')
     const healPotionChance = enemy.isSpecial
-      ? 0.65
+      ? 0.38
       : enemy.isElite
-        ? 0.18
-        : clamp(0.025 + Math.max(0, this.stats.luck) * 0.0015, 0.025, 0.14);
+        ? 0.08
+        : clamp(0.01 + Math.max(0, this.stats.luck) * 0.001, 0.01, 0.07);
     if (this.rng.drops.chance(healPotionChance)) {
       this.pickups.push({
         id: this.nextEntityId++,
@@ -3651,7 +4020,7 @@ export class Simulation {
     });
   }
 
-  private damageHero(rawEnemyDamage: number): void {
+  private damageHero(rawEnemyDamage: number, attacker?: SimEnemy): void {
     if (
       this.invulnTimer > 0 ||
       this.isHeroDashInvisible() ||
@@ -3662,11 +4031,45 @@ export class Simulation {
       return;
     }
 
+    // Passive Dodge from Swift Boots level up: chance to dodge any incoming damage
+    if (this.stats.dodgeChance > 0 && this.rng.combat.chance(this.stats.dodgeChance)) {
+      this.invulnTimer = 0.25;
+      this.events.emit('FloatingText', {
+        x: this.heroX,
+        y: this.heroY - 0.65,
+        text: 'DODGE!',
+        color: PALETTE.MINT_GREEN,
+        scale: 1.15,
+      });
+      return;
+    }
+
     // Apply Armor flat reduction (minimum 1 damage) & Blood Pact multiplier (Spec Section 6)
+    const unmitigatedDmg = Math.max(1, Math.round(rawEnemyDamage * this.stats.damageTakenMult));
     let dmg = Math.max(
       1,
       Math.round((rawEnemyDamage - this.stats.armor) * this.stats.damageTakenMult)
     );
+    const blockedByArmor = Math.max(0, unmitigatedDmg - dmg);
+
+    // Starting from second level of Iron Bark (Lv 2+), return blocked damage to the attacking enemy!
+    const ironBarkLv = this.cards.iron_bark ?? 0;
+    if (ironBarkLv >= 2 && this.stats.armor > 0) {
+      const targetAttacker =
+        attacker ??
+        this.findNearestEnemy(this.heroX, this.heroY, 2.8, new Set());
+      const reflectedDamage = Math.max(1, blockedByArmor > 0 ? blockedByArmor : this.stats.armor);
+      if (targetAttacker && targetAttacker.hp > 0 && !targetAttacker.isArenaFlower && !targetAttacker.isHeroGrave) {
+        this.applyDamageToEnemy(
+          targetAttacker,
+          reflectedDamage,
+          false,
+          0.25,
+          ['thorns_reflect', 'defense', 'nature']
+        );
+      }
+    }
+
     this.invulnTimer = 0.5; // Spec Section 5: 0.5s contact invulnerability window
     this.hitFlashTimer = 0.14;
 
@@ -3691,10 +4094,11 @@ export class Simulation {
     this.currentHp -= dmg;
     this.noDamageTimer = 0;
 
-    // Style Rank penalty on taking damage: -15 SP, plus -5 if hit again within 2s (Spec Section 13)
-    const extraPenalty = this.recentDamageWindowTimer > 0 ? -5 : 0;
+    // Style Rank penalty on taking damage: scales up sharply on higher style ranks!
+    const extraPenalty = this.recentDamageWindowTimer > 0 ? -8 : 0;
+    const highRankPenalty = -15 - this.rankIndex * 14 + extraPenalty;
     this.recentDamageWindowTimer = 2.0;
-    this.addStylePoints(-15 + extraPenalty);
+    this.addStylePoints(highRankPenalty);
 
     this.events.emit('HeroHit', {
       x: this.heroX,
@@ -3736,6 +4140,18 @@ export class Simulation {
       this.deathSequenceTimer > 0 ||
       this.victorySequenceTimer > 0
     ) {
+      return;
+    }
+
+    // Passive Dodge from Swift Boots level up can also dodge thorn damage
+    if (this.stats.dodgeChance > 0 && this.rng.combat.chance(this.stats.dodgeChance)) {
+      this.events.emit('FloatingText', {
+        x: this.heroX,
+        y: this.heroY - 0.65,
+        text: 'DODGE!',
+        color: PALETTE.MINT_GREEN,
+        scale: 1.15,
+      });
       return;
     }
 
@@ -3825,10 +4241,11 @@ export class Simulation {
       this.noDamageSpGrantedInWindow = 0;
     }
 
-    // Continuous Rank Drain (triples if idle without kill for > 3s, Spec Section 13)
+    // Continuous Rank Drain: falls faster with each Style Rank AND each Hero Level
     const rankDef = STYLE_RANKS[this.rankIndex] ?? STYLE_RANKS[0]!;
     const isIdleNoKills = this.streakResetTimer <= 0 && this.elapsedSeconds > 6;
-    const drainMult = isIdleNoKills ? 1.8 : 1.0;
+    const levelDrainMult = 1 + Math.max(0, this.level - 1) * 0.12 + this.rankIndex * 0.18;
+    const drainMult = (isIdleNoKills ? 1.8 : 1.0) * levelDrainMult;
     if (this.rankIndex > 0 || this.stylePoints > 0) {
       this.addStylePoints(-rankDef.drainPerSec * drainMult * dt);
     }
@@ -3891,10 +4308,10 @@ export class Simulation {
       }
     }
 
-    // Maintain Big Arena Flowers scattered randomly around the world so the player can find and attack them for item drops
+    // Decreased Big Arena Flower spawn rate (every 26s, max 2 nearby)
     this.arenaFlowerSpawnTimer -= dt;
     if (this.arenaFlowerSpawnTimer <= 0) {
-      this.arenaFlowerSpawnTimer = 14.0;
+      this.arenaFlowerSpawnTimer = 26.0;
       const nearbyFlowers = this.enemies.filter(
         (e) =>
           e.isArenaFlower &&
@@ -3902,7 +4319,7 @@ export class Simulation {
           e.koTimer <= 0 &&
           Math.hypot(e.x - this.heroX, e.y - this.heroY) <= 24.0
       );
-      if (nearbyFlowers.length < 4) {
+      if (nearbyFlowers.length < 2) {
         const pos = this.pickRingSpawnPoint(9.5, 22.0);
         this.spawnArenaFlower(pos.x, pos.y);
       }
@@ -4359,6 +4776,9 @@ export class Simulation {
     if (isFinalBoss) {
       e.name = 'Primordial Thornheart';
       e.isFinalBoss = true;
+      e.bossPhase = 1;
+      e.bossAttackMode = 'boss_p1_vine_whip';
+      e.aiTimer = 0.85;
       e.hp = Math.round(1200 * (0.6 + 0.4 * scale));
       e.maxHp = e.hp;
       e.radius = 1.15;

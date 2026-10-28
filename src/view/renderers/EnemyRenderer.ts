@@ -82,8 +82,18 @@ export class EnemyRenderer {
             progress,
             sim.elapsedSeconds
           );
+        } else if (e.isFinalBoss) {
+          EnemyRenderer.drawFinalBossTelegraph(
+            telegraphGraphic,
+            e,
+            ex,
+            ey,
+            rPx,
+            progress,
+            sim.elapsedSeconds
+          );
         } else {
-          const slamRadiusPx = (e.isFinalBoss ? 2.3 : e.isMiniBoss ? 2.0 : 1.6) * PPU;
+          const slamRadiusPx = (e.isMiniBoss ? 2.0 : 1.6) * PPU;
           const tx = e.telegraphTargetX * PPU;
           const ty = e.telegraphTargetY * PPU;
           telegraphGraphic
@@ -219,17 +229,24 @@ export class EnemyRenderer {
         animScaleX = 1 + jellySquash;
         animScaleY = 1 - jellySquash * 0.85;
       } else if (e.archetypeId === 'shielded') {
-        // Directional buckler arc showing exact block orientation
+        // Directional buckler arc showing exact block orientation (with explicit moveTo so no line connects to 0,0)
         const shieldArc = Math.PI / 2.1;
+        const startA = e.facingAngle - shieldArc;
+        const endA = e.facingAngle + shieldArc;
+        const arcR = rPx + 4;
+        const startX = ex + Math.cos(startA) * arcR;
+        const startY = cy + Math.sin(startA) * arcR;
         gOver
-          .arc(ex, cy, rPx + 4, e.facingAngle - shieldArc, e.facingAngle + shieldArc)
+          .moveTo(startX, startY)
+          .arc(ex, cy, arcR, startA, endA)
           .stroke({
             color: PALETTE.INK_OUTLINE,
             width: 7.5,
             cap: 'round',
           });
         gOver
-          .arc(ex, cy, rPx + 4, e.facingAngle - shieldArc, e.facingAngle + shieldArc)
+          .moveTo(startX, startY)
+          .arc(ex, cy, arcR, startA, endA)
           .stroke({
             color: PALETTE.CREAM_WHITE,
             width: 4.0,
@@ -530,18 +547,21 @@ export class EnemyRenderer {
     const m = new PIXI.Matrix();
     m.rotate(angle);
     m.translate(ex, ey);
+    g.setTransform(m);
 
     const halfW = rPx * 0.65;
 
     // Soft danger corridor base
-    g.roundRect(0, -halfW, len, halfW * 2, 6)
-      .setTransform(m)
-      .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.14 });
+    g.roundRect(0, -halfW, len, halfW * 2, 6).fill({
+      color: PALETTE.CRIMSON_WARN,
+      alpha: 0.14,
+    });
 
     // Filling progress bar inside corridor (red outer border lines removed)
-    g.roundRect(0, -halfW * 0.8, len * progress, halfW * 1.6, 5)
-      .setTransform(m)
-      .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.28 + 0.25 * progress });
+    g.roundRect(0, -halfW * 0.8, len * progress, halfW * 1.6, 5).fill({
+      color: PALETTE.CRIMSON_WARN,
+      alpha: 0.28 + 0.25 * progress,
+    });
 
     // Animated scrolling chevron arrows (>>>) along the dash lane
     const chevronCount = 3;
@@ -606,6 +626,7 @@ export class EnemyRenderer {
       const m = new PIXI.Matrix();
       m.rotate(e.telegraphAngle);
       m.translate(ex, ey);
+      g.setTransform(m);
 
       const shaftHalfW = rPx * 0.46;
       const headHalfW = rPx * 0.95;
@@ -620,15 +641,15 @@ export class EnemyRenderer {
         .lineTo(shaftLen, shaftHalfW)
         .lineTo(0, shaftHalfW)
         .closePath()
-        .setTransform(m)
         .fill({ color: 0xfbbf24, alpha: 0.24 })
         .stroke({ color: PALETTE.BUTTER_YELLOW, width: 3, alpha: 0.92 });
 
       // Inner filling golden charge arrow
       const fillLen = shaftLen * progress;
-      g.rect(0, -shaftHalfW * 0.78, fillLen, shaftHalfW * 1.56)
-        .setTransform(m)
-        .fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.52 + 0.25 * progress });
+      g.rect(0, -shaftHalfW * 0.78, fillLen, shaftHalfW * 1.56).fill({
+        color: PALETTE.BUTTER_YELLOW,
+        alpha: 0.52 + 0.25 * progress,
+      });
 
       // Scrolling golden chevrons inside the arrow shaft
       for (let c = 0; c < 3; c++) {
@@ -675,6 +696,170 @@ export class EnemyRenderer {
   }
 
   /**
+   * Final Boss 3-Stage Telegraphed Attack Indicators:
+   * - Phase 1 (Primordial Thornheart - Emerald Tree God):
+   *   - 'boss_p1_vine_whip': Long emerald-and-bark thorny vine lash corridor + 5 fan ray indicators
+   *   - 'boss_p1_root_slam': Expanding emerald root-quake ring + 8 thorn dart vectors
+   * - Phase 2 (Frenzied Bloom - Magenta Floral Core):
+   *   - 'boss_p2_petal_spiral': Rotating magenta blossom mandala + 10 spiral trajectory markers
+   *   - 'boss_p2_bramble_charge': Glowing magenta-rose charge corridor with petal chevrons
+   * - Phase 3 (Apex Briar Overlord - Crimson & Dark Purple):
+   *   - 'boss_p3_crimson_cross': 4-way intersecting crimson & dark-purple laser crossbeams
+   *   - 'boss_p3_abyssal_nova': Twin concentric dark-purple & crimson overload rings + 12 razor vectors
+   */
+  private static drawFinalBossTelegraph(
+    g: PIXI.Graphics,
+    e: SimEnemy,
+    ex: number,
+    ey: number,
+    rPx: number,
+    progress: number,
+    elapsedSeconds: number
+  ): void {
+    const mode = e.bossAttackMode ?? 'boss_p1_root_slam';
+
+    if (mode === 'boss_p1_vine_whip') {
+      const len = 6.0 * PPU;
+      const halfW = 0.85 * PPU;
+      const m = new PIXI.Matrix();
+      m.rotate(e.telegraphAngle);
+      m.translate(ex, ey);
+      g.setTransform(m);
+
+      // Emerald vine lash lane
+      g.roundRect(0, -halfW, len, halfW * 2, 10)
+        .fill({ color: 0x059669, alpha: 0.18 })
+        .stroke({ color: PALETTE.MINT_GREEN, width: 2.5, alpha: 0.85 });
+      g.roundRect(0, -halfW * 0.82, len * progress, halfW * 1.64, 8).fill({
+        color: 0x10b981,
+        alpha: 0.34 + 0.25 * progress,
+      });
+
+      // Coiling vine wave along the corridor
+      g.moveTo(0, 0);
+      for (let step = 1; step <= 8; step++) {
+        const sx = (step / 8) * len * progress;
+        const sy = Math.sin(step * 1.3 + elapsedSeconds * 12) * (halfW * 0.55);
+        g.lineTo(sx, sy);
+      }
+      g.stroke({ color: PALETTE.BUTTER_YELLOW, width: 3.0, alpha: 0.9, cap: 'round' });
+      g.setTransform(new PIXI.Matrix());
+
+      // 5 Emerald Thorn fan rays
+      for (let s = -2; s <= 2; s++) {
+        const a = e.telegraphAngle + s * 0.16;
+        const rayR = 3.8 * PPU * (0.4 + 0.6 * progress);
+        g.moveTo(ex, ey)
+          .lineTo(ex + Math.cos(a) * rayR, ey + Math.sin(a) * rayR)
+          .stroke({ color: PALETTE.MINT_GREEN, width: 2.0, alpha: 0.72 });
+      }
+    } else if (mode === 'boss_p1_root_slam') {
+      const slamR = 2.5 * PPU;
+      const tx = e.telegraphTargetX * PPU;
+      const ty = e.telegraphTargetY * PPU;
+      g.circle(tx, ty, slamR)
+        .fill({ color: 0x10b981, alpha: 0.15 })
+        .stroke({ color: PALETTE.MINT_GREEN, width: 3.0, alpha: 0.88 });
+      g.circle(tx, ty, slamR * progress).fill({
+        color: 0x059669,
+        alpha: 0.35,
+      });
+      for (let b = 0; b < 8; b++) {
+        const a = e.telegraphAngle + (b / 8) * Math.PI * 2;
+        const rx = tx + Math.cos(a) * (slamR * 1.25);
+        const ry = ty + Math.sin(a) * (slamR * 1.25);
+        g.moveTo(tx + Math.cos(a) * (slamR * 0.5), ty + Math.sin(a) * (slamR * 0.5))
+          .lineTo(rx, ry)
+          .stroke({ color: PALETTE.BUTTER_YELLOW, width: 2.2, alpha: 0.78, cap: 'round' });
+      }
+    } else if (mode === 'boss_p2_bramble_charge') {
+      const len = 5.2 * PPU;
+      const halfW = rPx * 0.78;
+      const m = new PIXI.Matrix();
+      m.rotate(e.telegraphAngle);
+      m.translate(ex, ey);
+      g.setTransform(m);
+
+      g.roundRect(0, -halfW, len, halfW * 2, 10)
+        .fill({ color: 0xec4899, alpha: 0.18 })
+        .stroke({ color: 0xf472b6, width: 2.8, alpha: 0.9 });
+      g.roundRect(0, -halfW * 0.8, len * progress, halfW * 1.6, 8).fill({
+        color: 0xec4899,
+        alpha: 0.36 + 0.25 * progress,
+      });
+      for (let c = 0; c < 4; c++) {
+        const cx = (((c + elapsedSeconds * 4.5) % 4) / 4) * (len - 24) + 12;
+        g.moveTo(cx - 8, -halfW * 0.6)
+          .lineTo(cx + 5, 0)
+          .lineTo(cx - 8, halfW * 0.6)
+          .setTransform(m)
+          .stroke({ color: PALETTE.BUTTER_YELLOW, width: 2.8, alpha: 0.9, cap: 'round' });
+      }
+      g.setTransform(new PIXI.Matrix());
+    } else if (mode === 'boss_p2_petal_spiral') {
+      const ringR = rPx * (1.5 + progress * 1.15);
+      g.circle(ex, ey, ringR)
+        .fill({ color: 0xec4899, alpha: 0.16 })
+        .stroke({ color: 0xf472b6, width: 3.2, alpha: 0.9 });
+      for (let b = 0; b < 10; b++) {
+        const a = (b / 10) * Math.PI * 2 + elapsedSeconds * 3.5;
+        const px = ex + Math.cos(a) * ringR;
+        const py = ey + Math.sin(a) * ringR;
+        g.ellipse(px, py, 7.0, 3.8)
+          .fill({ color: 0xec4899, alpha: 0.92 })
+          .stroke({ color: PALETTE.BUTTER_YELLOW, width: 1.5 });
+      }
+    } else if (mode === 'boss_p3_crimson_cross') {
+      const armLen = 7.2 * PPU;
+      const halfW = 0.72 * PPU;
+      for (let arm = 0; arm < 4; arm++) {
+        const armAngle = e.telegraphAngle + (arm * Math.PI) / 2;
+        const m = new PIXI.Matrix();
+        m.rotate(armAngle);
+        m.translate(ex, ey);
+        g.setTransform(m);
+
+        g.roundRect(0, -halfW, armLen, halfW * 2, 8)
+          .fill({ color: 0x581c87, alpha: 0.24 })
+          .stroke({ color: 0xf43f5e, width: 2.8, alpha: 0.92 });
+        g.roundRect(0, -halfW * 0.75, armLen * progress, halfW * 1.5, 6).fill({
+          color: 0xe11d48,
+          alpha: 0.42 + 0.28 * progress,
+        });
+      }
+      g.setTransform(new PIXI.Matrix());
+      g.circle(ex, ey, rPx * 1.35).stroke({
+        color: PALETTE.BUTTER_YELLOW,
+        width: 3.2,
+        alpha: 0.95,
+      });
+    } else {
+      // 'boss_p3_abyssal_nova'
+      const slamR = 2.8 * PPU;
+      const tx = e.telegraphTargetX * PPU;
+      const ty = e.telegraphTargetY * PPU;
+      g.circle(tx, ty, slamR)
+        .fill({ color: 0x581c87, alpha: 0.22 })
+        .stroke({ color: 0xf43f5e, width: 3.4, alpha: 0.92 });
+      g.circle(tx, ty, slamR * progress)
+        .fill({ color: 0xe11d48, alpha: 0.36 })
+        .stroke({ color: PALETTE.BUTTER_YELLOW, width: 2.2, alpha: 0.88 });
+      for (let b = 0; b < 12; b++) {
+        const a = (b / 12) * Math.PI * 2 - elapsedSeconds * 3.0;
+        const rOut = slamR * (1.05 + (b % 2) * 0.28);
+        g.moveTo(tx + Math.cos(a) * (slamR * 0.65), ty + Math.sin(a) * (slamR * 0.65))
+          .lineTo(tx + Math.cos(a) * rOut, ty + Math.sin(a) * rOut)
+          .stroke({
+            color: b % 2 === 0 ? 0xf43f5e : 0xa855f7,
+            width: 2.4,
+            alpha: 0.85,
+            cap: 'round',
+          });
+      }
+    }
+  }
+
+  /**
    * Renders a stationary destructible Hero Grave (`isHeroGrave`) left after Second Wind or Hero Death.
    * Attacking and destroying it restores +25 HP!
    */
@@ -684,17 +869,11 @@ export class EnemyRenderer {
     ex: number,
     ey: number,
     rPx: number,
-    elapsedSeconds: number
+    _elapsedSeconds: number
   ): void {
-    const pulse = 0.85 + 0.15 * Math.sin(elapsedSeconds * 5.0);
     const isHit = e.hitFlashTimer > 0;
 
-    // Healing emerald aura ring beneath the gravestone
-    g.ellipse(ex, ey + 6, rPx * 1.25 * pulse, rPx * 0.75 * pulse)
-      .fill({ color: PALETTE.MINT_GREEN, alpha: 0.22 })
-      .stroke({ color: PALETTE.MINT_GREEN, width: 2, alpha: 0.75 });
-
-    // Mossy stone base plinth
+    // Mossy stone base plinth (green circle at bottom removed per user request)
     g.roundRect(ex - rPx * 0.92, ey + 2, rPx * 1.84, rPx * 0.52, 5)
       .fill({ color: isHit ? PALETTE.CREAM_WHITE : 0x475569 })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 2.8 });
@@ -704,14 +883,41 @@ export class EnemyRenderer {
       .fill({ color: isHit ? PALETTE.CREAM_WHITE : 0x64748b })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
 
-    // Glowing emerald healing cross emblem carved into the headstone
-    const crossY = ey - rPx * 0.52;
-    g.rect(ex - 2.8, crossY - 8, 5.6, 16)
-      .fill({ color: PALETTE.MINT_GREEN })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-    g.rect(ex - 7, crossY - 3.2, 14, 5.6)
-      .fill({ color: PALETTE.MINT_GREEN })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
+    // Carved "RIP" inscription on the headstone (instead of cross)
+    const ripY = ey - rPx * 0.48;
+    const rx = ex - 8.2;
+    const ix = ex;
+    const px = ex + 8.2;
+
+    const drawRipStrokes = (color: number, width: number) => {
+      // 'R'
+      g.moveTo(rx - 2.6, ripY + 5.2)
+        .lineTo(rx - 2.6, ripY - 5.2)
+        .lineTo(rx + 1.4, ripY - 5.2)
+        .lineTo(rx + 2.6, ripY - 2.6)
+        .lineTo(rx + 1.4, ripY)
+        .lineTo(rx - 2.6, ripY)
+        .moveTo(rx + 0.4, ripY)
+        .lineTo(rx + 2.8, ripY + 5.2)
+        // 'I'
+        .moveTo(ix - 1.8, ripY - 5.2)
+        .lineTo(ix + 1.8, ripY - 5.2)
+        .moveTo(ix, ripY - 5.2)
+        .lineTo(ix, ripY + 5.2)
+        .moveTo(ix - 1.8, ripY + 5.2)
+        .lineTo(ix + 1.8, ripY + 5.2)
+        // 'P'
+        .moveTo(px - 2.4, ripY + 5.2)
+        .lineTo(px - 2.4, ripY - 5.2)
+        .lineTo(px + 1.6, ripY - 5.2)
+        .lineTo(px + 2.8, ripY - 2.4)
+        .lineTo(px + 1.6, ripY + 0.2)
+        .lineTo(px - 2.4, ripY + 0.2)
+        .stroke({ color, width, cap: 'round', join: 'round' });
+    };
+
+    drawRipStrokes(PALETTE.INK_OUTLINE, 3.8);
+    drawRipStrokes(PALETTE.CREAM_WHITE, 1.8);
 
     // Small wildflower offering at base of grave
     g.circle(ex - rPx * 0.45, ey + 4, 4.2)

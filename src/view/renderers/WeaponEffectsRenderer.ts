@@ -30,6 +30,18 @@ export class WeaponEffectsRenderer {
           h.id,
           sim.elapsedSeconds
         );
+      } else if (h.kind === 'spore_cloud') {
+        const cloudProgress = clamp(1 - h.lifeTimer / 2.2, 0, 1);
+        WeaponEffectsRenderer.drawSporePopGasCloud(
+          decalGraphic,
+          hx,
+          hy,
+          rPx,
+          cloudProgress,
+          fade,
+          h.id,
+          sim.elapsedSeconds
+        );
       } else {
         decalGraphic
           .circle(hx, hy, rPx)
@@ -162,10 +174,12 @@ export class WeaponEffectsRenderer {
             .fill({ color: PALETTE.CREAM_WHITE })
             .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
         } else if (pId === 'magnet') {
-          g.arc(px, py - 0.5, 4.5, 0, Math.PI, false).stroke({
-            color: PALETTE.CREAM_WHITE,
-            width: 2.8,
-          });
+          g.moveTo(px + 4.5, py - 0.5)
+            .arc(px, py - 0.5, 4.5, 0, Math.PI, false)
+            .stroke({
+              color: PALETTE.CREAM_WHITE,
+              width: 2.8,
+            });
         } else {
           g.moveTo(px - 4, py - 4.5)
             .lineTo(px + 4, py - 4.5)
@@ -281,6 +295,7 @@ export class WeaponEffectsRenderer {
         m.scale(1.08, flutterScaleY);
         m.rotate(flutterAngle);
         m.translate(curr.x, curr.y);
+        g.setTransform(m);
 
         // Authentic Cloven Sakura Leaf / Petal with signature V-notch cleft at the tip
         g.moveTo(-12.5, 0)
@@ -289,7 +304,6 @@ export class WeaponEffectsRenderer {
           .lineTo(13.0, 3.8)
           .bezierCurveTo(5.5, 9.2, -7.5, 8.8, -12.5, 0)
           .closePath()
-          .setTransform(m)
           .fill({ color: outerLeafColor })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 2.3 });
 
@@ -300,7 +314,6 @@ export class WeaponEffectsRenderer {
           .lineTo(8.8, 2.2)
           .bezierCurveTo(3.5, 5.4, -4.5, 5.2, -9.0, 0)
           .closePath()
-          .setTransform(m)
           .fill({ color: innerLeafColor, alpha: 0.92 });
 
         // Delicate central midrib & lateral leaf veins
@@ -310,7 +323,6 @@ export class WeaponEffectsRenderer {
           .lineTo(2.0, -3.0)
           .moveTo(-3.5, 0)
           .lineTo(2.0, 3.0)
-          .setTransform(m)
           .stroke({ color: veinColor, width: 1.3, alpha: 0.9, cap: 'round' });
 
         g.setTransform(new PIXI.Matrix());
@@ -370,36 +382,79 @@ export class WeaponEffectsRenderer {
             });
         }
       } else if (fx.kind === 'spear_line') {
+        // Arbalete Firing Animation: Bowstring release wave, muzzle flash & bolt launch slipstream
         const x1 = fx.x * PPU;
         const y1 = fx.y * PPU;
         const x2 = fx.targetX * PPU;
         const y2 = fx.targetY * PPU;
-        g.moveTo(x1, y1)
-          .lineTo(x2, y2)
+        const cosA = Math.cos(fx.angle);
+        const sinA = Math.sin(fx.angle);
+        const perpX = -sinA;
+        const perpY = cosA;
+        const muzzleX = x1 + cosA * 18;
+        const muzzleY = y1 + sinA * 18;
+
+        // 1. Bowstring snap crescent wave at the Arbalete muzzle
+        const snapSpread = 16 * (0.6 + 0.5 * progress);
+        g.moveTo(muzzleX - cosA * 6 + perpX * snapSpread, muzzleY - sinA * 6 + perpY * snapSpread)
+          .quadraticCurveTo(
+            muzzleX + cosA * 12,
+            muzzleY + sinA * 12,
+            muzzleX - cosA * 6 - perpX * snapSpread,
+            muzzleY - sinA * 6 - perpY * snapSpread
+          )
           .stroke({
-            color: fx.color,
-            width: fx.radius * PPU * fade,
-            alpha: 0.8 * fade,
-            cap: 'round',
-          });
-        g.moveTo(x1, y1)
-          .lineTo(x2, y2)
-          .stroke({
-            color: PALETTE.CREAM_WHITE,
-            width: 4 * fade,
-            alpha: 0.95 * fade,
+            color: PALETTE.BUTTER_YELLOW,
+            width: 3.5 * fade,
+            alpha: 0.9 * fade,
             cap: 'round',
           });
 
-        // Visible doubled parallel twin lance when Echo Swing triggers!
+        // 2. High-velocity bolt launch slipstream & wind-tunnel rails
+        g.moveTo(muzzleX, muzzleY)
+          .lineTo(x2, y2)
+          .stroke({
+            color: fx.color,
+            width: Math.max(4, fx.radius * PPU * 0.55) * fade,
+            alpha: 0.45 * fade,
+            cap: 'round',
+          });
+        g.moveTo(muzzleX, muzzleY)
+          .lineTo(x2, y2)
+          .stroke({
+            color: PALETTE.CREAM_WHITE,
+            width: 2.8 * fade,
+            alpha: 0.92 * fade,
+            cap: 'round',
+          });
+
+        // 3. Sonic air-compression chevrons along the bolt flight path
+        for (let wIdx = 1; wIdx <= 2; wIdx++) {
+          const frac = clamp(progress * 0.85 + wIdx * 0.25, 0.15, 0.95);
+          const wx = lerp(muzzleX, x2, frac);
+          const wy = lerp(muzzleY, y2, frac);
+          const wingSpan = (11 - wIdx * 2) * fade;
+          g.moveTo(wx - cosA * 8 + perpX * wingSpan, wy - sinA * 8 + perpY * wingSpan)
+            .lineTo(wx + cosA * 4, wy + sinA * 4)
+            .lineTo(wx - cosA * 8 - perpX * wingSpan, wy - sinA * 8 - perpY * wingSpan)
+            .stroke({
+              color: fx.arcRad > 0 ? PALETTE.GOLD_STAR : PALETTE.CREAM_WHITE,
+              width: 2.2 * fade,
+              alpha: 0.82 * fade,
+              cap: 'round',
+              join: 'round',
+            });
+        }
+
+        // Visible doubled parallel twin bolt trace when Echo Swing triggers!
         if (fx.isEcho) {
-          const perpX = -Math.sin(fx.angle) * 10;
-          const perpY = Math.cos(fx.angle) * 10;
-          g.moveTo(x1 + perpX, y1 + perpY)
-            .lineTo(x2 + perpX, y2 + perpY)
+          const offX = perpX * 10;
+          const offY = perpY * 10;
+          g.moveTo(muzzleX + offX, muzzleY + offY)
+            .lineTo(x2 + offX, y2 + offY)
             .stroke({
               color: PALETTE.BUTTER_YELLOW,
-              width: fx.radius * PPU * 0.75 * fade,
+              width: 3.5 * fade,
               alpha: 0.85 * fade,
               cap: 'round',
             });
@@ -604,20 +659,17 @@ export class WeaponEffectsRenderer {
       } else if (fx.kind === 'spore_cloud') {
         const cx = fx.x * PPU;
         const cy = fx.y * PPU;
-        const baseR = fx.radius * PPU * (0.55 + 0.45 * Math.sin(progress * Math.PI * 0.5));
-        g.circle(cx, cy, baseR)
-          .fill({ color: PALETTE.MINT_GREEN, alpha: 0.24 * fade })
-          .stroke({ color: PALETTE.MINT_GREEN, width: 3 * fade, alpha: 0.72 * fade });
-        for (let p = 0; p < 5; p++) {
-          const pa = (p * Math.PI * 2) / 5 + progress * 2.4;
-          const pr = baseR * 0.55;
-          const px = cx + Math.cos(pa) * pr;
-          const py = cy + Math.sin(pa) * pr;
-          g.circle(px, py, baseR * 0.42 * fade).fill({
-            color: p % 2 === 0 ? PALETTE.MINT_GREEN : PALETTE.BUTTER_YELLOW,
-            alpha: 0.28 * fade,
-          });
-        }
+        const baseR = fx.radius * PPU * (0.65 + 0.35 * Math.sin(progress * Math.PI * 0.5));
+        WeaponEffectsRenderer.drawSporePopGasCloud(
+          g,
+          cx,
+          cy,
+          baseR,
+          progress,
+          fade,
+          fx.id,
+          sim.elapsedSeconds
+        );
       } else if (fx.kind === 'chain_bolt') {
         const x1 = fx.x * PPU;
         const y1 = fx.y * PPU;
@@ -877,22 +929,20 @@ export class WeaponEffectsRenderer {
       const m = new PIXI.Matrix();
       m.rotate(fx.angle);
       m.translate(cx, cy);
+      decalGraphic.setTransform(m);
 
       // Scorched Stygian ember sole print
       decalGraphic
         .ellipse(0, 0, r * 0.92, r * 0.54)
-        .setTransform(m)
         .fill({ color: 0xf43f5e, alpha: 0.78 * fade })
         .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 * fade, alpha: 0.8 * fade });
 
       // Inner Six-Paths golden-orange chakra core
       decalGraphic
         .ellipse(r * 0.12, 0, r * 0.58, r * 0.32)
-        .setTransform(m)
         .fill({ color: 0xf97316, alpha: 0.9 * fade });
       decalGraphic
         .ellipse(r * 0.2, 0, r * 0.32, r * 0.18)
-        .setTransform(m)
         .fill({ color: 0xfbbf24, alpha: 0.95 * fade });
 
       decalGraphic.setTransform(new PIXI.Matrix());
@@ -1018,17 +1068,16 @@ export class WeaponEffectsRenderer {
           const m = new PIXI.Matrix();
           m.rotate(angle);
           m.translate(px, py);
+          g.setTransform(m);
           g.moveTo(rPx * 1.45, 0)
             .lineTo(-rPx * 0.6, -rPx * 0.85)
             .lineTo(-rPx * 1.15, 0)
             .lineTo(-rPx * 0.6, rPx * 0.85)
             .closePath()
-            .setTransform(m)
             .fill({ color: 0x78350f })
             .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
           g.moveTo(rPx * 0.9, 0)
             .lineTo(-rPx * 0.7, 0)
-            .setTransform(m)
             .stroke({ color: PALETTE.BUTTER_YELLOW, width: 2.2, cap: 'round' });
           g.setTransform(new PIXI.Matrix());
         } else if (p.projectileKind === 'sunflower_leaf') {
@@ -1037,14 +1086,102 @@ export class WeaponEffectsRenderer {
           const m = new PIXI.Matrix();
           m.rotate(spinAngle);
           m.translate(px, py);
+          g.setTransform(m);
           g.ellipse(0, 0, rPx * 1.45, rPx * 0.72)
-            .setTransform(m)
             .fill({ color: PALETTE.MINT_GREEN })
             .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
           g.moveTo(-rPx * 1.1, 0)
             .lineTo(rPx * 1.1, 0)
-            .setTransform(m)
             .stroke({ color: PALETTE.BUTTER_YELLOW, width: 1.8 });
+          g.setTransform(new PIXI.Matrix());
+        } else if (p.projectileKind === 'boss_vine_thorn') {
+          // Phase 1 Boss ('Primordial Thornheart'): Knotted Emerald-and-Bark Vine Thorn Spearhead
+          const m = new PIXI.Matrix();
+          m.rotate(angle);
+          m.translate(px, py);
+          g.setTransform(m);
+
+          // Trailing emerald sap wake
+          g.moveTo(-rPx * 1.9, 0)
+            .lineTo(-rPx * 0.4, 0)
+            .stroke({ color: PALETTE.MINT_GREEN, width: 3.2, alpha: 0.65, cap: 'round' });
+
+          // Knotted dark-bark base & barbed emerald thorn body
+          g.moveTo(rPx * 1.65, 0)
+            .lineTo(-rPx * 0.2, -rPx * 0.92)
+            .lineTo(-rPx * 0.65, -rPx * 0.42)
+            .lineTo(-rPx * 1.25, -rPx * 0.75)
+            .lineTo(-rPx * 0.95, 0)
+            .lineTo(-rPx * 1.25, rPx * 0.75)
+            .lineTo(-rPx * 0.65, rPx * 0.42)
+            .lineTo(-rPx * 0.2, rPx * 0.92)
+            .closePath()
+            .fill({ color: 0x059669 })
+            .stroke({ color: PALETTE.INK_OUTLINE, width: 2.3 });
+
+          // Glowing emerald heart-core vein along the spine
+          g.moveTo(-rPx * 0.65, 0)
+            .lineTo(rPx * 1.1, 0)
+            .stroke({ color: PALETTE.MINT_GREEN, width: 2.4, cap: 'round' });
+          g.circle(-rPx * 0.25, 0, rPx * 0.34).fill({ color: PALETTE.BUTTER_YELLOW });
+
+          g.setTransform(new PIXI.Matrix());
+        } else if (p.projectileKind === 'boss_magenta_petal') {
+          // Phase 2 Boss ('Frenzied Bloom'): Radiant Magenta Crystal Blossom Petal with Golden Core
+          const spin = angle + Math.sin(sim.elapsedSeconds * 10 + p.id) * 0.28;
+          const m = new PIXI.Matrix();
+          m.rotate(spin);
+          m.translate(px, py);
+          g.setTransform(m);
+
+          // Shimmering magenta-pink slipstream
+          g.ellipse(-rPx * 0.9, 0, rPx * 0.85, rPx * 0.38).fill({
+            color: 0xf472b6,
+            alpha: 0.42,
+          });
+
+          // Cloven Frenzied Bloom magenta petal silhouette
+          g.moveTo(-rPx * 1.25, 0)
+            .bezierCurveTo(-rPx * 0.55, -rPx * 1.15, rPx * 0.65, -rPx * 1.1, rPx * 1.55, -rPx * 0.35)
+            .lineTo(rPx * 1.05, 0)
+            .lineTo(rPx * 1.55, rPx * 0.35)
+            .bezierCurveTo(rPx * 0.65, rPx * 1.1, -rPx * 0.55, rPx * 1.15, -rPx * 1.25, 0)
+            .closePath()
+            .fill({ color: 0xec4899 })
+            .stroke({ color: PALETTE.INK_OUTLINE, width: 2.3 });
+
+          // Inner radiant crystal core
+          g.ellipse(0, 0, rPx * 0.72, rPx * 0.38).fill({ color: 0xfbcfe8, alpha: 0.92 });
+          g.circle(rPx * 0.2, 0, rPx * 0.28).fill({ color: PALETTE.BUTTER_YELLOW });
+
+          g.setTransform(new PIXI.Matrix());
+        } else if (p.projectileKind === 'boss_abyssal_razor') {
+          // Phase 3 Boss ('Apex Briar Overlord'): Whirling Crimson & Dark-Purple Thorny Crescent Razor
+          const spinAngle = angle + sim.elapsedSeconds * 15 + p.id;
+          const m = new PIXI.Matrix();
+          m.rotate(spinAngle);
+          m.translate(px, py);
+          g.setTransform(m);
+
+          const R = rPx * 1.45;
+          // Dark-purple abyssal outer crescent with jagged crimson briar spikes
+          g.moveTo(-R * 0.45, -R)
+            .quadraticCurveTo(R * 1.15, 0, -R * 0.45, R)
+            .quadraticCurveTo(R * 0.35, 0, -R * 0.45, -R)
+            .closePath()
+            .fill({ color: 0x581c87 })
+            .stroke({ color: PALETTE.INK_OUTLINE, width: 2.4 });
+
+          // Crimson thorn inner edge
+          g.moveTo(-R * 0.2, -R * 0.78)
+            .quadraticCurveTo(R * 0.82, 0, -R * 0.2, R * 0.78)
+            .stroke({ color: 0xf43f5e, width: 3.2, cap: 'round' });
+
+          // Intense yellow-gold overlord eye core
+          g.circle(R * 0.22, 0, rPx * 0.42)
+            .fill({ color: PALETTE.BUTTER_YELLOW })
+            .stroke({ color: 0xe11d48, width: 1.6 });
+
           g.setTransform(new PIXI.Matrix());
         } else {
           g.circle(px, py, rPx)
@@ -1052,10 +1189,80 @@ export class WeaponEffectsRenderer {
             .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
           g.circle(px, py, rPx * 0.45).fill({ color: PALETTE.CREAM_WHITE });
         }
+      } else if (p.projectileKind === 'arbalete_bolt') {
+        // High-Velocity Fletched Crossbow Bolt fired from the Briar Arbalete
+        const m = new PIXI.Matrix();
+        m.rotate(angle);
+        m.translate(px, py);
+        g.setTransform(m);
+
+        const boltLen = Math.max(18, rPx * 1.75);
+        const finW = Math.max(5.5, rPx * 0.65);
+
+        // High-speed slipstream wake lines behind bolt
+        g.moveTo(-boltLen * 1.35, -finW * 0.45)
+          .lineTo(-boltLen * 0.45, -finW * 0.45)
+          .moveTo(-boltLen * 1.35, finW * 0.45)
+          .lineTo(-boltLen * 0.45, finW * 0.45)
+          .stroke({ color: PALETTE.CREAM_WHITE, width: 1.6, alpha: 0.65, cap: 'round' });
+
+        // Fletched feather fins at rear of bolt
+        g.moveTo(-boltLen * 0.88, -finW)
+          .lineTo(-boltLen * 0.38, -1.8)
+          .lineTo(-boltLen * 0.38, 1.8)
+          .lineTo(-boltLen * 0.88, finW)
+          .lineTo(-boltLen * 0.68, 0)
+          .closePath()
+          .fill({ color: p.explodesOnExpire ? PALETTE.BUTTER_YELLOW : PALETTE.CREAM_WHITE })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
+
+        // Hardwood / Iron Bolt Shaft
+        g.roundRect(-boltLen * 0.65, -2.4, boltLen * 1.15, 4.8, 2)
+          .fill({ color: p.explodesOnExpire ? 0xbe123c : 0x8c5a3c })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.0 });
+
+        // Broad Barbed Crossbow Bolt Head
+        g.moveTo(boltLen * 0.95, 0)
+          .lineTo(boltLen * 0.22, -finW * 0.95)
+          .lineTo(boltLen * 0.38, 0)
+          .lineTo(boltLen * 0.22, finW * 0.95)
+          .closePath()
+          .fill({ color: p.color })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+
+        // Evolved Explosive Warhead Core at bolt tip
+        if (p.explodesOnExpire) {
+          g.circle(boltLen * 0.55, 0, 4.2)
+            .fill({ color: PALETTE.BUTTER_YELLOW })
+            .stroke({ color: 0xf43f5e, width: 1.8 });
+        }
+
+        g.setTransform(new PIXI.Matrix());
+      } else if (p.weaponTags.includes('slash')) {
+        // Piercing Slash crescent wave (with setTransform called BEFORE paths so nothing spawns at 0,0!)
+        const m = new PIXI.Matrix();
+        m.rotate(angle);
+        m.translate(px, py);
+        g.setTransform(m);
+
+        const cresR = Math.max(14, rPx * 1.35);
+        g.moveTo(-cresR * 0.35, -cresR)
+          .quadraticCurveTo(cresR * 0.95, 0, -cresR * 0.35, cresR)
+          .quadraticCurveTo(cresR * 0.35, 0, -cresR * 0.35, -cresR)
+          .closePath()
+          .fill({ color: p.color, alpha: 0.92 })
+          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.4 });
+
+        g.moveTo(-cresR * 0.12, -cresR * 0.68)
+          .quadraticCurveTo(cresR * 0.62, 0, -cresR * 0.12, cresR * 0.68)
+          .stroke({ color: PALETTE.CREAM_WHITE, width: 2.4, alpha: 0.95, cap: 'round' });
+
+        g.setTransform(new PIXI.Matrix());
       } else {
         const m = new PIXI.Matrix();
         m.rotate(angle);
         m.translate(px, py);
+        g.setTransform(m);
 
         // Winged botanical seed blade dagger matching Seeker Bestiary weapon art
         const bladeLen = rPx * 1.65;
@@ -1067,7 +1274,6 @@ export class WeaponEffectsRenderer {
           .lineTo(-bladeLen * 0.55, halfW * 0.95)
           .lineTo(-bladeLen * 0.85, 0)
           .closePath()
-          .setTransform(m)
           .fill({ color: PALETTE.BUTTER_YELLOW })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
 
@@ -1077,22 +1283,21 @@ export class WeaponEffectsRenderer {
           .lineTo(-bladeLen * 0.5, 0)
           .lineTo(-bladeLen * 0.15, halfW)
           .closePath()
-          .setTransform(m)
           .fill({ color: p.color })
           .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
 
         // Central fuller highlight
         g.moveTo(-bladeLen * 0.25, 0)
           .lineTo(bladeLen * 0.72, 0)
-          .setTransform(m)
           .stroke({ color: PALETTE.CREAM_WHITE, width: 1.6, alpha: 0.9, cap: 'round' });
 
         // Glowing green venom tip when Seed Blades Lv2+ poison is active
         const seedWpn = sim.weapons.find((w) => w.id === 'seed_blades');
         if (seedWpn && (seedWpn.level >= 2 || seedWpn.evolved)) {
-          g.circle(bladeLen * 0.75, 0, Math.max(2.2, rPx * 0.34))
-            .setTransform(m)
-            .fill({ color: 0x22c55e, alpha: 0.95 });
+          g.circle(bladeLen * 0.75, 0, Math.max(2.2, rPx * 0.34)).fill({
+            color: 0x22c55e,
+            alpha: 0.95,
+          });
         }
 
         g.setTransform(new PIXI.Matrix());
@@ -1173,12 +1378,12 @@ export class WeaponEffectsRenderer {
       const m = new PIXI.Matrix();
       m.rotate(la);
       m.translate(lx, ly);
+      g.setTransform(m);
       g.moveTo(0, 0)
         .lineTo(4.5, -2.5)
         .lineTo(8.5, 0)
         .lineTo(4.5, 2.5)
         .closePath()
-        .setTransform(m)
         .fill({ color: PALETTE.MINT_GREEN, alpha: 0.88 * fade })
         .stroke({ color: PALETTE.INK_OUTLINE, width: 1.2, alpha: 0.7 * fade });
     }
@@ -1315,6 +1520,106 @@ export class WeaponEffectsRenderer {
         .closePath()
         .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.92 * fade })
         .stroke({ color: PALETTE.SKY_BLUE, width: 1.8 * fade, alpha: 0.9 * fade });
+    }
+  }
+
+  /**
+   * Pretty Spore Pop Gas Cloud visual effect (replaces simple circle):
+   * Multi-layered billowing botanical spore puffs, curling emerald/chartreuse gas tendrils,
+   * and rising luminescent spore bubbles without any hard outer circle border.
+   */
+  private static drawSporePopGasCloud(
+    g: PIXI.Graphics,
+    cx: number,
+    cy: number,
+    baseR: number,
+    progress: number,
+    fade: number,
+    seedId: number,
+    elapsedSeconds: number
+  ): void {
+    const baseRot = (seedId * 1.73) % (Math.PI * 2);
+    const drift = elapsedSeconds * 1.4;
+
+    // 1. Billowing multi-lobed organic gas puffs (no outer circle!)
+    const puffCount = 7;
+    for (let i = 0; i < puffCount; i++) {
+      const a = baseRot + (i / puffCount) * Math.PI * 2 + Math.sin(drift + i) * 0.22;
+      const radialBreath = 0.42 + 0.18 * Math.sin(elapsedSeconds * 2.8 + i * 1.7) + progress * 0.18;
+      const dist = baseR * radialBreath;
+      const px = cx + Math.cos(a) * dist;
+      const py = cy + Math.sin(a) * (dist * 0.82) - progress * 5;
+      const puffRx = baseR * (0.46 + (i % 3) * 0.08) * (0.85 + 0.15 * fade);
+      const puffRy = puffRx * 0.78;
+      const puffColor = i % 3 === 0 ? 0x10b981 : i % 3 === 1 ? PALETTE.MINT_GREEN : 0x84cc16;
+
+      g.ellipse(px, py, puffRx, puffRy).fill({
+        color: puffColor,
+        alpha: 0.22 * fade,
+      });
+    }
+
+    // 2. Central dense toxic-mint core mist
+    for (let c = 0; c < 3; c++) {
+      const ca = -drift * 1.2 + (c * Math.PI * 2) / 3;
+      const cxOff = cx + Math.cos(ca) * (baseR * 0.22);
+      const cyOff = cy + Math.sin(ca) * (baseR * 0.18);
+      g.ellipse(cxOff, cyOff, baseR * 0.44, baseR * 0.34).fill({
+        color: c === 0 ? 0xa3e635 : PALETTE.MINT_GREEN,
+        alpha: 0.26 * fade,
+      });
+    }
+
+    // 3. Swirling S-curved noxious spore vapor tendrils curling through the cloud
+    const tendrilCount = 4;
+    for (let t = 0; t < tendrilCount; t++) {
+      const ta = baseRot + drift * 0.8 + (t * Math.PI) / 2;
+      const cosA = Math.cos(ta);
+      const sinA = Math.sin(ta);
+      const perpX = -sinA;
+      const perpY = cosA;
+      const rIn = baseR * 0.15;
+      const rOut = baseR * 0.82;
+      const wave = baseR * 0.28 * (t % 2 === 0 ? 1 : -1);
+
+      g.moveTo(cx + cosA * rIn, cy + sinA * rIn)
+        .bezierCurveTo(
+          cx + cosA * (baseR * 0.38) + perpX * wave,
+          cy + sinA * (baseR * 0.38) + perpY * wave,
+          cx + cosA * (baseR * 0.64) - perpX * wave * 0.7,
+          cy + sinA * (baseR * 0.64) - perpY * wave * 0.7,
+          cx + cosA * rOut,
+          cy + sinA * rOut
+        )
+        .stroke({
+          color: t % 2 === 0 ? PALETTE.MINT_GREEN : 0xd9f99d,
+          width: 3.0 * fade,
+          alpha: 0.55 * fade,
+          cap: 'round',
+        });
+    }
+
+    // 4. Floating luminescent spore bubbles & rising pollen motes
+    const bubbleCount = 6;
+    for (let b = 0; b < bubbleCount; b++) {
+      const bCycle = (elapsedSeconds * 1.6 + seedId * 0.31 + b / bubbleCount) % 1;
+      const bFade = Math.sin(bCycle * Math.PI) * fade;
+      const ba = baseRot + (b / bubbleCount) * Math.PI * 2 + bCycle * 0.6;
+      const br = baseR * (0.25 + (b % 3) * 0.22);
+      const bx = cx + Math.cos(ba) * br;
+      const by = cy + Math.sin(ba) * (br * 0.75) - bCycle * 14;
+      const bRad = (2.8 + (b % 2) * 1.6) * (0.7 + 0.3 * fade);
+
+      g.circle(bx, by, bRad)
+        .fill({
+          color: b % 2 === 0 ? 0xd9f99d : PALETTE.MINT_GREEN,
+          alpha: 0.85 * bFade,
+        })
+        .stroke({
+          color: 0x065f46,
+          width: 1.2,
+          alpha: 0.65 * bFade,
+        });
     }
   }
 }

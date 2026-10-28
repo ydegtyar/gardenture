@@ -1263,18 +1263,26 @@ test('Reworked Arcana Persona skins are ad-exclusive, cover all 4 professions wi
     assert.equal(p.stepEffectKind, exp.stepEffectKind);
     assert.equal(p.adPipsRequired, 3, 'Each Arcana Persona skin must require watching 3 ads');
     assert.equal(p.unlockCostSeeds, 0, 'Arcana Persona skins must only be unlockable via ads');
-    assert.notEqual(
-      p.eyeLeftColor,
-      p.eyeRightColor,
-      'Each Arcana Persona skin should have distinct heterochromia eye colors'
-    );
+    if (exp.id === 'stormcaller_gojo_killua') {
+      assert.equal(
+        p.eyeLeftColor,
+        p.eyeRightColor,
+        'Thander Rein should have matching eye colors'
+      );
+    } else {
+      assert.notEqual(
+        p.eyeLeftColor,
+        p.eyeRightColor,
+        'Other Arcana Persona skins should have distinct heterochromia eye colors'
+      );
+    }
     assert.equal(
       defaultSave.unlocks.personas.includes(exp.id),
       false,
       `${exp.id} must start locked as a shadow silhouette in default save data`
     );
 
-    // Verify moving with the skin equipped spawns disappearing step effects
+    // Verify moving with the skin equipped spawns disappearing step effects (except Thander Rein who levitates without step trails)
     const sim = new Simulation({
       seed: 4242,
       professionId: exp.professionId,
@@ -1285,23 +1293,31 @@ test('Reworked Arcana Persona skins are ad-exclusive, cover all 4 professions wi
       sim.tick();
     }
     const stepFx = sim.visualEffects.filter((fx) => fx.kind === exp.stepEffectKind);
-    assert.ok(
-      stepFx.length > 0,
-      `Moving with ${exp.id} should leave ${exp.stepEffectKind} footsteps behind the character`
-    );
+    if (exp.id === 'stormcaller_gojo_killua') {
+      assert.equal(
+        stepFx.length,
+        0,
+        'Thander Rein should NOT leave trailing ground step effects'
+      );
+    } else {
+      assert.ok(
+        stepFx.length > 0,
+        `Moving with ${exp.id} should leave ${exp.stepEffectKind} footsteps behind the character`
+      );
 
-    // Stop moving and advance ticks -> footsteps must disappear after their timer expires
-    sim.setMoveIntent(0, 0);
-    sim.heroVx = 0;
-    sim.heroVy = 0;
-    for (let t = 0; t < 60; t++) {
-      sim.tick();
+      // Stop moving and advance ticks -> footsteps must disappear after their timer expires
+      sim.setMoveIntent(0, 0);
+      sim.heroVx = 0;
+      sim.heroVy = 0;
+      for (let t = 0; t < 60; t++) {
+        sim.tick();
+      }
+      assert.equal(
+        sim.visualEffects.filter((fx) => fx.kind === exp.stepEffectKind).length,
+        0,
+        `${exp.stepEffectKind} footsteps must disappear after the character`
+      );
     }
-    assert.equal(
-      sim.visualEffects.filter((fx) => fx.kind === exp.stepEffectKind).length,
-      0,
-      `${exp.stepEffectKind} footsteps must disappear after the character`
-    );
   }
 });
 
@@ -1375,7 +1391,15 @@ test('Gameplay Polish: 0.5s silent invulnerability after card choice, single ini
   sim.requestUsePowerUp(0);
   sim.tick();
   assert.equal(sim.heldPowerUps.length, 0, 'Activating heal_potion consumes it from hero pockets');
-  assert.equal(sim.currentHp, hpBeforePotion + 20, 'Activating heal_potion from pocket should heal +20 HP');
+  assert.equal(
+    sim.currentHp,
+    hpBeforePotion + 5,
+    'Activating heal_potion from pocket should heal +5 HP on the first pulse (with 3 pulses remaining)'
+  );
+  assert.equal(sim.healPotionPulsesRemaining, 3, 'Should have 3 delayed +5 HP pulses remaining');
+  for (let i = 0; i < 50; i++) sim.tick();
+  assert.equal(sim.healPotionPulsesRemaining, 0, 'All 4 pulses of +5 HP should finish after ~0.75s');
+  assert.equal(sim.currentHp, hpBeforePotion + 20, 'Total healing after 4 pulses of +5 HP should be +20 HP');
 
   // 6. Thorn area slowly collapses from 28.0u at 0s toward 13.5u at 225s (FINAL_BOSS_SPAWN_SEC)
   assert.equal(Simulation.FINAL_BOSS_SPAWN_SEC, 225, 'Final Boss spawn time should be 225s (+30s)');
@@ -1422,15 +1446,18 @@ test('Gameplay Polish: 0.5s silent invulnerability after card choice, single ini
 });
 
 test('Quick Hands increases Petal Orbs spinning speed, Thander Rein persona rework, Final Boss +30s spawn time & reduced minion spawn rate', () => {
-  // 1. Thander Rein persona metadata check
+  // 1. Thander Rein persona metadata check (no Raiden or Thor mentions)
   const thander = PERSONAS.find((p) => p.id === 'stormcaller_gojo_killua');
   assert.ok(thander, 'stormcaller_gojo_killua persona should exist');
   assert.equal(thander.name, 'Thander Rein', 'Stormcaller persona should be named Thander Rein');
   assert.ok(
-    thander.popCultureMashup.includes('Raiden') && thander.popCultureMashup.includes('Thor'),
-    'Thander Rein should reference Raiden (Mortal Kombat) and Thor (Marvel)'
+    !thander.popCultureMashup.toLowerCase().includes('raiden') &&
+      !thander.popCultureMashup.toLowerCase().includes('thor') &&
+      !thander.permanentVfxDescription.toLowerCase().includes('raiden') &&
+      !thander.permanentVfxDescription.toLowerCase().includes('thor'),
+    'Thander Rein description must not mention Raiden or Thor Odinson'
   );
-  assert.equal(thander.cloakColor, 0xdc2626, 'Thander Rein should wear Thor crimson cloak');
+  assert.equal(thander.cloakColor, 0xdc2626, 'Thander Rein should wear crimson cloak');
 
   // 2. Quick Hands leveling increases Petal Orbs angular spin speed (bonusOrbitAngle)
   const simNoQuick = new Simulation({ seed: 1010, professionId: 'warden' });
@@ -1481,4 +1508,234 @@ test('Quick Hands increases Petal Orbs spinning speed, Thander Rein persona rewo
   );
 });
 
+test('Arbalete (replaces Thorn Spear) has increased default range, fires arbalete_bolt projectiles, explodes at end of flight when evolved, and Swift Boots grants passive dodge chance', () => {
+  // 1. Arbalete catalog & increased default range verification
+  const sim = new Simulation({ seed: 4040, professionId: 'warden' });
+  sim.weapons = [];
+  sim.enemies.length = 0;
 
+  sim.debugSetWeaponLevel('thorn_spear', 1, false);
+  const arbaleteWpn = sim.weapons.find((w) => w.id === 'thorn_spear');
+  assert.ok(arbaleteWpn, 'Arbalete weapon should be equipped');
+
+  // Spawn an enemy at 3.2u (outside old 2.9u range, inside new 3.6u default range)
+  const targetInNewRange = sim.spawnEnemy('brute', sim.heroX + 3.2, sim.heroY, false)!;
+  targetInNewRange.hp = 500;
+  targetInNewRange.maxHp = 500;
+
+  // Step ticks so Arbalete fires a bolt
+  let firedBolt = false;
+  for (let i = 0; i < 40; i++) {
+    targetInNewRange.x = sim.heroX + 3.2;
+    targetInNewRange.y = sim.heroY;
+    sim.tick();
+    if (sim.projectiles.some((p) => p.projectileKind === 'arbalete_bolt')) {
+      firedBolt = true;
+    }
+  }
+  assert.equal(firedBolt, true, 'Arbalete should fire an arbalete_bolt projectile');
+  assert.ok(
+    targetInNewRange.hp < 500,
+    'Arbalete bolt should hit enemy at 3.2u thanks to increased 3.6u default range'
+  );
+
+  // 2. Evolved Arbalete (Crimson Bramble Arbalete) bolt explodes at the end of its flight dealing extra AoE damage
+  sim.projectiles.length = 0;
+  sim.visualEffects.length = 0;
+  sim.enemies.length = 0;
+  sim.debugSetWeaponLevel('thorn_spear', 8, true);
+
+  // Spawn a target at the end of the bolt's flight path (off-axis by 0.9u so the bolt itself misses it, but the end-of-flight explosion hits it!)
+  const evolvedReach = (3.6 + 0.45 + 0.65) * sim.stats.reachMult;
+  const bystander = sim.spawnEnemy('brute', sim.heroX + evolvedReach, sim.heroY + 0.95, false)!;
+  bystander.hp = 600;
+  bystander.maxHp = 600;
+
+  // Fire evolved Arbalete along +X axis
+  sim.facingAngle = 0;
+  for (let i = 0; i < 65; i++) {
+    bystander.x = sim.heroX + evolvedReach;
+    bystander.y = sim.heroY + 0.95;
+    sim.tick();
+  }
+
+  assert.ok(
+    bystander.hp < 600,
+    `Evolved Arbalete bolt should explode at the end of its flight and deal AoE damage to nearby enemies (HP: ${bystander.hp}/600)`
+  );
+  assert.ok(
+    sim.visualEffects.some((fx) => fx.kind === 'ember_burst' || fx.kind === 'circle_blast'),
+    'Evolved Arbalete bolt explosion should spawn ember_burst / circle_blast visual effects'
+  );
+
+  // 3. Swift Boots passive dodge chance on level up
+  const simDodge = new Simulation({ seed: 5151, professionId: 'warden' });
+  assert.equal(simDodge.stats.dodgeChance, 0, 'Base dodge chance without Swift Boots should be 0');
+
+  simDodge.debugSetCardLevel('swift_boots', 5);
+  simDodge.cardPickInvisTimer = 0;
+  simDodge.invulnTimer = 0;
+  assert.ok(
+    Math.abs(simDodge.stats.dodgeChance - 0.3) < 1e-6,
+    `Swift Boots Lv 5 should grant 30% passive dodge chance (+6% per level), got ${simDodge.stats.dodgeChance}`
+  );
+
+  let dodgesTriggered = 0;
+  let hitsTaken = 0;
+  let lastFloatText = '';
+  simDodge.events.on('FloatingText', (ev) => {
+    lastFloatText = ev.text;
+  });
+  for (let i = 0; i < 60; i++) {
+    simDodge.currentHp = simDodge.maxHp;
+    simDodge.invulnTimer = 0;
+    simDodge.cardPickInvisTimer = 0;
+    lastFloatText = '';
+    (simDodge as any).damageHero(10);
+    if (simDodge.currentHp === simDodge.maxHp) {
+      dodgesTriggered++;
+      assert.equal(lastFloatText, 'DODGE!', 'Passive dodge should emit DODGE! FloatingText event');
+    } else {
+      hitsTaken++;
+    }
+  }
+  assert.ok(
+    dodgesTriggered >= 8 && hitsTaken >= 20,
+    `Expected Swift Boots Lv 5 (30% dodge) to dodge multiple attacks across 60 trials (dodged: ${dodgesTriggered}, hit: ${hitsTaken})`
+  );
+});
+
+test('Style meter faster level/rank decay & damage penalty, Iron Bark Lv2+ damage reflection, and 3-stage Final Boss telegraphed attacks & themed projectiles', () => {
+  // 1. Faster style meter decay with higher hero level, and heavier style loss on damage at high style ranks
+  const simLowLv = new Simulation({ seed: 6060, professionId: 'warden' });
+  simLowLv.level = 1;
+  simLowLv.rankIndex = 3; // Rank A (upThreshold = 110)
+  simLowLv.stylePoints = 60;
+  simLowLv.tick();
+  const pointsAfterLowLv = simLowLv.stylePoints;
+
+  const simHighLv = new Simulation({ seed: 6060, professionId: 'warden' });
+  simHighLv.level = 10;
+  simHighLv.rankIndex = 3; // Rank A (upThreshold = 110)
+  simHighLv.stylePoints = 60;
+  simHighLv.tick();
+  const pointsAfterHighLv = simHighLv.stylePoints;
+
+  assert.ok(
+    pointsAfterHighLv < pointsAfterLowLv,
+    `Higher hero level should make style meter fall faster (${pointsAfterHighLv} vs ${pointsAfterLowLv})`
+  );
+
+  // Damage penalty scales steeply with style rank
+  const simLowRankDmg = new Simulation({ seed: 6161, professionId: 'warden' });
+  simLowRankDmg.cardPickInvisTimer = 0;
+  simLowRankDmg.invulnTimer = 0;
+  simLowRankDmg.rankIndex = 1; // Rank C (upThreshold = 55)
+  simLowRankDmg.stylePoints = 50;
+  (simLowRankDmg as any).damageHero(8);
+  const dropAtRankC = 50 - simLowRankDmg.stylePoints;
+
+  const simHighRankDmg = new Simulation({ seed: 6161, professionId: 'warden' });
+  simHighRankDmg.cardPickInvisTimer = 0;
+  simHighRankDmg.invulnTimer = 0;
+  simHighRankDmg.rankIndex = 5; // Rank SS (upThreshold = 180)
+  simHighRankDmg.stylePoints = 150;
+  (simHighRankDmg as any).damageHero(8);
+  const dropAtRankSS = 150 - simHighRankDmg.stylePoints;
+
+  assert.ok(
+    dropAtRankSS > dropAtRankC * 2.5,
+    `Style meter should fall much more on damage at high style ranks (drop SS: ${dropAtRankSS} vs drop C: ${dropAtRankC})`
+  );
+
+  // 2. Iron Bark Lv 2+ returns blocked damage to attacking enemy
+  const simThorns = new Simulation({ seed: 7070, professionId: 'warden' });
+  simThorns.cardPickInvisTimer = 0;
+  simThorns.invulnTimer = 0;
+  const attacker = simThorns.spawnEnemy('brute', simThorns.heroX + 1.0, simThorns.heroY, false)!;
+  attacker.hp = 200;
+  attacker.maxHp = 200;
+
+  // At Iron Bark Lv 1, blocked damage is NOT reflected
+  simThorns.debugSetCardLevel('iron_bark', 1);
+  simThorns.cardPickInvisTimer = 0;
+  simThorns.invulnTimer = 0;
+  (simThorns as any).damageHero(10, attacker);
+  assert.equal(attacker.hp, 200, 'Iron Bark Lv 1 should not reflect blocked damage');
+
+  // At Iron Bark Lv 2+, blocked damage IS returned to attacking enemy
+  simThorns.debugSetCardLevel('iron_bark', 3); // +3 armor (+1 base warden armor = 4 armor)
+  simThorns.cardPickInvisTimer = 0;
+  simThorns.invulnTimer = 0;
+  (simThorns as any).damageHero(10, attacker);
+  assert.ok(
+    attacker.hp < 200,
+    `Iron Bark Lv 3 should return blocked damage to the attacking enemy (attacker HP: ${attacker.hp}/200)`
+  );
+
+  // 3. Final Boss 3 distinct stages, telegraphed attacks, and stage-themed projectiles
+  const simBoss = new Simulation({ seed: 8080, professionId: 'warden' });
+  simBoss.weapons = [];
+  simBoss.maxHp = 9999;
+  simBoss.currentHp = 9999;
+  const boss = simBoss.debugSpawnFinalBossArena()!;
+  assert.ok(boss, 'Final Boss should spawn');
+
+  // Stage 1: Primordial Thornheart -> boss_p1_vine_whip / boss_p1_root_slam & boss_vine_thorn projectiles
+  boss.bossPhase = 1;
+  boss.aiState = 'seek';
+  boss.aiTimer = 0;
+  simBoss.projectiles.length = 0;
+  let sawVineThorn = false;
+  for (let i = 0; i < 65; i++) {
+    simBoss.heroX = boss.x + 4.2;
+    simBoss.heroY = boss.y;
+    simBoss.tick();
+    if (simBoss.projectiles.some((p) => p.projectileKind === 'boss_vine_thorn')) {
+      sawVineThorn = true;
+    }
+  }
+  assert.equal(sawVineThorn, true, 'Stage 1 Final Boss should fire boss_vine_thorn projectiles after telegraph');
+
+  // Stage 2: Frenzied Bloom -> boss_p2_petal_spiral / boss_p2_bramble_charge & boss_magenta_petal projectiles
+  boss.hp = Math.floor(boss.maxHp * 0.55);
+  boss.aiState = 'seek';
+  boss.aiTimer = 0;
+  simBoss.projectiles.length = 0;
+  let sawMagentaPetal = false;
+  for (let i = 0; i < 95; i++) {
+    simBoss.heroX = boss.x + 4.2;
+    simBoss.heroY = boss.y;
+    simBoss.tick();
+    if (simBoss.projectiles.some((p) => p.projectileKind === 'boss_magenta_petal')) {
+      sawMagentaPetal = true;
+    }
+  }
+  assert.equal(boss.bossPhase, 2, 'Boss should transition to Stage 2 at 55% HP');
+  assert.equal(
+    sawMagentaPetal,
+    true,
+    'Stage 2 Final Boss should fire boss_magenta_petal projectiles after telegraph'
+  );
+
+  // Stage 3: Apex Briar Overlord -> boss_p3_crimson_cross / boss_p3_abyssal_nova & boss_abyssal_razor projectiles
+  boss.hp = Math.floor(boss.maxHp * 0.25);
+  boss.aiState = 'seek';
+  boss.aiTimer = 0;
+  simBoss.projectiles.length = 0;
+  let sawAbyssalRazor = false;
+  for (let i = 0; i < 65; i++) {
+    simBoss.heroX = boss.x + 4.2;
+    simBoss.heroY = boss.y;
+    simBoss.tick();
+    if (simBoss.projectiles.some((p) => p.projectileKind === 'boss_abyssal_razor')) {
+      sawAbyssalRazor = true;
+    }
+  }
+  assert.equal(boss.bossPhase, 3, 'Boss should transition to Stage 3 at 25% HP');
+  assert.equal(
+    sawAbyssalRazor,
+    true,
+    'Stage 3 Final Boss should fire boss_abyssal_razor projectiles after telegraph'
+  );
+});

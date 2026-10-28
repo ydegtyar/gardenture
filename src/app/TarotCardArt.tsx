@@ -19,7 +19,7 @@ const TAROT_METADATA: Readonly<Record<string, TarotMetadata>> = {
   sharper_edge: { numeral: 'I', arcanaTitle: 'THE WHETSTONE' },
   quick_hands: { numeral: 'II', arcanaTitle: 'THE SWIFT GLOVES' },
   wide_swing: { numeral: 'III', arcanaTitle: 'THE SOLAR CRESCENT' },
-  long_reach: { numeral: 'IV', arcanaTitle: 'THE VINE LANCE' },
+  long_reach: { numeral: 'IV', arcanaTitle: 'THE FAR SIGHTBOLT' },
   swift_boots: { numeral: 'V', arcanaTitle: 'THE WINGED HEELS' },
   hardy_bark: { numeral: 'VI', arcanaTitle: 'THE OAK AEGIS' },
   magnet_moss: { numeral: 'VII', arcanaTitle: 'THE LODESTONE' },
@@ -55,7 +55,7 @@ const TAROT_METADATA: Readonly<Record<string, TarotMetadata>> = {
 
   // 6 Weapons (3.1 - 3.7)
   garden_blade: { numeral: 'I', arcanaTitle: 'BLADE OF THE GROVE' },
-  thorn_spear: { numeral: 'II', arcanaTitle: 'SPEAR OF BRAMBLES' },
+  thorn_spear: { numeral: 'II', arcanaTitle: 'THE BRIAR ARBALETE' },
   bloom_hammer: { numeral: 'III', arcanaTitle: 'MAUL OF BLOSSOMS' },
   seed_blades: { numeral: 'IV', arcanaTitle: 'DAGGERS OF WIND' },
   petal_orbit: { numeral: 'V', arcanaTitle: 'RING OF PETALS' },
@@ -622,17 +622,58 @@ function renderCardSymbol(targetId: string, g: GradientIds): React.ReactNode {
         </g>
       );
 
-    // 4.4 Long Reach / 3.2 Thorn Spear: Piercing rose-thorn lance across the arch
-    case 'long_reach':
+    // 3.2 Arbalete (thorn_spear): Ornate botanical crossbow with curved rosewood limbs, taut gold bowstring & blazing briar bolt
     case 'thorn_spear':
       return (
-        <g stroke="#2D1E2F" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="38" y1="110" x2="124" y2="40" stroke={`url(#${g.emerald})`} strokeWidth="7.5" />
-          <polygon points="146,22 110,36 126,56" fill={`url(#${g.rose})`} />
-          <polygon points="140,27 118,37 125,47" fill={`url(#${g.parchment})`} stroke="none" opacity="0.65" />
-          <polygon points="72,82 58,68 80,71" fill={`url(#${g.mint})`} />
-          <polygon points="96,62 112,73 105,53" fill={`url(#${g.mint})`} />
-          <circle cx="52" cy="98" r="5" fill={`url(#${g.gold})`} />
+        <g stroke="#2D1E2F" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <g transform="translate(90, 68) rotate(-32)">
+            {/* Taut golden bowstring */}
+            <polyline
+              points="-6,-32 -22,0 -6,32"
+              fill="none"
+              stroke={`url(#${g.gold})`}
+              strokeWidth="2.4"
+            />
+            {/* Carved heartwood crossbow stock / tiller */}
+            <rect x="-34" y="-5" width="52" height="10" rx="4" fill={`url(#${g.bark})`} />
+            <line x1="-28" y1="0" x2="14" y2="0" stroke="#FFFDF0" strokeWidth="1.5" opacity="0.7" />
+            <circle cx="-34" cy="0" r="5" fill={`url(#${g.gold})`} />
+            {/* Curved botanical Arbalete prod limbs (top & bottom) */}
+            <path
+              d="M 10,-4 Q 20,-22 -6,-34 Q 8,-18 2,-4 Z"
+              fill={`url(#${g.rose})`}
+            />
+            <path
+              d="M 10,4 Q 20,22 -6,34 Q 8,18 2,4 Z"
+              fill={`url(#${g.rose})`}
+            />
+            {/* Gilded stirrup nose collar */}
+            <rect x="6" y="-7.5" width="9" height="15" rx="3" fill={`url(#${g.gold})`} />
+            {/* Loaded fletched briar bolt & barbed crimson broadhead */}
+            <polygon points="-24,-5 -15,0 -24,5 -20,0" fill={`url(#${g.mint})`} />
+            <line x1="-20" y1="0" x2="28" y2="0" stroke={`url(#${g.parchment})`} strokeWidth="3.2" />
+            <polygon points="44,0 24,-9 28,0 24,9" fill={`url(#${g.crimson})`} />
+            <circle cx="32" cy="0" r="3" fill="#FFFDF0" stroke="none" />
+          </g>
+        </g>
+      );
+
+    // 4.4 Long Reach: Extended-range Arbalete bolt & golden sightline ring
+    case 'long_reach':
+      return (
+        <g stroke="#2D1E2F" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          {/* Far-range golden sight reticle */}
+          <circle cx="122" cy="40" r="16" fill="none" stroke={`url(#${g.gold})`} strokeWidth="2.2" strokeDasharray="4 3" />
+          <circle cx="122" cy="40" r="6" fill={`url(#${g.rose})`} opacity="0.5" stroke="none" />
+          {/* Slipstream wind arcs */}
+          <path d="M 42,92 Q 70,68 98,58" fill="none" stroke={`url(#${g.cyan})`} strokeWidth="2.4" opacity="0.75" />
+          {/* High-velocity fletched crossbow bolt streaking across the arch */}
+          <line x1="38" y1="106" x2="120" y2="42" stroke={`url(#${g.bark})`} strokeWidth="6" />
+          <line x1="42" y1="103" x2="118" y2="44" stroke="#FFFDF0" strokeWidth="1.8" opacity="0.75" />
+          <polygon points="36,108 46,92 52,98" fill={`url(#${g.mint})`} />
+          <polygon points="36,108 54,102 48,96" fill={`url(#${g.emerald})`} />
+          <polygon points="142,24 112,35 120,42 125,52" fill={`url(#${g.crimson})`} />
+          <circle cx="122" cy="40" r="3.5" fill={`url(#${g.gold})`} />
         </g>
       );
 

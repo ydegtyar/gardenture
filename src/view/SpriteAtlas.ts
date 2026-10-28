@@ -59,7 +59,7 @@ export const CATALOG_SPRITE_PROMPTS: Readonly<Record<SpriteKey, string>> = {
   skin_herbalist_frieren_strange:
     'Pop-culture mashup character skin for Herbalist: Frieren (Beyond Journey’s End) × Doctor Strange × Edward Elric (Fullmetal Alchemist). Silver-white Frieren twin-tails and pointed elf ears, heterochromia teal-and-gold alchemist eyes, Doctor Strange crimson Cloak of Levitation with golden arcane collar, glowing emerald Eye of Agamotto amulet, gleaming silver Automail right arm holding a crescent eclipse staff, leaving disappearing Eldritch Transmutation runes.',
   skin_stormcaller_gojo_killua:
-    'Pop-culture mashup character skin for Stormcaller (Thander Rein): Raiden (Mortal Kombat) × Thor Odinson (Marvel). Iconic wide conical woven bamboo/straw hat, flowing crimson-red Asgardian cloak with twin silver Mjolnir chest discs, dark blue thunder-god armor and white sash, levitating flight stance, and blazing cyan-white lightning eyes that leave electric light trails on movement.',
+    'Pop-culture mashup character skin for Stormcaller (Thander Rein): Elder Thunder-God × Crimson Storm Sovereign. Iconic wide conical woven bamboo/straw hat, flowing crimson-red tempest cloak with twin silver thunder chest discs, dark blue thunder-god armor and white sash, levitating flight stance, and blazing cyan-white lightning eyes that leave electric light trails on movement.',
   enemy_chaser_norm:
     'Stylized 2D cartoon enemy sprite, top-down 3/4 mobile game perspective, skittering vine beast with four thorny branch legs, a snapping bulb maw with rose-thorn teeth, glowing yellow cartoon eyes, bold dark plum outlines, pastel olive and sage cel-shading, isolated on pure white background.',
   enemy_chaser_elite:

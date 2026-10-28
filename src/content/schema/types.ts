@@ -121,6 +121,7 @@ export interface CardDef {
     xpGainAdd?: number;
     enemySpeedAdd?: number;
     damageTakenMult?: number;
+    dodgeChanceAdd?: number;
   };
 }
 

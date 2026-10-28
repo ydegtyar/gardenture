@@ -25,6 +25,7 @@ export interface ComputedHeroStats {
   enemySpeedMult: number;
   damageTakenMult: number;
   extraDashCharges: number;
+  dodgeChance: number;
 }
 
 /**
@@ -57,6 +58,7 @@ export function computeHeroStats(
   let enemySpeedAdd = 0;
   let damageTakenMult = 1.0;
   let extraDashCharges = 0;
+  let dodgeChanceAdd = 0;
 
   for (const card of CARDS) {
     const level = ownedCards[card.id] ?? 0;
@@ -84,6 +86,7 @@ export function computeHeroStats(
     if (b.xpGainAdd) xpGainAdd += b.xpGainAdd * level;
     if (b.enemySpeedAdd) enemySpeedAdd += b.enemySpeedAdd * level;
     if (b.damageTakenMult) damageTakenMult *= 1 + b.damageTakenMult * level;
+    if (b.dodgeChanceAdd) dodgeChanceAdd += b.dodgeChanceAdd * level;
   }
 
   // Apply Trinkets
@@ -130,6 +133,7 @@ export function computeHeroStats(
     enemySpeedMult: Math.max(0.5, 1 + enemySpeedAdd),
     damageTakenMult,
     extraDashCharges,
+    dodgeChance: clamp(dodgeChanceAdd, 0, 0.65),
   };
 }
 

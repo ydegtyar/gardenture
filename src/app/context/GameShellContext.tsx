@@ -290,9 +290,15 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       dashCharges: sim.dashCharges,
       maxDashCharges: sim.maxDashCharges,
       dashReadyRatio:
-        sim.dashCharges > 0
+        sim.dashCharges >= sim.maxDashCharges
           ? 1
-          : 1 - sim.dashCooldownTimer / Math.max(0.5, sim.stats.dashCooldown),
+          : Math.max(
+              0,
+              Math.min(
+                1,
+                1 - sim.dashCooldownTimer / Math.max(0.2, sim.stats.dashCooldown)
+              )
+            ),
       isDashInvisible: sim.dashIframeTimer > 0 || sim.dashTimer > 0,
       heldPowerUps: [...sim.heldPowerUps],
       weapons: sim.weapons.map((w) => ({ id: w.id, level: w.level, evolved: w.evolved })),
