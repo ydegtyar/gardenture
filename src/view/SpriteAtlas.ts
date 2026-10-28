@@ -53,7 +53,7 @@ export const CATALOG_SPRITE_PROMPTS: Readonly<Record<SpriteKey, string>> = {
   hero_stormcaller:
     'Stylized 2D cartoon lightning druid character sprite, top-down 3/4 mobile game view, floating ethereal pose, flowing sky-blue and lilac robes, glowing pastel electric runes on hands, leafy circlet sparking with tiny cartoon lightning sparks, bold dark outlines, vibrant high-contrast cel-shaded vector art, isolated on pure white background.',
   skin_warden_zagreus_naruto:
-    'Pop-culture mashup character skin for Warden: Zagreus (Hades) × Naruto Uzumaki (Six Paths Sage Mode). Heterochromia eyes (left blazing Stygian blood-red, right verdant laurel-green with golden Toad-Sage pigment), spiky golden-and-crimson hair, Konoha metal headband entwined with Zagreus golden laurel wreath, three whisker marks on each cheek, chthonic skull pauldron over glowing Six-Paths orange chakra haori coat, leaving disappearing Hellfire footsteps.',
+    'Arcana character skin for Warden (Losti Seige): Ashen Cinder-Warden of the Sunken Bastion. Dual-soul heterochromia eyes (left blazing crimson ember, right ancient jade), spiky flame-tipped hair with a forged iron-and-gold bastion circlet, charred obsidian chest armor under an ember-woven orange mantle, leaving compact smoldering cinder footprints.',
   skin_seeker_hollow_levi:
     'Pop-culture mashup character skin for Seeker: Pure Vessel / The Knight (Hollow Knight) × Levi Ackerman (Attack on Titan). Curved porcelain-white Hollow Knight horned shell mask with crimson Vizard war-stripes, one abyssal void eye and one blazing cyan Ackerman eye, emerald Survey Corps Wings of Freedom cloak over tattered midnight Mothwing coat, dual Pure-Nail Ultrahard Steel blades, leaving disappearing Void-Shade & ODM steam steps.',
   skin_herbalist_frieren_strange:
@@ -297,14 +297,21 @@ function drawLeafShape(
 
 function drawEliteCrownAndAura(ctx: CanvasRenderingContext2D): void {
   ctx.save();
-  // Luminous golden/magenta outer aura ring
-  ctx.beginPath();
-  ctx.arc(128, 134, 96, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(251, 191, 36, 0.55)';
-  ctx.lineWidth = 8;
-  ctx.setLineDash([14, 10]);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // Radiant golden/magenta lines & rhombus sigil above the head (NO circles or dashed circles around the enemy!)
+  for (const [x1, y1, x2, y2] of [
+    [82, 26, 108, 20],
+    [174, 26, 148, 20],
+    [96, 14, 114, 12],
+    [160, 14, 142, 12],
+  ] as const) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#FBBF24';
+    ctx.stroke();
+  }
 
   // Floating pastel magenta runic horn crowns above head (Section 6.7)
   for (const dir of [-1, 1]) {
@@ -320,15 +327,15 @@ function drawEliteCrownAndAura(ctx: CanvasRenderingContext2D): void {
     ctx.restore();
   }
 
-  // Center floating golden diamond sigil
+  // Center floating golden diamond / rhombus sigil
   ctx.beginPath();
-  ctx.moveTo(128, 12);
-  ctx.lineTo(138, 26);
+  ctx.moveTo(128, 10);
+  ctx.lineTo(139, 25);
   ctx.lineTo(128, 40);
-  ctx.lineTo(118, 26);
+  ctx.lineTo(117, 25);
   ctx.closePath();
   fillAndStroke(ctx, '#FDFFB6', 4.5, PLUM);
-  drawStarGlint(ctx, 128, 26, 7);
+  drawStarGlint(ctx, 128, 25, 7);
   ctx.restore();
 }
 
@@ -955,28 +962,29 @@ function paintSkinWardenZagreusNaruto(
   ctx: CanvasRenderingContext2D,
   includeStaticLegs = true
 ): void {
-  // Warden Skin: Zagreus (Hades) × Naruto Uzumaki (Six Paths Sage Mode)
-  // Blazing Hellfire steps, Six-Paths Truth-Seeking Orbs, Chthonic Skull Pauldron,
-  // Konoha Laurel Headband, Whisker Marks, and Heterochromia Eyes (Left Red #F43F5E, Right Green #22C55E).
+  // Warden Skin: Losti Seige — Ashen Ember-Warden of the Fallen Bastion
+  // Ashen-Gold Mantle, Obsidian Chiton, Crimson Bastion Sash, Chthonic Skull Pauldron,
+  // Laurel Circlet, and Heterochromia Eyes (Left Red #F43F5E, Right Green #22C55E).
+  // No spinning orbs! Smaller ember step ellipses fitted to hero boots.
   if (includeStaticLegs) {
-    // Blazing Stygian-Chakra Flame Footsteps under boots
+    // Compact Cinder-Ember Footsteps fitted directly under the hero's boots
     for (const dx of [-24, 24]) {
       ctx.beginPath();
-      ctx.ellipse(128 + dx, 206, 22, 9, 0, 0, Math.PI * 2);
-      fillAndStroke(ctx, '#F97316', 4, '#F43F5E');
+      ctx.ellipse(128 + dx, 206, 11, 4.5, 0, 0, Math.PI * 2);
+      fillAndStroke(ctx, '#F97316', 3, '#F43F5E');
       ctx.beginPath();
-      ctx.ellipse(128 + dx, 206, 13, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(128 + dx, 206, 6.5, 2.5, 0, 0, Math.PI * 2);
       ctx.fillStyle = '#FDFFB6';
       ctx.fill();
 
-      // Shinobi-Stygian greaves
+      // Bastion-Obsidian greaves
       ctx.beginPath();
       ctx.roundRect(128 + dx - 13, 182, 26, 24, 10);
       fillAndStroke(ctx, '#1E1B2E', 6);
     }
   }
 
-  // Flowing Six-Paths Golden-Orange Chakra Haori Coat tails
+  // Flowing Ashen-Gold Bastion Mantle Coat tails
   ctx.beginPath();
   ctx.moveTo(68, 192);
   ctx.quadraticCurveTo(62, 132, 88, 106);
@@ -988,7 +996,7 @@ function paintSkinWardenZagreusNaruto(
   ctx.closePath();
   fillAndStroke(ctx, '#FB923C', 7.5);
 
-  // Inner Stygian Obsidian Chiton + Blood-Crimson Underworld Sash (Zagreus)
+  // Inner Obsidian Chiton + Blood-Crimson Bastion Sash
   ctx.beginPath();
   ctx.roundRect(94, 114, 68, 66, 12);
   fillAndStroke(ctx, '#1E1B2E', 6.5);
@@ -1001,7 +1009,7 @@ function paintSkinWardenZagreusNaruto(
   ctx.closePath();
   fillAndStroke(ctx, '#E11D48', 5.5);
 
-  // Six-Paths Black Magatama Tomoe markings across chest/collar
+  // Bastion Ember-Crest studs across chest collar
   for (const mx of [110, 128, 146]) {
     ctx.beginPath();
     ctx.arc(mx, 128, 4.5, 0, Math.PI * 2);
@@ -1013,13 +1021,13 @@ function paintSkinWardenZagreusNaruto(
     ctx.fill();
   }
 
-  // Golden Hades Skull Belt Buckle
+  // Golden Bastion Crest Belt Buckle
   ctx.beginPath();
   ctx.roundRect(84, 160, 88, 13, 6);
   fillAndStroke(ctx, '#27272A', 5.5);
   drawCelCircle(ctx, 128, 166, 11, '#FBBF24', '#D97706', '#FFFDF0', 4.5);
 
-  // Left Shoulder: Zagreus Chthonic Skull Pauldron with blazing red eye sockets
+  // Left Shoulder: Chthonic Skull Pauldron with blazing crimson eye sockets
   drawCelCircle(ctx, 86, 122, 22, '#E2E8F0', '#94A3B8', '#FFFDF0', 6);
   ctx.fillStyle = '#F43F5E';
   ctx.beginPath();
@@ -1027,20 +1035,11 @@ function paintSkinWardenZagreusNaruto(
   ctx.arc(92, 122, 4, 0, Math.PI * 2);
   ctx.fill();
 
-  // Right Shoulder: Swirling Kurama Chakra Flame Pauldron
+  // Right Shoulder: Swirling Solar-Ember Flame Pauldron
   drawLeafShape(ctx, 168, 122, -0.35, 52, 22, '#F97316', '#FDFFB6', 6);
   drawLeafShape(ctx, 166, 112, 0.15, 42, 16, '#FDFFB6', '#FFFDF0', 5);
 
-  // Orbiting Six-Paths Truth-Seeking Orbs (Black spheres with golden chakra halo)
-  for (const [ox, oy] of [
-    [54, 96],
-    [202, 96],
-    [60, 148],
-  ] as const) {
-    drawCelCircle(ctx, ox, oy, 10, '#18181B', '#09090B', '#FBBF24', 4, '#F97316');
-  }
-
-  // Static Portrait Weapon: Stygius × Kurama Chakra Great-Blade
+  // Static Portrait Weapon: Cinder-Forged Great-Blade (No orbiting orbs!)
   if (includeStaticLegs) {
     ctx.save();
     ctx.translate(192, 138);
@@ -1053,7 +1052,7 @@ function paintSkinWardenZagreusNaruto(
     ctx.restore();
   }
 
-  // Spiky Naruto Golden-Yellow & Zagreus Flame-Crimson Hair Crown
+  // Spiky Ashen-Gold & Flame-Crimson Hair Crown
   const hairSpikes: ReadonlyArray<readonly [number, number, number, string]> = [
     [92, 68, -2.4, '#1E1B2E'],
     [104, 52, -1.9, '#FACC15'],
@@ -1069,23 +1068,20 @@ function paintSkinWardenZagreusNaruto(
   // Head & Face
   drawCelCircle(ctx, 128, 90, 35, '#FFD3B6', '#F3B692', '#FFFDF0', 6.5);
 
-  // Naruto's 3 Iconic Whisker Marks on both cheeks
-  ctx.lineWidth = 3.2;
+  // Subtle Siege-Scar Cheek Accent Marks
+  ctx.lineWidth = 3.0;
   ctx.strokeStyle = PLUM;
   ctx.lineCap = 'round';
-  for (let w = 0; w < 3; w++) {
-    const wy = 95 + w * 5.5;
-    ctx.beginPath();
-    ctx.moveTo(96, wy - 1);
-    ctx.lineTo(107, wy);
-    ctx.moveTo(149, wy);
-    ctx.lineTo(160, wy - 1);
-    ctx.stroke();
-  }
+  ctx.beginPath();
+  ctx.moveTo(98, 98);
+  ctx.lineTo(106, 99);
+  ctx.moveTo(150, 99);
+  ctx.lineTo(158, 98);
+  ctx.stroke();
 
-  // HETEROCHROMIA EYES (Zagreus × Naruto Sage Mode):
-  // Left Eye (113, 90): Blazing Stygian Blood-Red (#F43F5E)
-  // Right Eye (143, 90): Verdant Laurel-Green (#22C55E) with Golden Toad-Sage pigment (#FBBF24)
+  // HETEROCHROMIA EYES (Losti Seige):
+  // Left Eye (113, 90): Blazing Crimson (#F43F5E)
+  // Right Eye (143, 90): Verdant Laurel-Emerald (#22C55E) with Golden-Amber glow (#FBBF24)
   ctx.beginPath();
   ctx.arc(113, 90, 10.5, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(244, 63, 94, 0.35)';
@@ -1098,14 +1094,17 @@ function paintSkinWardenZagreusNaruto(
   drawCuteEye(ctx, 113, 90, 7.5, '#F43F5E', 0.22);
   drawCuteEye(ctx, 143, 90, 7.5, '#22C55E', -0.22);
 
-  // Konoha Forehead Protector Headband + Zagreus Golden-Emerald Laurel Wreath
+  // Iron Bastion Brow Circlet + Burning Golden-Emerald Laurel Wreath
   ctx.beginPath();
-  ctx.roundRect(92, 62, 72, 15, 6);
+  ctx.roundRect(92, 62, 72, 14, 6);
   fillAndStroke(ctx, '#334155', 5.5);
   ctx.beginPath();
-  ctx.roundRect(108, 64, 40, 11, 4);
-  fillAndStroke(ctx, '#CBD5E1', 4);
-  // Zagreus Burning Laurel Leaves flanking headband
+  ctx.moveTo(128, 59);
+  ctx.lineTo(135, 69);
+  ctx.lineTo(128, 76);
+  ctx.lineTo(121, 69);
+  ctx.closePath();
+  fillAndStroke(ctx, '#FBBF24', 3.5);
   drawLeafShape(ctx, 94, 68, -Math.PI * 0.78, 30, 11, '#FBBF24', '#FFFDF0', 4.5);
   drawLeafShape(ctx, 162, 68, -Math.PI * 0.22, 30, 11, '#22C55E', '#FDFFB6', 4.5);
 

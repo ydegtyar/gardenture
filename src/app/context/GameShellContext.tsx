@@ -13,6 +13,7 @@ import {
   PERSONAS,
   PROFESSIONS,
   STYLE_RANKS,
+  TRINKETS,
 } from '../../content/data/catalog';
 import type { BiomeId, PowerUpId, ProfessionId } from '../../content/schema/types';
 import { Simulation } from '../../sim/Simulation';
@@ -109,6 +110,8 @@ export interface GameShellContextValue {
   trailingHpRatio: number;
   rankAura: RankAuraState | null;
   freeRerollAvailable: boolean;
+  freeRerollsRemaining: number;
+  maxFreeRerolls: number;
   canAdReroll: boolean;
   adRerollsRemaining: number;
   coinRerollsRemaining: number;
@@ -140,6 +143,7 @@ export interface GameShellContextValue {
   handleSelectLoadout: (partial: Partial<SaveDataV1['loadout']>) => void;
   handleUnlockProfession: (profId: ProfessionId, cost: number) => void;
   handleUnlockTrinket: (trinketId: string, cost: number) => void;
+  handleUpgradeTrinket: (trinketId: string) => void;
   handleUnlockCurse: (curseId: string, cost: number) => void;
   handleWatchPersonaPipAd: (personaId: string) => Promise<void>;
   handleWatchSanctuaryRewardAd: () => Promise<void>;
@@ -306,6 +310,20 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       activeAlert: alertBanner !== undefined ? alertBanner : prev.activeAlert,
       isOutsideArena: sim.isOutsideArena,
     }));
+    const shouldShowDraft =
+      sim.pendingCardOffers.length > 0 && sim.isHeroSafeForCardDraft();
+    setDraftOffers((prev) => {
+      if (!shouldShowDraft) {
+        return prev.length === 0 ? prev : [];
+      }
+      if (
+        prev.length === sim.pendingCardOffers.length &&
+        prev.every((item, idx) => item.offerId === sim.pendingCardOffers[idx]?.offerId)
+      ) {
+        return prev;
+      }
+      return [...sim.pendingCardOffers];
+    });
   }, []);
   const syncHudFromSimRef = useRef(syncHudFromSim);
   syncHudFromSimRef.current = syncHudFromSim;
@@ -402,8 +420,12 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
       sim.events.on('LevelUp', () => {
         audioRef.current.playLevelUpOrRankUp(false);
-        inputRef.current.clearAllIntents();
-        setDraftOffers([...sim.pendingCardOffers]);
+        if (sim.isHeroSafeForCardDraft()) {
+          inputRef.current.clearAllIntents();
+          setDraftOffers([...sim.pendingCardOffers]);
+        } else {
+          setDraftOffers([]);
+        }
         syncHudFromSim(sim);
         const sd = saveDataRef.current;
         sd.activeRun = sim.serializeCheckpoint();
@@ -431,14 +453,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         syncHudFromSim(sim);
       });
 
-      sim.events.on('SpecialMonsterSpawned', (ev) => {
-        syncHudFromSim(sim, `Special Target Sighted: ${ev.name}!`);
-        setTimeout(() => {
-          setHud((prev) =>
-            prev.activeAlert?.includes(ev.name) ? { ...prev, activeAlert: null } : prev
-          );
-        }, 4000);
-      });
+      // SpecialMonsterSpawned HUD announcement intentionally removed per user request
 
       sim.events.on('BossSpawned', (ev) => {
         audioRef.current.playLevelUpOrRankUp(true);
@@ -458,6 +473,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       sim.events.on('LethalHitIntercepted', (ev) => {
         if (ev.reason === 'rescue_offer') {
           inputRef.current.clearAllIntents();
+          setIsAdLoading(false);
           setAwaitingRevive(true);
           syncHudFromSim(sim);
         }
@@ -562,6 +578,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         professionId: sd.loadout.professionId,
         startingWeaponId: sd.loadout.startingWeaponId,
         equippedTrinkets: sd.loadout.trinketIds,
+        trinketLevels: sd.unlocks.trinketLevels,
         activeCurses: sd.loadout.curseIds,
         unlockedWeapons: sd.unlocks.weapons,
       });
@@ -594,6 +611,9 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       }
 
       simRef.current = sim;
+      if (typeof window !== 'undefined') {
+        (window as unknown as Record<string, unknown>).__BLOSSOM_SIM__ = sim;
+      }
       clockRef.current.reset();
       inputRef.current.clearAllIntents();
       exitToTitleAfterEndRunRef.current = false;
@@ -633,6 +653,39 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
     const initialSim = createFreshSimulation(saveDataRef.current);
     simRef.current = initialSim;
+    if (typeof window !== 'undefined') {
+      const win = window as unknown as Record<string, unknown>;
+      win.__BLOSSOM_SIM__ = initialSim;
+      win.render_game_to_text = () => {
+        const s = simRef.current;
+        if (!s) return JSON.stringify({ state: shellStateRef.current });
+        return JSON.stringify({
+          state: shellStateRef.current,
+          hp: Math.round(s.currentHp),
+          maxHp: Math.round(s.maxHp),
+          score: s.score,
+          kills: s.killsCount,
+          elapsedSeconds: Number(s.elapsedSeconds.toFixed(2)),
+          victory: s.victory,
+          runEnded: s.runEnded,
+          bossDeathTimer: Number(s.bossDeathTimer.toFixed(2)),
+          victorySequenceTimer: Number(s.victorySequenceTimer.toFixed(2)),
+          deathSequenceTimer: Number(s.deathSequenceTimer.toFixed(2)),
+          enemiesCount: s.enemies.length,
+          projectilesCount: s.projectiles.length,
+          powerUpDropsCount: s.powerUpDrops.length,
+        });
+      };
+      win.advanceTime = (ms: number) => {
+        const s = simRef.current;
+        if (!s) return;
+        const steps = Math.max(1, Math.round(ms / (1000 / 60)));
+        for (let i = 0; i < steps; i++) {
+          s.tick();
+        }
+        syncHudFromSim(s);
+      };
+    }
 
     let animFrameId = 0;
     let lastTimeMs = performance.now();
@@ -725,46 +778,50 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       const sim = simRef.current;
       const state = shellStateRef.current;
 
-      if (sim) {
-        if (state === 'playing' && !debugMenuOpenRef.current) {
-          const moveVec = inputRef.current.getMoveVector();
-          sim.setMoveIntent(moveVec.x, moveVec.y);
+      try {
+        if (sim) {
+          if (state === 'playing' && !debugMenuOpenRef.current) {
+            const moveVec = inputRef.current.getMoveVector();
+            sim.setMoveIntent(moveVec.x, moveVec.y);
 
-          const { ticksToRun, alpha } = clockRef.current.advance(rawDtMs);
-          for (let i = 0; i < ticksToRun; i++) {
-            sim.tick();
+            const { ticksToRun, alpha } = clockRef.current.advance(rawDtMs);
+            for (let i = 0; i < ticksToRun; i++) {
+              sim.tick();
+            }
+
+            renderer.renderFrame({
+              sim,
+              alpha,
+              dtSec,
+              joystick: inputRef.current.getJoystickVisualState(),
+              resumeCountdownRatio: clockRef.current.getResumeCountdownRatio(),
+              isTitleMode: false,
+            });
+
+            hudSyncCounter++;
+            if (hudSyncCounter % 4 === 0) {
+              syncHudFromSim(sim);
+            }
+          } else {
+            renderer.renderFrame({
+              sim,
+              alpha: 0,
+              dtSec,
+              joystick: {
+                active: false,
+                anchorX: 0,
+                anchorY: 0,
+                knobX: 0,
+                knobY: 0,
+                maxRadiusPx: 56,
+              },
+              resumeCountdownRatio: 0,
+              isTitleMode: state === 'title',
+            });
           }
-
-          renderer.renderFrame({
-            sim,
-            alpha,
-            dtSec,
-            joystick: inputRef.current.getJoystickVisualState(),
-            resumeCountdownRatio: clockRef.current.getResumeCountdownRatio(),
-            isTitleMode: false,
-          });
-
-          hudSyncCounter++;
-          if (hudSyncCounter % 4 === 0) {
-            syncHudFromSim(sim);
-          }
-        } else {
-          renderer.renderFrame({
-            sim,
-            alpha: 0,
-            dtSec,
-            joystick: {
-              active: false,
-              anchorX: 0,
-              anchorY: 0,
-              knobX: 0,
-              knobY: 0,
-              maxRadiusPx: 56,
-            },
-            resumeCountdownRatio: 0,
-            isTitleMode: state === 'title',
-          });
         }
+      } catch (err) {
+        console.error('Game loop frame error:', err);
       }
 
       animFrameId = requestAnimationFrame(loop);
@@ -993,7 +1050,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     setIsAdLoading(false);
     if (earned) {
       saveManagerRef.current.recordAdWatched();
-      sim.applyPlayerRevive();
+      sim.applyPlayerRevive({ isAdRevive: true });
       setAwaitingRevive(false);
       clockRef.current.startResumeCountdown(1.0);
       syncHudFromSim(sim);
@@ -1006,6 +1063,8 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     const sim = simRef.current;
     const sd = saveDataRef.current;
     if (!sim || sd.currencies.coins < 150) return;
+    setIsAdLoading(false);
+    audioRef.current.setAdPlaying(false);
     sd.currencies.coins -= 150;
     setSaveData({ ...sd });
     sim.applyPlayerRevive();
@@ -1017,6 +1076,8 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   }, [syncHudFromSim]);
 
   const handleDeclineRevive = useCallback(() => {
+    setIsAdLoading(false);
+    audioRef.current.setAdPlaying(false);
     setAwaitingRevive(false);
     clockRef.current.reset();
     simRef.current?.declineReviveAndEndRun();
@@ -1095,6 +1156,44 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       sd.currencies.coins -= cost;
       if (!sd.unlocks.trinkets.includes(trinketId)) {
         sd.unlocks.trinkets.push(trinketId);
+      }
+      sd.unlocks.trinketLevels = {
+        ...sd.unlocks.trinketLevels,
+        [trinketId]: Math.max(1, sd.unlocks.trinketLevels?.[trinketId] ?? 1),
+      };
+      setSaveData({ ...sd });
+      void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
+    },
+    [refreshYtDiagnostics]
+  );
+
+  const handleUpgradeTrinket = useCallback(
+    (trinketId: string) => {
+      const sd = saveDataRef.current;
+      if (!sd.unlocks.trinkets.includes(trinketId)) return;
+      const tDef = TRINKETS.find((t) => t.id === trinketId);
+      if (!tDef) return;
+      const currentLv = Math.max(1, Math.min(3, Math.floor(sd.unlocks.trinketLevels?.[trinketId] ?? 1)));
+      if (currentLv >= 3) return;
+
+      if (currentLv === 1) {
+        // Level 2 upgrade costs Coins
+        const coinCost = tDef.upgradeCostCoinsLv2;
+        if (sd.currencies.coins < coinCost) return;
+        sd.currencies.coins -= coinCost;
+        sd.unlocks.trinketLevels = {
+          ...sd.unlocks.trinketLevels,
+          [trinketId]: 2,
+        };
+      } else if (currentLv === 2) {
+        // Level 3 upgrade costs Seeds (gems) instead of Coins
+        const seedCost = tDef.upgradeCostSeedsLv3;
+        if (sd.currencies.gems < seedCost) return;
+        sd.currencies.gems -= seedCost;
+        sd.unlocks.trinketLevels = {
+          ...sd.unlocks.trinketLevels,
+          [trinketId]: 3,
+        };
       }
       setSaveData({ ...sd });
       void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
@@ -1423,6 +1522,8 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   }, [refreshYtDiagnostics]);
 
   const freeRerollAvailable = Boolean(simRef.current && !simRef.current.freeRerollUsed);
+  const freeRerollsRemaining = simRef.current ? simRef.current.freeRerollsRemaining : 0;
+  const maxFreeRerolls = simRef.current ? simRef.current.maxFreeRerolls : 0;
   const adRerollsRemaining = simRef.current
     ? Math.max(0, Simulation.MAX_AD_REROLLS - simRef.current.adRerollsUsed)
     : Simulation.MAX_AD_REROLLS;
@@ -1454,6 +1555,8 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     trailingHpRatio,
     rankAura,
     freeRerollAvailable,
+    freeRerollsRemaining,
+    maxFreeRerolls,
     canAdReroll,
     adRerollsRemaining,
     coinRerollsRemaining,
@@ -1479,6 +1582,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     handleSelectLoadout,
     handleUnlockProfession,
     handleUnlockTrinket,
+    handleUpgradeTrinket,
     handleUnlockCurse,
     handleWatchPersonaPipAd,
     handleWatchSanctuaryRewardAd,

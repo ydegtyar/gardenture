@@ -642,6 +642,47 @@ export class WeaponEffectsRenderer {
         WeaponEffectsRenderer.drawDashStrikeBurst(g, fx, progress, fade);
       } else if (fx.kind === 'aegis_burst') {
         WeaponEffectsRenderer.drawAegisActivationBurst(g, fx, progress, fade);
+      } else if (fx.kind === 'crit_starfall') {
+        WeaponEffectsRenderer.drawCritStarfall(g, fx, progress, fade);
+      } else if (fx.kind === 'brute_slam_flash') {
+        const cx = fx.x * PPU;
+        const cy = fx.y * PPU;
+        const maxR = fx.radius * PPU;
+        const easeOut = 1 - Math.pow(1 - progress, 2.4);
+        const r = maxR * (0.42 + 0.58 * easeOut);
+        const initialFlash = clamp(1 - progress / 0.38, 0, 1);
+
+        // Final flash core burst on attack impact
+        if (initialFlash > 0) {
+          g.circle(cx, cy, maxR * (0.65 + 0.35 * (1 - initialFlash)))
+            .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.72 * initialFlash })
+            .stroke({ color: PALETTE.BUTTER_YELLOW, width: 5 * initialFlash, alpha: 0.95 * initialFlash });
+        }
+
+        // Expanding seismic impact ring
+        g.circle(cx, cy, r)
+          .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.24 * fade })
+          .stroke({ color: PALETTE.BUTTER_YELLOW, width: 4.5 * fade, alpha: 0.92 * fade });
+        g.circle(cx, cy, r * 0.76).stroke({
+          color: PALETTE.CRIMSON_WARN,
+          width: 2.8 * fade,
+          alpha: 0.85 * fade,
+        });
+
+        // 8 radial impact flash spikes
+        for (let i = 0; i < 8; i++) {
+          const a = fx.angle + (i * Math.PI) / 4;
+          const rIn = r * 0.35;
+          const rOut = r * 1.12;
+          g.moveTo(cx + Math.cos(a) * rIn, cy + Math.sin(a) * rIn)
+            .lineTo(cx + Math.cos(a) * rOut, cy + Math.sin(a) * rOut)
+            .stroke({
+              color: i % 2 === 0 ? PALETTE.CREAM_WHITE : PALETTE.BUTTER_YELLOW,
+              width: 3.2 * fade,
+              alpha: 0.9 * fade,
+              cap: 'round',
+            });
+        }
       } else if (fx.kind === 'circle_blast') {
         const cx = fx.x * PPU;
         const cy = fx.y * PPU;
@@ -852,8 +893,137 @@ export class WeaponEffectsRenderer {
   }
 
   /**
-   * Renders a Lucky Clover footstep decal behind the hero.
-   * No yellow rounds on max clover level!
+   * Renders a Celestial Starfall effect when Crit Burst procs!
+   * Falling golden-arcane shooting stars streak diagonally from the heavens and burst into
+   * radiant 4-point star flares and constellation shards across the AoE.
+   */
+  public static drawCritStarfall(
+    g: PIXI.Graphics,
+    fx: SimVisualEffect,
+    progress: number,
+    fade: number
+  ): void {
+    const cx = fx.x * PPU;
+    const cy = fx.y * PPU;
+    const maxR = fx.radius * PPU;
+    const lv = clamp(Math.round(fx.arcRad), 1, 3);
+    const starCount = 3 + lv;
+
+    const drawFourPointStar = (
+      sx: number,
+      sy: number,
+      outerR: number,
+      innerR: number,
+      rot: number,
+      col: number,
+      alphaVal: number
+    ) => {
+      for (let i = 0; i < 8; i++) {
+        const a = rot + (i * Math.PI) / 4;
+        const r = i % 2 === 0 ? outerR : innerR;
+        const px = sx + Math.cos(a) * r;
+        const py = sy + Math.sin(a) * r;
+        if (i === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.closePath()
+        .fill({ color: col, alpha: alphaVal })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 * fade, alpha: alphaVal * 0.85 });
+    };
+
+    // 1. Falling Shooting Stars streaking down from the sky in staggered cascade
+    for (let s = 0; s < starCount; s++) {
+      const stagger = s * (0.38 / starCount);
+      const localT = clamp((progress - stagger) / (1 - stagger * 0.7), 0, 1);
+      if (localT <= 0) continue;
+
+      const seedAngle = fx.angle + (s / starCount) * Math.PI * 2 + fx.id * 0.7;
+      const offsetDist = s === 0 ? 0 : maxR * (0.32 + (s % 2) * 0.26);
+      const landX = cx + Math.cos(seedAngle) * offsetDist;
+      const landY = cy + Math.sin(seedAngle) * (offsetDist * 0.75);
+
+      const fallPhase = clamp(localT / 0.52, 0, 1);
+      const impactPhase = clamp((localT - 0.45) / 0.55, 0, 1);
+
+      if (fallPhase < 1) {
+        const skyStartX = landX + 52;
+        const skyStartY = landY - 145;
+        const headX = lerp(skyStartX, landX, fallPhase);
+        const headY = lerp(skyStartY, landY, fallPhase);
+        const tailFrac = Math.max(0, fallPhase - 0.35);
+        const tailX = lerp(skyStartX, landX, tailFrac);
+        const tailY = lerp(skyStartY, landY, tailFrac);
+
+        // Luminous shooting-star comet tail
+        g.moveTo(tailX, tailY)
+          .lineTo(headX, headY)
+          .stroke({
+            color: s % 2 === 0 ? PALETTE.GOLD_STAR : PALETTE.SKY_BLUE,
+            width: 6.5,
+            alpha: 0.65 * (1 - fallPhase * 0.2),
+            cap: 'round',
+          });
+        g.moveTo(tailX, tailY)
+          .lineTo(headX, headY)
+          .stroke({
+            color: PALETTE.CREAM_WHITE,
+            width: 2.6,
+            alpha: 0.95,
+            cap: 'round',
+          });
+
+        // Falling 4-point star head
+        drawFourPointStar(
+          headX,
+          headY,
+          10.5,
+          3.6,
+          fallPhase * 4.5 + s,
+          PALETTE.BUTTER_YELLOW,
+          0.98
+        );
+      }
+
+      // 2. Ground Starburst Impact when each shooting star strikes
+      if (impactPhase > 0) {
+        const impFade = 1 - impactPhase;
+        const burstR = (s === 0 ? maxR * 0.68 : maxR * 0.42) * (0.35 + 0.65 * impactPhase);
+
+        // Starburst cross rays at impact site
+        for (let ray = 0; ray < 4; ray++) {
+          const ra = (ray * Math.PI) / 4 + s * 0.4;
+          g.moveTo(landX - Math.cos(ra) * burstR, landY - Math.sin(ra) * burstR)
+            .lineTo(landX + Math.cos(ra) * burstR, landY + Math.sin(ra) * burstR)
+            .stroke({
+              color: ray % 2 === 0 ? PALETTE.GOLD_STAR : PALETTE.CREAM_WHITE,
+              width: (s === 0 ? 3.2 : 2.2) * impFade,
+              alpha: 0.9 * impFade,
+              cap: 'round',
+            });
+        }
+
+        drawFourPointStar(
+          landX,
+          landY,
+          (s === 0 ? 13 : 9) * impFade,
+          (s === 0 ? 4.2 : 3.0) * impFade,
+          impactPhase * 2.2 + s,
+          s % 2 === 0 ? PALETTE.GOLD_STAR : PALETTE.BUTTER_YELLOW,
+          0.92 * impFade
+        );
+      }
+    }
+  }
+
+  /**
+   * Renders a delicate, smaller Lucky Clover footstep decal behind the hero,
+   * with reimagined multi-tier botanical effects for higher levels (Lv 1–5):
+   * - Decreased base clover size with authentic notched heart-shaped clover leaflets
+   * - Lv 1: Dainty 3-leaf shamrock with curved stem
+   * - Lv 2: Crisp 4-leaf lucky clover with pale mint midrib veins
+   * - Lv 3: Twin-sprout cluster (primary 4-leaf clover + miniature companion sprout & emerald dewdrop)
+   * - Lv 4: Trio-sprout botanical cluster + rising emerald-mint luck motes
+   * - Lv 5: Sovereign Royal Clover cluster with delicate emerald-jade leaf filigree and rising 4-point star glints
    */
   public static drawLuckyCloverStep(
     decalGraphic: PIXI.Graphics,
@@ -865,48 +1035,130 @@ export class WeaponEffectsRenderer {
     const cx = fx.x * PPU;
     const cy = fx.y * PPU;
 
-    const popScale = progress < 0.18 ? progress / 0.18 : 1 - (progress - 0.18) * 0.25;
+    const popScale = progress < 0.16 ? progress / 0.16 : 1 - (progress - 0.16) * 0.22;
     const baseR = fx.radius * PPU * popScale;
-    const baseAlpha = (0.24 + lv * 0.13) * fade;
+    const baseAlpha = clamp((0.42 + lv * 0.09) * fade, 0.08, 0.92);
 
-    const leafCount = lv >= 2 ? 4 : 3;
-    const leafDist = baseR * 0.52;
-    const leafR = baseR * 0.46;
-
-    for (let i = 0; i < leafCount; i++) {
-      const a = fx.angle + (i / leafCount) * Math.PI * 2;
-      const lx = cx + Math.cos(a) * leafDist;
-      const ly = cy + Math.sin(a) * leafDist;
-
+    const drawSingleClover = (
+      ox: number,
+      oy: number,
+      cloverR: number,
+      rotAngle: number,
+      leaves: number,
+      withVeins: boolean
+    ) => {
+      // Curved botanical stem first so leaves sit cleanly on top
+      const stemAngle = rotAngle + Math.PI * 0.72;
+      const stemLen = cloverR * 1.15;
       decalGraphic
-        .circle(lx, ly, leafR)
-        .fill({
-          color: i % 2 === 0 ? PALETTE.MINT_GREEN : 0x10b981,
-          alpha: baseAlpha,
-        })
+        .moveTo(ox, oy)
+        .quadraticCurveTo(
+          ox + Math.cos(stemAngle - 0.3) * (stemLen * 0.55),
+          oy + Math.sin(stemAngle - 0.3) * (stemLen * 0.55),
+          ox + Math.cos(stemAngle) * stemLen,
+          oy + Math.sin(stemAngle) * stemLen
+        )
         .stroke({
-          color: PALETTE.INK_OUTLINE,
-          width: lv >= 3 ? 1.8 : 1.2,
-          alpha: baseAlpha * 0.85,
+          color: 0x047857,
+          width: Math.max(1.2, cloverR * 0.22),
+          alpha: baseAlpha,
+          cap: 'round',
         });
+
+      // Heart-cleft clover leaflets (formed by two angled lobes per leaflet)
+      const leafDist = cloverR * 0.56;
+      const lobeR = cloverR * 0.34;
+      for (let i = 0; i < leaves; i++) {
+        const a = rotAngle + (i / leaves) * Math.PI * 2;
+        const lx = ox + Math.cos(a) * leafDist;
+        const ly = oy + Math.sin(a) * leafDist;
+        const perpX = -Math.sin(a);
+        const perpY = Math.cos(a);
+        const lobeSpread = cloverR * 0.16;
+        const leafCol = i % 2 === 0 ? PALETTE.MINT_GREEN : 0x10b981;
+
+        for (const side of [-1, 1] as const) {
+          decalGraphic
+            .circle(lx + perpX * lobeSpread * side, ly + perpY * lobeSpread * side, lobeR)
+            .fill({ color: leafCol, alpha: baseAlpha })
+            .stroke({
+              color: PALETTE.INK_OUTLINE,
+              width: 1.1,
+              alpha: baseAlpha * 0.82,
+            });
+        }
+
+        if (withVeins) {
+          decalGraphic
+            .moveTo(ox + Math.cos(a) * (cloverR * 0.12), oy + Math.sin(a) * (cloverR * 0.12))
+            .lineTo(lx + Math.cos(a) * (cloverR * 0.14), ly + Math.sin(a) * (cloverR * 0.14))
+            .stroke({
+              color: 0xd1fae5,
+              width: 1.0,
+              alpha: baseAlpha * 0.9,
+              cap: 'round',
+            });
+        }
+      }
+    };
+
+    // Primary compact clover
+    drawSingleClover(cx, cy, baseR, fx.angle, lv >= 2 ? 4 : 3, lv >= 2);
+
+    // Lv 3+: Companion miniature clover sprouts beside the main step
+    if (lv >= 3) {
+      const subAngle1 = fx.angle + 2.15;
+      const subDist1 = baseR * 1.38;
+      drawSingleClover(
+        cx + Math.cos(subAngle1) * subDist1,
+        cy + Math.sin(subAngle1) * subDist1,
+        baseR * 0.62,
+        fx.angle - 0.6,
+        3,
+        lv >= 4
+      );
+    }
+    if (lv >= 4) {
+      const subAngle2 = fx.angle - 1.95;
+      const subDist2 = baseR * 1.28;
+      drawSingleClover(
+        cx + Math.cos(subAngle2) * subDist2,
+        cy + Math.sin(subAngle2) * subDist2,
+        baseR * 0.54,
+        fx.angle + 0.85,
+        4,
+        true
+      );
     }
 
-    // Tiny green clover stem (no yellow center round or yellow ground halo!)
-    const stemAngle = fx.angle + Math.PI * 0.75;
-    decalGraphic
-      .moveTo(cx, cy)
-      .lineTo(cx + Math.cos(stemAngle) * (baseR * 0.85), cy + Math.sin(stemAngle) * (baseR * 0.85))
-      .stroke({
-        color: 0x059669,
-        width: 2.0,
-        alpha: baseAlpha,
-        cap: 'round',
-      });
+    // Lv 3+: Tiny rising emerald-mint luck sparkles & star glints that drift upward and vanish
+    if (lv >= 3) {
+      const sparkleCount = lv - 1;
+      for (let s = 0; s < sparkleCount; s++) {
+        const sa = fx.id * 1.37 + (s * Math.PI * 2) / sparkleCount;
+        const sx = cx + Math.cos(sa) * (baseR * (0.65 + (s % 2) * 0.45));
+        const sy = cy + Math.sin(sa) * (baseR * 0.4) - progress * (10 + s * 4.5);
+        const spSize = (2.2 + (lv >= 5 ? 1.1 : 0.4)) * fade;
+
+        // Crisp 4-point mint-emerald star glint
+        decalGraphic
+          .moveTo(sx - spSize, sy)
+          .lineTo(sx + spSize, sy)
+          .moveTo(sx, sy - spSize)
+          .lineTo(sx, sy + spSize)
+          .stroke({
+            color: s % 2 === 0 ? 0xa7f3d0 : PALETTE.MINT_GREEN,
+            width: 1.4,
+            alpha: baseAlpha * 0.95,
+            cap: 'round',
+          });
+      }
+    }
   }
 
   /**
-   * Renders disappearing pop-culture Arcana Persona footsteps behind the character:
-   * - zagreus_fire_step: Stygian Hellfire & Six-Paths Chakra burning footprint + rising ember flames
+   * Renders disappearing Arcana Persona footsteps behind the character:
+   * - zagreus_fire_step: Losti Seige compact cinder-ember footprint fitted to the hero's feet
    * - void_soul_step: Hollow Knight Void puddle + Survey Corps ODM steam vortex
    * - alchemy_rune_step: Doctor Strange Eldritch Mandala + Fullmetal Alchemical Transmutation rune
    * - godspeed_lightning_step: Gojo Infinity spatial ripple + Killua Godspeed bio-lightning arcs
@@ -925,37 +1177,37 @@ export class WeaponEffectsRenderer {
     const r = Math.max(2, baseR * scale);
 
     if (fx.kind === 'zagreus_fire_step') {
-      // Stygian Hellfire & Six-Paths Sage Chakra burning footprint on the ground
+      // Losti Seige: Smaller, boot-fitted cinder-ember footprint ellipse
       const m = new PIXI.Matrix();
       m.rotate(fx.angle);
       m.translate(cx, cy);
       decalGraphic.setTransform(m);
 
-      // Scorched Stygian ember sole print
+      // Compact boot-sole ember print
       decalGraphic
-        .ellipse(0, 0, r * 0.92, r * 0.54)
+        .ellipse(0, 0, r * 0.65, r * 0.34)
         .fill({ color: 0xf43f5e, alpha: 0.78 * fade })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 * fade, alpha: 0.8 * fade });
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.4 * fade, alpha: 0.8 * fade });
 
-      // Inner Six-Paths golden-orange chakra core
+      // Inner warm ember-gold core
       decalGraphic
-        .ellipse(r * 0.12, 0, r * 0.58, r * 0.32)
+        .ellipse(r * 0.08, 0, r * 0.4, r * 0.2)
         .fill({ color: 0xf97316, alpha: 0.9 * fade });
       decalGraphic
-        .ellipse(r * 0.2, 0, r * 0.32, r * 0.18)
+        .ellipse(r * 0.14, 0, r * 0.22, r * 0.11)
         .fill({ color: 0xfbbf24, alpha: 0.95 * fade });
 
       decalGraphic.setTransform(new PIXI.Matrix());
 
-      // Rising Hellfire tongues & chakra sparks that drift up and disappear
-      for (let i = 0; i < 3; i++) {
-        const seedA = fx.id * 1.3 + i * 2.1;
-        const fxX = cx + Math.cos(seedA) * (r * 0.45);
-        const fxY = cy + Math.sin(seedA) * (r * 0.25) - progress * (18 + i * 6);
-        const flameR = (4.2 - i * 0.7) * fade;
+      // Delicate rising cinder sparks
+      for (let i = 0; i < 2; i++) {
+        const seedA = fx.id * 1.3 + i * 2.4;
+        const fxX = cx + Math.cos(seedA) * (r * 0.32);
+        const fxY = cy + Math.sin(seedA) * (r * 0.18) - progress * (12 + i * 5);
+        const flameR = (2.6 - i * 0.5) * fade;
         fxGraphic
           .circle(fxX, fxY, flameR)
-          .fill({ color: i === 0 ? 0xf43f5e : i === 1 ? 0xf97316 : 0xfbbf24, alpha: 0.88 * fade });
+          .fill({ color: i === 0 ? 0xf43f5e : 0xfbbf24, alpha: 0.85 * fade });
       }
     } else if (fx.kind === 'void_soul_step') {
       // Abyssal Void-Shade puddle + ODM pressurized steam ring

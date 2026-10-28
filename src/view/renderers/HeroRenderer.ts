@@ -39,13 +39,17 @@ export class HeroRenderer {
     const prof = PROFESSIONS[sim.professionId] ?? PROFESSIONS.warden!;
     const speed = Math.hypot(sim.heroVx, sim.heroVy);
     const isMoving = speed > 0.25;
-    const walkPhase = sim.elapsedSeconds * 14;
+    const animTime =
+      sim.elapsedSeconds +
+      (sim.victorySequenceTimer > 0 ? 1.95 - sim.victorySequenceTimer : 0) +
+      (sim.deathSequenceTimer > 0 ? 1.65 - sim.deathSequenceTimer : 0);
+    const walkPhase = animTime * 14;
     const isLevitatingThunderGod = sim.personaId === 'stormcaller_gojo_killua';
     const bobY = isLevitatingThunderGod
-      ? Math.sin(sim.elapsedSeconds * 4.2) * 3.8 - 6.0
+      ? Math.sin(animTime * 4.2) * 3.8 - 6.0
       : isMoving
         ? Math.abs(Math.sin(walkPhase)) * -4.0
-        : Math.sin(sim.elapsedSeconds * 3.5) * -1.5;
+        : Math.sin(animTime * 3.5) * -1.5;
 
     // Victory sequence: Hero sprouts white Angel Wings and flies skyward ONLY after Final Boss death animation finishes!
     const isWinningAscension = sim.victorySequenceTimer > 0 && sim.bossDeathTimer <= 0;
@@ -53,7 +57,7 @@ export class HeroRenderer {
       ? clamp(1 - sim.victorySequenceTimer / 1.1, 0, 1)
       : 0;
     const flyHeightOffset = isWinningAscension
-      ? -Math.pow(winProgress, 1.35) * 92 - Math.sin(sim.elapsedSeconds * 10) * 5
+      ? -Math.pow(winProgress, 1.35) * 92 - Math.sin(animTime * 10) * 5
       : 0;
 
     // Death sequence: Hero collapses and leaves a stone grave before fading to Game Over
@@ -67,7 +71,7 @@ export class HeroRenderer {
     const currentAlpha = isDyingSequence
       ? clamp(1 - deathProgress * 0.85, 0.15, 1)
       : isDashInvisible
-        ? 0.42 + 0.18 * Math.sin(sim.elapsedSeconds * 45)
+        ? 0.42 + 0.18 * Math.sin(animTime * 45)
         : 1.0;
 
     gUnder.alpha = currentAlpha;
@@ -82,7 +86,7 @@ export class HeroRenderer {
 
     if (isWinningAscension) {
       // Golden ascension light pillar & floating white angel feathers
-      const beamAlpha = 0.22 + 0.12 * Math.sin(sim.elapsedSeconds * 8);
+      const beamAlpha = 0.22 + 0.12 * Math.sin(animTime * 8);
       gUnder.ellipse(hx, hy + 10, 28, 13).fill({
         color: PALETTE.BUTTER_YELLOW,
         alpha: beamAlpha + 0.12,
@@ -92,8 +96,8 @@ export class HeroRenderer {
         alpha: beamAlpha * 0.55,
       });
       for (let f = 0; f < 6; f++) {
-        const fPhase = (sim.elapsedSeconds * 1.8 + f * 0.19) % 1;
-        const fx = hx + Math.sin(f * 2.1 + sim.elapsedSeconds * 3) * 26;
+        const fPhase = (animTime * 1.8 + f * 0.19) % 1;
+        const fx = hx + Math.sin(f * 2.1 + animTime * 3) * 26;
         const fy = hy + flyHeightOffset + 24 - fPhase * 52;
         gUnder
           .ellipse(fx, fy, 4.5, 2.0)
@@ -106,7 +110,7 @@ export class HeroRenderer {
       // Soul wisps rising as the hero collapses and leaves their grave
       for (let w = 0; w < 5; w++) {
         const wPhase = (deathProgress * 1.4 + w * 0.2) % 1;
-        const wx = hx + Math.sin(w * 1.7 + sim.elapsedSeconds * 5) * 16;
+        const wx = hx + Math.sin(w * 1.7 + animTime * 5) * 16;
         const wy = hy - wPhase * 42;
         gOver.circle(wx, wy, 3.5 * (1 - wPhase * 0.5)).fill({
           color: PALETTE.MINT_GREEN,
@@ -122,7 +126,7 @@ export class HeroRenderer {
         gOver,
         hx,
         hy + flyHeightOffset,
-        sim.elapsedSeconds,
+        animTime,
         sim.shieldHp
       );
     }
@@ -130,14 +134,14 @@ export class HeroRenderer {
     // Ember Guard ("fire_breath") active flame barrier ring & orbiting fireballs
     if (sim.fireBreathTimer > 0) {
       const egRadiusPx = 2.1 * sim.stats.areaMult * PPU;
-      const pulse = 0.85 + 0.15 * Math.sin(sim.elapsedSeconds * 16);
+      const pulse = 0.85 + 0.15 * Math.sin(animTime * 16);
       gUnder
         .circle(hx, hy + flyHeightOffset, egRadiusPx * pulse)
         .fill({ color: 0xfb923c, alpha: 0.09 })
         .stroke({ color: 0xfb923c, width: 3, alpha: 0.68 });
       const orbCount = 4;
       for (let i = 0; i < orbCount; i++) {
-        const a = sim.elapsedSeconds * 5.2 + (i / orbCount) * Math.PI * 2;
+        const a = animTime * 5.2 + (i / orbCount) * Math.PI * 2;
         const ox = hx + Math.cos(a) * egRadiusPx;
         const oy = hy + flyHeightOffset + Math.sin(a) * egRadiusPx;
         const tailA = a - 0.28;
@@ -203,7 +207,7 @@ export class HeroRenderer {
 
     // Draw articulated White Angel Wings behind the hero during Victory sequence!
     if (isWinningAscension) {
-      HeroRenderer.drawHeroAngelWings(gUnder, hx, cy, sim.elapsedSeconds, winProgress);
+      HeroRenderer.drawHeroAngelWings(gUnder, hx, cy, animTime, winProgress);
     }
 
     // Update the Hero PIXI.Sprite from Bestiary / Persona Skin SpriteAtlas
@@ -295,7 +299,7 @@ export class HeroRenderer {
           isAttacking ? gOver : gUnder,
           hx,
           cy,
-          displayFacingAngle,
+          isAttacking ? spearWpn.lockedAngle : displayFacingAngle,
           spearWpn,
           sim.elapsedSeconds,
           !isAttacking,
@@ -338,26 +342,7 @@ export class HeroRenderer {
     }
 
     if (personaId === 'warden_zagreus_naruto') {
-      // Stygian Hellfire underfoot ring + Six-Paths Truth-Seeking Orbs
-      const flamePulse = 0.88 + 0.14 * Math.sin(elapsedSeconds * 14);
-      gUnder
-        .ellipse(hx, groundY + 11, 19 * flamePulse, 9.5 * flamePulse)
-        .fill({ color: 0xf43f5e, alpha: 0.24 })
-        .stroke({ color: 0xf97316, width: 2.2, alpha: 0.78 });
-
-      // 3 Orbiting Six-Paths Truth-Seeking Orbs behind the shoulders
-      for (let i = 0; i < 3; i++) {
-        const a = elapsedSeconds * 2.8 + (i * Math.PI * 2) / 3;
-        const ox = hx + Math.cos(a) * 21;
-        const oy = cy - 6 + Math.sin(a) * 11;
-        gUnder
-          .circle(ox, oy, 4.6)
-          .fill({ color: 0xfbbf24, alpha: 0.42 });
-        gUnder
-          .circle(ox, oy, 3.1)
-          .fill({ color: 0x0f172a, alpha: 0.96 })
-          .stroke({ color: 0xf97316, width: 1.4, alpha: 0.9 });
-      }
+      // Losti Seige: Uses the classic dark ground shadow under the hero (no pulsing circle, no spinning orbs)
     } else if (personaId === 'seeker_hollow_levi') {
       // Abyssal Void-Shade ring + ODM steam wisps
       gUnder
@@ -794,7 +779,7 @@ export class HeroRenderer {
       : (def?.color ?? PALETTE.BLUSH_ROSE);
 
     let localAngleOffset = 0;
-    let recoilOffset = 12;
+    let recoilOffset = 15.5;
     let stringPullX = 2; // relative to stockRear
     let showLoadedBolt = true;
 
@@ -804,39 +789,49 @@ export class HeroRenderer {
       stringPullX = 2;
       showLoadedBolt = true;
     } else if (spearWpn.phase === 'windup') {
-      const t = clamp(1 - spearWpn.phaseTimer / 0.06, 0, 1);
-      localAngleOffset = lerp(0.18, 0.0, t);
-      recoilOffset = lerp(12, 9.5, t);
-      stringPullX = lerp(2, -1.5, t);
+      const t = clamp(1 - spearWpn.phaseTimer / 0.14, 0, 1);
+      localAngleOffset = 0;
+      recoilOffset = lerp(11.0, 15.5, t);
+      stringPullX = lerp(4, -2.0, t);
       showLoadedBolt = true;
     } else if (spearWpn.phase === 'active') {
-      const t = clamp(1 - spearWpn.phaseTimer / 0.08, 0, 1);
+      const t = clamp(1 - spearWpn.phaseTimer / 0.22, 0, 1);
       const easeOut = 1 - Math.pow(1 - t, 3);
       localAngleOffset = 0;
-      // Sharp crossbow recoil kickback on release, then settling forward
-      recoilOffset = t < 0.35 ? lerp(9.5, 5.0, t / 0.35) : lerp(5.0, 10.5, easeOut);
+      // Sharp crossbow recoil kickback in front of the hero on release, then settling forward
+      recoilOffset = t < 0.35 ? lerp(15.5, 9.0, t / 0.35) : lerp(9.0, 15.0, easeOut);
       // Bowstring snaps all the way forward to the prod limbs
-      stringPullX = lerp(12.5, 10.5, easeOut);
+      stringPullX = lerp(13.5, 11.0, easeOut);
       showLoadedBolt = false;
     } else if (spearWpn.phase === 'recovery') {
-      const t = clamp(1 - spearWpn.phaseTimer / 0.05, 0, 1);
-      localAngleOffset = lerp(0, 0.18, t);
-      recoilOffset = lerp(10.5, 12, t);
-      stringPullX = lerp(10.5, 2, t);
-      showLoadedBolt = t > 0.45;
+      const t = clamp(1 - spearWpn.phaseTimer / 0.20, 0, 1);
+      localAngleOffset = 0;
+      recoilOffset = lerp(15.0, 12.0, t);
+      stringPullX = lerp(11.0, 2, t);
+      showLoadedBolt = t > 0.4;
     }
 
+    const attackAngle =
+      typeof (spearWpn as { lockedAngle?: number }).lockedAngle === 'number'
+        ? (spearWpn as { lockedAngle: number }).lockedAngle
+        : facingAngle;
     const totalAngle = isBackSlung
       ? flipX >= 0
         ? -Math.PI * 0.72
         : -Math.PI * 0.28
-      : facingAngle + localAngleOffset;
-    const m = new PIXI.Matrix();
-    m.rotate(totalAngle);
-    m.translate(isBackSlung ? hx - flipX * 5 : hx, isBackSlung ? cy - 5 : cy);
-    g.setTransform(m);
+      : attackAngle + localAngleOffset;
+    const originX = isBackSlung ? hx - flipX * 5 : hx;
+    const originY = isBackSlung ? cy - 5 : cy + 1.5;
+    const cosA = Math.cos(totalAngle);
+    const sinA = Math.sin(totalAngle);
+    const frontScale = isBackSlung ? 1.0 : 1.18;
 
-    const yOff = isBackSlung ? 0 : -3.0;
+    const toWX = (lx: number, ly: number) =>
+      originX + (lx * cosA - ly * sinA) * frontScale;
+    const toWY = (lx: number, ly: number) =>
+      originY + (lx * sinA + ly * cosA) * frontScale;
+
+    const yOff = isBackSlung ? 0 : 0;
     const stockRear = recoilOffset - 5;
     const stockLen = 18 + Math.min(8, spearWpn.level) * 0.65 + (spearWpn.evolved ? 3 : 0);
     const stockFront = stockRear + stockLen;
@@ -845,41 +840,66 @@ export class HeroRenderer {
     const nockX = stockRear + stringPullX;
 
     // 1. Taut golden bowstring (drawn from top limb tip -> nock -> bottom limb tip)
-    g.moveTo(limbTipX, yOff - limbSpan)
-      .lineTo(nockX, yOff)
-      .lineTo(limbTipX, yOff + limbSpan)
-      .stroke({ color: PALETTE.BUTTER_YELLOW, width: 1.8, alpha: 0.92, join: 'round' });
+    g.moveTo(toWX(limbTipX, yOff - limbSpan), toWY(limbTipX, yOff - limbSpan))
+      .lineTo(toWX(nockX, yOff), toWY(nockX, yOff))
+      .lineTo(toWX(limbTipX, yOff + limbSpan), toWY(limbTipX, yOff + limbSpan))
+      .stroke({ color: PALETTE.BUTTER_YELLOW, width: 2.0, alpha: 0.95, join: 'round' });
 
-    // 2. Carved ironwood crossbow tiller / stock
-    g.roundRect(stockRear, yOff - 2.8, stockLen, 5.6, 2.2)
+    // 2. Carved ironwood crossbow tiller / stock polygon
+    const sHalfH = 2.9;
+    g.moveTo(toWX(stockRear, yOff - sHalfH), toWY(stockRear, yOff - sHalfH))
+      .lineTo(toWX(stockFront, yOff - sHalfH), toWY(stockFront, yOff - sHalfH))
+      .lineTo(toWX(stockFront, yOff + sHalfH), toWY(stockFront, yOff + sHalfH))
+      .lineTo(toWX(stockRear, yOff + sHalfH), toWY(stockRear, yOff + sHalfH))
+      .closePath()
       .fill({ color: spearWpn.evolved ? 0x7f1d1d : 0x78350f })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.4 });
 
     // Central flight groove & golden stock pommel
-    g.moveTo(stockRear + 2.5, yOff)
-      .lineTo(stockFront - 1.5, yOff)
-      .stroke({ color: PALETTE.CREAM_WHITE, width: 1.2, alpha: 0.65 });
-    g.circle(stockRear, yOff, 2.6)
+    g.moveTo(toWX(stockRear + 2.5, yOff), toWY(stockRear + 2.5, yOff))
+      .lineTo(toWX(stockFront - 1.5, yOff), toWY(stockFront - 1.5, yOff))
+      .stroke({ color: PALETTE.CREAM_WHITE, width: 1.4, alpha: 0.75 });
+    g.circle(toWX(stockRear, yOff), toWY(stockRear, yOff), 2.8 * frontScale)
       .fill({ color: PALETTE.BUTTER_YELLOW })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
 
     // 3. Curved botanical Arbalete prod limbs (top & bottom)
-    g.moveTo(stockFront - 1.5, yOff - 2)
-      .quadraticCurveTo(stockFront + 2.5, yOff - limbSpan * 0.65, limbTipX, yOff - limbSpan)
-      .quadraticCurveTo(stockFront - 2.5, yOff - limbSpan * 0.55, stockFront - 4.2, yOff - 2)
+    g.moveTo(toWX(stockFront - 1.5, yOff - 2), toWY(stockFront - 1.5, yOff - 2))
+      .quadraticCurveTo(
+        toWX(stockFront + 2.5, yOff - limbSpan * 0.65),
+        toWY(stockFront + 2.5, yOff - limbSpan * 0.65),
+        toWX(limbTipX, yOff - limbSpan),
+        toWY(limbTipX, yOff - limbSpan)
+      )
+      .quadraticCurveTo(
+        toWX(stockFront - 2.5, yOff - limbSpan * 0.55),
+        toWY(stockFront - 2.5, yOff - limbSpan * 0.55),
+        toWX(stockFront - 4.2, yOff - 2),
+        toWY(stockFront - 4.2, yOff - 2)
+      )
       .closePath()
       .fill({ color: limbColor })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.3 });
 
-    g.moveTo(stockFront - 1.5, yOff + 2)
-      .quadraticCurveTo(stockFront + 2.5, yOff + limbSpan * 0.65, limbTipX, yOff + limbSpan)
-      .quadraticCurveTo(stockFront - 2.5, yOff + limbSpan * 0.55, stockFront - 4.2, yOff + 2)
+    g.moveTo(toWX(stockFront - 1.5, yOff + 2), toWY(stockFront - 1.5, yOff + 2))
+      .quadraticCurveTo(
+        toWX(stockFront + 2.5, yOff + limbSpan * 0.65),
+        toWY(stockFront + 2.5, yOff + limbSpan * 0.65),
+        toWX(limbTipX, yOff + limbSpan),
+        toWY(limbTipX, yOff + limbSpan)
+      )
+      .quadraticCurveTo(
+        toWX(stockFront - 2.5, yOff + limbSpan * 0.55),
+        toWY(stockFront - 2.5, yOff + limbSpan * 0.55),
+        toWX(stockFront - 4.2, yOff + 2),
+        toWY(stockFront - 4.2, yOff + 2)
+      )
       .closePath()
       .fill({ color: limbColor })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 2.3 });
 
     // Prod nose stirrup / golden collar
-    g.roundRect(stockFront - 3.2, yOff - 3.6, 4.4, 7.2, 1.5)
+    g.circle(toWX(stockFront - 1.0, yOff), toWY(stockFront - 1.0, yOff), 3.4 * frontScale)
       .fill({ color: PALETTE.BUTTER_YELLOW })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
 
@@ -888,25 +908,33 @@ export class HeroRenderer {
       const boltTailX = nockX;
       const boltTipX = stockFront + 9.5;
       // Bolt shaft
-      g.moveTo(boltTailX, yOff)
-        .lineTo(boltTipX - 4, yOff)
-        .stroke({ color: PALETTE.CREAM_WHITE, width: 2.2, cap: 'round' });
+      g.moveTo(toWX(boltTailX, yOff), toWY(boltTailX, yOff))
+        .lineTo(toWX(boltTipX - 4, yOff), toWY(boltTipX - 4, yOff))
+        .stroke({ color: PALETTE.CREAM_WHITE, width: 2.4, cap: 'round' });
       // Barbed briar broadhead tip
-      g.moveTo(boltTipX, yOff)
-        .lineTo(boltTipX - 6.5, yOff - 3.6)
-        .lineTo(boltTipX - 4.5, yOff)
-        .lineTo(boltTipX - 6.5, yOff + 3.6)
+      g.moveTo(toWX(boltTipX, yOff), toWY(boltTipX, yOff))
+        .lineTo(toWX(boltTipX - 6.5, yOff - 3.8), toWY(boltTipX - 6.5, yOff - 3.8))
+        .lineTo(toWX(boltTipX - 4.5, yOff), toWY(boltTipX - 4.5, yOff))
+        .lineTo(toWX(boltTipX - 6.5, yOff + 3.8), toWY(boltTipX - 6.5, yOff + 3.8))
         .closePath()
         .fill({ color: spearWpn.evolved ? PALETTE.GOLD_STAR : limbColor })
         .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
     } else {
       // Firing snap flash at the Arbalete nose when bolt launches
-      g.circle(stockFront + 3.5, yOff, 4.2)
-        .fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.9 })
-        .stroke({ color: limbColor, width: 1.8 });
+      g.circle(toWX(stockFront + 3.5, yOff), toWY(stockFront + 3.5, yOff), 4.6)
+        .fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.95 })
+        .stroke({ color: limbColor, width: 2.0 });
     }
 
-    g.setTransform(new PIXI.Matrix());
+    // 5. When brought to the front on attack (!isBackSlung), draw the hero's front-gripping hands holding the stock!
+    if (!isBackSlung) {
+      g.circle(toWX(stockRear + 3.0, yOff + 2.2), toWY(stockRear + 3.0, yOff + 2.2), 3.6)
+        .fill({ color: PALETTE.CREAM_WHITE })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.0 });
+      g.circle(toWX(stockFront - 6.5, yOff - 2.2), toWY(stockFront - 6.5, yOff - 2.2), 3.4)
+        .fill({ color: PALETTE.CREAM_WHITE })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.0 });
+    }
   }
 
   /**

@@ -237,12 +237,11 @@ export function RescueReviveModal({
             </button>
           )}
 
-          {/* Action 2: Pollen Coin Revive - Only shown if player has coins in vault */}
-          {coins > 0 && (
+          {/* Action 2: Pollen Coin Revive - Only shown if player can afford 150 coins */}
+          {canAffordCoins && (
             <button
               type="button"
               data-testid="revive-coins-btn"
-              disabled={!canAffordCoins || isAdLoading}
               onClick={onSpendCoinsRevive}
               className="w-full btn-herbarium-primary justify-between px-4 py-2.5 flex items-center text-left group"
             >
@@ -270,13 +269,11 @@ export function RescueReviveModal({
                   </div>
                   <span className="text-xs text-[#201A09]/80 flex items-center gap-1 truncate">
                     <span>Vault: {coins.toLocaleString()} Coins</span>
-                    {canAffordCoins && (
-                      <svg className="w-3.5 h-3.5 text-[#201A09]" viewBox="0 0 24 24"
-                           fill="currentColor" aria-hidden="true">
-                        <path
-                          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                      </svg>
-                    )}
+                    <svg className="w-3.5 h-3.5 text-[#201A09]" viewBox="0 0 24 24"
+                         fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                    </svg>
                   </span>
                 </div>
               </div>
@@ -294,12 +291,12 @@ export function RescueReviveModal({
             </button>
           )}
 
-          {/* Action 3: Decline & Summary */}
+          {/* Action 3: Decline & Summary (Always enabled and clickable) */}
           <button
             type="button"
-            disabled={isAdLoading}
+            data-testid="decline-revive-btn"
             onClick={onDeclineRevive}
-            className="w-full btn-herbarium-danger px-4 py-2.5 flex items-center justify-between text-left group mt-1"
+            className="w-full btn-herbarium-danger px-4 py-2.5 flex items-center justify-between text-left group mt-1 cursor-pointer"
           >
             <div className="flex items-center gap-2">
               {/* Skull / Accept Perish Icon */}

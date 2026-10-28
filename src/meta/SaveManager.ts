@@ -32,6 +32,7 @@ export interface SaveDataV1 {
     professions: ProfessionId[];
     weapons: string[];
     trinkets: string[];
+    trinketLevels: Record<string, number>;
     curses: string[];
     maxDifficultyTierByBiome: Record<string, number>;
     personaAdPips: Record<string, number>;
@@ -208,6 +209,7 @@ export function createDefaultSaveData(): SaveDataV1 {
         'chain_lightning',
       ],
       trinkets: ['aegis_leaf'],
+      trinketLevels: { aegis_leaf: 1 },
       curses: ['swarm_brand'],
       maxDifficultyTierByBiome: {
         garden: 1,
@@ -294,6 +296,19 @@ export function parseSavePayload(raw: string): SaveDataV1 | null {
     const parsed = JSON.parse(raw) as Partial<SaveDataV1>;
     if (!parsed || parsed.schemaVersion !== 1) return null;
     const defaults = createDefaultSaveData();
+    const mergedTrinkets = Array.isArray(parsed.unlocks?.trinkets)
+      ? Array.from(new Set([...defaults.unlocks.trinkets, ...parsed.unlocks.trinkets]))
+      : defaults.unlocks.trinkets;
+    const rawTrinketLevels = parsed.unlocks?.trinketLevels ?? {};
+    const normalizedTrinketLevels: Record<string, number> = { ...defaults.unlocks.trinketLevels };
+    for (const tid of mergedTrinkets) {
+      normalizedTrinketLevels[tid] = Math.max(1, Math.min(3, Math.floor(rawTrinketLevels[tid] ?? 1)));
+    }
+    for (const [tid, lv] of Object.entries(rawTrinketLevels)) {
+      if (typeof lv === 'number' && Number.isFinite(lv)) {
+        normalizedTrinketLevels[tid] = Math.max(1, Math.min(3, Math.floor(lv)));
+      }
+    }
     return {
       ...defaults,
       ...parsed,
@@ -301,6 +316,8 @@ export function parseSavePayload(raw: string): SaveDataV1 | null {
       unlocks: {
         ...defaults.unlocks,
         ...parsed.unlocks,
+        trinkets: mergedTrinkets,
+        trinketLevels: normalizedTrinketLevels,
         maxDifficultyTierByBiome: {
           ...defaults.unlocks.maxDifficultyTierByBiome,
           ...(parsed.unlocks?.maxDifficultyTierByBiome ?? {}),
@@ -369,6 +386,24 @@ export function reconcileSaveData(
       mergedTierByBiome[k] = Math.max(mergedTierByBiome[k] ?? 1, v ?? 1);
     }
 
+    const mergedTrinkets = mergeUniqueStrings(primary.unlocks.trinkets, secondary.unlocks.trinkets);
+    const mergedTrinketLevels: Record<string, number> = {
+      ...secondary.unlocks.trinketLevels,
+      ...primary.unlocks.trinketLevels,
+    };
+    for (const tid of mergedTrinkets) {
+      mergedTrinketLevels[tid] = Math.max(
+        1,
+        Math.min(
+          3,
+          Math.max(
+            primary.unlocks.trinketLevels?.[tid] ?? 1,
+            secondary.unlocks.trinketLevels?.[tid] ?? 1
+          )
+        )
+      );
+    }
+
     const bestAllTime = Math.max(
       primary.bestScores.allTime,
       secondary.bestScores.allTime
@@ -399,7 +434,8 @@ export function reconcileSaveData(
           secondary.unlocks.professions
         ),
         weapons: mergeUniqueStrings(primary.unlocks.weapons, secondary.unlocks.weapons),
-        trinkets: mergeUniqueStrings(primary.unlocks.trinkets, secondary.unlocks.trinkets),
+        trinkets: mergedTrinkets,
+        trinketLevels: mergedTrinketLevels,
         curses: mergeUniqueStrings(primary.unlocks.curses, secondary.unlocks.curses),
         maxDifficultyTierByBiome: mergedTierByBiome,
         personaAdPips: mergedPips,

@@ -1330,17 +1330,17 @@ test('Gameplay Polish: 0.5s silent invulnerability after card choice, single ini
   const distCoin = Math.hypot(initialCoins[0]!.x, initialCoins[0]!.y);
   assert.ok(distCoin >= 3.0, `Single initial coin should lay farther from spawn (>=3.0u), got ${distCoin}`);
 
-  // 2. Decreased basic coin drop rate (10% base) amplified by Lucky Clover & Luck
+  // 2. Decreased basic coin drop rate (3.5% base) amplified by Lucky Clover & Luck
   const baseCoinChance = sim.getBasicCoinDropChance();
   assert.ok(
-    Math.abs(baseCoinChance - 0.1) < 1e-6,
-    `Base coin drop chance should be 10% (0.10), got ${baseCoinChance}`
+    Math.abs(baseCoinChance - 0.035) < 1e-6,
+    `Base coin drop chance should be 3.5% (0.035), got ${baseCoinChance}`
   );
   sim.debugSetCardLevel('lucky_clover', 3);
   const cloverCoinChance = sim.getBasicCoinDropChance();
   assert.ok(
-    cloverCoinChance > 0.45,
-    `Lucky Clover Lv 3 should amplify basic coin drop chance significantly (>45%), got ${cloverCoinChance}`
+    cloverCoinChance > 0.35,
+    `Lucky Clover Lv 3 should amplify basic coin drop chance significantly (>35%), got ${cloverCoinChance}`
   );
 
   // 3. After card choice (or skip), hero gets 0.5s silent invulnerability (cardPickInvisTimer) without dash visual
@@ -1553,10 +1553,14 @@ test('Arbalete (replaces Thorn Spear) has increased default range, fires arbalet
 
   // Fire evolved Arbalete along +X axis
   sim.facingAngle = 0;
+  let sawExplosionFx = false;
   for (let i = 0; i < 65; i++) {
     bystander.x = sim.heroX + evolvedReach;
     bystander.y = sim.heroY + 0.95;
     sim.tick();
+    if (sim.visualEffects.some((fx) => fx.kind === 'ember_burst' || fx.kind === 'circle_blast')) {
+      sawExplosionFx = true;
+    }
   }
 
   assert.ok(
@@ -1564,7 +1568,7 @@ test('Arbalete (replaces Thorn Spear) has increased default range, fires arbalet
     `Evolved Arbalete bolt should explode at the end of its flight and deal AoE damage to nearby enemies (HP: ${bystander.hp}/600)`
   );
   assert.ok(
-    sim.visualEffects.some((fx) => fx.kind === 'ember_burst' || fx.kind === 'circle_blast'),
+    sawExplosionFx,
     'Evolved Arbalete bolt explosion should spawn ember_burst / circle_blast visual effects'
   );
 
@@ -1719,6 +1723,7 @@ test('Style meter faster level/rank decay & damage penalty, Iron Bark Lv2+ damag
   );
 
   // Stage 3: Apex Briar Overlord -> boss_p3_crimson_cross / boss_p3_abyssal_nova & boss_abyssal_razor projectiles
+  const maxHpBeforeStage3 = boss.maxHp;
   boss.hp = Math.floor(boss.maxHp * 0.25);
   boss.aiState = 'seek';
   boss.aiTimer = 0;
@@ -1733,9 +1738,146 @@ test('Style meter faster level/rank decay & damage penalty, Iron Bark Lv2+ damag
     }
   }
   assert.equal(boss.bossPhase, 3, 'Boss should transition to Stage 3 at 25% HP');
+  assert.ok(
+    boss.maxHp > maxHpBeforeStage3,
+    `Final Boss Stage 3 should gain bonus HP (new maxHp ${boss.maxHp} > ${maxHpBeforeStage3})`
+  );
   assert.equal(
     sawAbyssalRazor,
     true,
     'Stage 3 Final Boss should fire boss_abyssal_razor projectiles after telegraph'
   );
 });
+
+test('Killing Final Boss with projectiles, DoT, or ground hazards while multiple projectiles/enemies/hazards are active never freezes or throws', () => {
+  // Case 1: Final Boss killed by player projectile while multiple enemy/player projectiles exist in sim.projectiles
+  const simProj = new Simulation({ seed: 9191, professionId: 'warden' });
+  simProj.weapons = [];
+  simProj.spawnEnemy('chaser', simProj.heroX - 4, simProj.heroY, false);
+  const boss1 = simProj.debugSpawnFinalBossArena()!;
+  boss1.x = simProj.heroX + 1.2;
+  boss1.y = simProj.heroY;
+  boss1.prevX = boss1.x;
+  boss1.prevY = boss1.y;
+  boss1.hp = 5;
+  simProj.spawnEnemy('brute', simProj.heroX + 4, simProj.heroY, false);
+
+  // Add multiple projectiles before and after the lethal bolt
+  for (let k = 0; k < 4; k++) {
+    simProj.projectiles.push({
+      id: 9000 + k,
+      isEnemy: true,
+      projectileKind: 'boss_vine_thorn',
+      x: simProj.heroX - 5,
+      y: simProj.heroY - 5,
+      prevX: simProj.heroX - 5,
+      prevY: simProj.heroY - 5,
+      vx: -1,
+      vy: 0,
+      radius: 0.25,
+      damage: 10,
+      isCrit: false,
+      pierceRemaining: 0,
+      lifeTimer: 2.0,
+      color: 0x10b981,
+      weaponTags: [],
+      hitEnemyIds: new Set(),
+    });
+  }
+  simProj.projectiles.push({
+    id: 9050,
+    isEnemy: false,
+    projectileKind: 'arbalete_bolt',
+    x: boss1.x - 0.1,
+    y: boss1.y,
+    prevX: boss1.x - 0.3,
+    prevY: boss1.y,
+    vx: 12,
+    vy: 0,
+    radius: 0.3,
+    damage: 50,
+    isCrit: true,
+    pierceRemaining: 1,
+    lifeTimer: 1.0,
+    explodesOnExpire: true,
+    explosionDamage: 40,
+    explosionRadius: 2.0,
+    color: 0xf43f5e,
+    weaponTags: ['pierce', 'projectile'],
+    hitEnemyIds: new Set(),
+  });
+
+  // Tick through the kill, bossDeathTimer (0.85s), and victorySequenceTimer (1.95s)
+  for (let t = 0; t < 130; t++) {
+    simProj.tick();
+  }
+  assert.equal(simProj.runEnded, true, 'Run should end cleanly in victory after projectile boss kill');
+  assert.equal(simProj.runOutcome, 'victory');
+
+  // Case 2: Final Boss killed by burn DoT while multiple enemies exist before and after boss in sim.enemies
+  const simDot = new Simulation({ seed: 9292, professionId: 'warden' });
+  simDot.weapons = [];
+  simDot.spawnEnemy('chaser', simDot.heroX - 4, simDot.heroY, false);
+  const boss2 = simDot.debugSpawnFinalBossArena()!;
+  simDot.spawnEnemy('brute', simDot.heroX + 4, simDot.heroY, false);
+  boss2.hp = 1;
+  boss2.burnTimer = 2.0;
+  boss2.burnDps = 50;
+
+  for (let t = 0; t < 160; t++) {
+    simDot.tick();
+  }
+  assert.equal(simDot.runEnded, true, 'Run should end cleanly in victory after DoT boss kill');
+  assert.equal(simDot.runOutcome, 'victory');
+});
+
+test('Losti Seige persona lore, overheal prevention, Crit Burst starfall visual effect, and smaller Lucky Clover / Dodge scales', () => {
+  // 1. Losti Seige persona verification (no Naruto or Zagreus references)
+  const losti = PERSONAS.find((p) => p.id === 'warden_zagreus_naruto');
+  assert.ok(losti, 'warden_zagreus_naruto persona should exist');
+  assert.equal(losti.name, 'Losti Seige', 'Warden persona should be renamed to Losti Seige');
+  const fullLore = `${losti.name} ${losti.subtitle} ${losti.popCultureMashup} ${losti.permanentVfxDescription}`.toLowerCase();
+  assert.ok(
+    !fullLore.includes('naruto') && !fullLore.includes('zagreus') && !fullLore.includes('uzumaki'),
+    'Losti Seige descriptions must not contain any references to Naruto or Zagreus'
+  );
+
+  // 2. Prevent healing over available HP limit & stop heal potion pulses when full HP is reached
+  const simHeal = new Simulation({ seed: 9595, professionId: 'warden' });
+  simHeal.currentHp = simHeal.maxHp - 7;
+  simHeal.visualEffects.length = 0;
+  simHeal.debugTriggerPowerUp('heal_potion'); // Immediately heals +5 (to maxHp - 2) and queues 3 pulses
+  assert.equal(simHeal.currentHp, simHeal.maxHp - 2);
+  assert.equal(simHeal.healPotionPulsesRemaining, 3);
+
+  // Advance 20 ticks (0.33s) -> next pulse heals +2 to reach maxHp and cancels remaining pulses
+  for (let i = 0; i < 20; i++) simHeal.tick();
+  assert.equal(simHeal.currentHp, simHeal.maxHp, 'HP must never exceed maxHp');
+  assert.equal(
+    simHeal.healPotionPulsesRemaining,
+    0,
+    'Remaining heal potion pulses should stop once hero reaches full HP'
+  );
+
+  // Calling healHero when already at full HP does not exceed maxHp or spawn heal_pulse
+  simHeal.visualEffects.length = 0;
+  simHeal.healHero(20);
+  assert.equal(simHeal.currentHp, simHeal.maxHp);
+  assert.equal(
+    simHeal.visualEffects.filter((fx) => fx.kind === 'heal_pulse').length,
+    0,
+    'Healing at full HP without Regrowth Evolution should not spawn heal_pulse'
+  );
+
+  // 3. Crit Burst spawns 'crit_starfall' visual effect on critical hits
+  const simCrit = new Simulation({ seed: 9696, professionId: 'warden' });
+  simCrit.debugSetCardLevel('crit_burst', 2);
+  simCrit.visualEffects.length = 0;
+  const dummy = simCrit.spawnEnemy('brute', simCrit.heroX + 1.5, simCrit.heroY, false)!;
+  (simCrit as any).applyDamageToEnemy(dummy, 20, true, 0.2, ['slash']);
+  const starfallFx = simCrit.visualEffects.find((fx) => fx.kind === 'crit_starfall');
+  assert.ok(starfallFx, 'Crit Burst proc should spawn a crit_starfall visual effect');
+  assert.equal(starfallFx.arcRad, 2);
+});
+
+

@@ -186,6 +186,9 @@ export interface TrinketDef {
   name: string;
   description: string;
   costCoins: number;
+  upgradeCostCoinsLv2: number;
+  upgradeCostSeedsLv3: number;
+  levelDescriptions: readonly [string, string, string];
 }
 
 export interface CurseDef {

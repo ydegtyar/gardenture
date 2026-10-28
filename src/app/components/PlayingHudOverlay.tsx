@@ -43,50 +43,99 @@ export function PlayingHudOverlay() {
 
   return (
     <>
-      {/* FULL-SCREEN TOP XP BAR */}
-      <div className="fixed top-0 inset-x-0 z-20 pointer-events-none h-2.5 sm:h-3.5 bg-[#18111A]/90 border-b border-[#2D1E2F] shadow-sm flex items-center">
+      {/* FULL-SCREEN TOP XP BAR WITH CENTERED, ALWAYS-READABLE LEVEL INDICATOR */}
+      <div
+        data-testid="hud-xp-bar"
+        className="fixed top-0 inset-x-0 z-20 pointer-events-none h-[18px] sm:h-5 bg-[#2B1F2D]/95 border-b-2 border-[#A8E6CF]/35 shadow-md relative overflow-hidden flex items-center justify-center"
+      >
         <div
-          className="h-full bg-gradient-to-r from-[#88D49E] via-[#FDFFB6] to-[#FDFFB6] transition-all duration-150 ease-out shadow-[0_0_8px_#FDFFB6]"
+          data-testid="hud-xp-fill"
+          className="absolute inset-y-0 left-0 bg-gradient-to-r from-[#52B788] via-[#88D49E] to-[#FDFFB6] transition-all duration-150 ease-out shadow-[0_0_10px_#88D49E]"
           style={{ width: `${Math.round(xpRatio * 100)}%` }}
         />
-        <div className="absolute top-1 left-2 sm:left-3 px-1.5 py-0.2 rounded bg-[#2B1F2D]/90 border border-[#FDFFB6]/40 text-[9px] sm:text-[10px] font-mono-tabular font-extrabold text-[#FDFFB6] shadow">
+        <div className="absolute inset-x-0 top-0 h-[40%] bg-white/10 pointer-events-none" />
+        <span
+          data-testid="hud-level-indicator"
+          className="relative z-10 px-2 py-0.5 rounded bg-[#140E16]/75 text-[10px] sm:text-[11px] font-mono-tabular font-black tracking-widest text-[#FFFDF0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-none"
+        >
           LV {hud.level}
-        </div>
+        </span>
       </div>
 
-      <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5 pt-5 sm:pt-6 pb-5 sm:pb-6">
+      <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5 pt-6 sm:pt-7 pb-5 sm:pb-6">
         {/* TOP PERIMETER ROW: 3 Compact Corner Clusters */}
         <div className="flex items-start justify-between gap-1.5 sm:gap-3 w-full">
-          {/* Cluster 1 (Top-Left): Vitality Bar, Trailing Damage Bar, Dash Charges */}
-          <div className="w-36 sm:w-60 p-2 sm:p-2.5 rounded-xl bg-[#2B1F2D]/92 border-2 border-[#2D1E2F] shadow-md shrink-0">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <div className="flex items-center gap-1">
+          {/* Cluster 1 (Top-Left): Botanical Thermometer Vitality Indicator + Segmented Dash Cooldown */}
+          <div className="w-40 sm:w-64 p-2 sm:p-2.5 rounded-2xl bg-[#2B1F2D]/92 border-2 border-[#2D1E2F] shadow-md shrink-0">
+            {/* Thermometer Health Bar: Heart Bulb at Start + Glass Tube with Theme Gradient (No VITALITY text, no numeric HP) */}
+            <div
+              data-testid="hud-vitality-thermometer"
+              className="relative flex items-center w-full mb-2"
+            >
+              {/* Thermometer Heart Reservoir Bulb at Start */}
+              <div
+                data-testid="hud-thermometer-bulb"
+                className={`relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 border-2 border-[#2D1E2F] shadow-[0_2px_8px_rgba(0,0,0,0.65)] transition-colors duration-200 ${
+                  hpRatio <= 0.3
+                    ? 'bg-gradient-to-br from-[#FB7185] via-[#F43F5E] to-[#881337] animate-pulse'
+                    : 'bg-gradient-to-br from-[#FFAAA6] via-[#F43F5E] to-[#9F1239]'
+                }`}
+              >
+                {/* Glass bulb specular highlight */}
+                <div className="absolute top-1 left-1.5 w-2.5 h-1.5 rounded-full bg-[#FFFDF0]/45 -rotate-12 pointer-events-none" />
                 <HeartSocketIcon
                   state={hpRatio > 0.5 ? 'full' : hpRatio > 0.25 ? 'damaged' : 'empty'}
                 />
-                <span className="hidden sm:inline text-[10px] font-extrabold tracking-wider text-[#FFAAA6]">
-                  VITALITY
-                </span>
               </div>
-              <span className="text-xs sm:text-sm font-mono-tabular font-bold text-[#FFFDF0] whitespace-nowrap">
-                {hud.hp}/{hud.maxHp}
-                {hud.shieldHp > 0 ? ` +${hud.shieldHp}` : ''}
-              </span>
-            </div>
 
-            {/* Health Bar with Delayed Trailing Damage Ghost Bar */}
-            <div className="relative h-2.5 sm:h-3 w-full rounded-full bg-[#18111A] border border-[#2D1E2F] overflow-hidden mb-1.5">
+              {/* Thermometer Capillary Glass Tube */}
               <div
-                className="absolute inset-y-0 left-0 bg-[#FFD3B6]/60 transition-all duration-300"
-                style={{ width: `${Math.round(trailingHpRatio * 100)}%` }}
-              />
-              <div
-                className="absolute inset-y-0 left-0 bg-[#88D49E] transition-all duration-75"
-                style={{
-                  width: `${Math.round(hpRatio * 100)}%`,
-                  backgroundColor: hpRatio <= 0.3 ? '#F43F5E' : '#88D49E',
-                }}
-              />
+                data-testid="hud-thermometer-tube"
+                className="relative -ml-2 flex-1 h-4 sm:h-5 rounded-r-full bg-[#140D16] border-2 border-l-0 border-[#2D1E2F] overflow-hidden shadow-inner flex items-center"
+              >
+                {/* Delayed Trailing Damage Ghost Mercury */}
+                <div
+                  className="absolute inset-y-0 left-0 bg-[#FFD3B6]/65 transition-all duration-300"
+                  style={{ width: `${Math.round(trailingHpRatio * 100)}%` }}
+                />
+
+                {/* Active Theme-Gradient Botanical Mercury Fill */}
+                <div
+                  data-testid="hud-thermometer-fill"
+                  className={`absolute inset-y-0 left-0 rounded-r-full transition-all duration-100 ${
+                    hpRatio <= 0.3
+                      ? 'bg-gradient-to-r from-[#9F1239] via-[#F43F5E] to-[#FB7185] shadow-[0_0_10px_#F43F5E]'
+                      : 'bg-gradient-to-r from-[#F43F5E] via-[#FBBF24] to-[#88D49E] shadow-[0_0_10px_rgba(136,212,158,0.55)]'
+                  }`}
+                  style={{ width: `${Math.round(hpRatio * 100)}%` }}
+                />
+
+                {/* Optional Shield Ward Overlay Shimmer */}
+                {hud.shieldHp > 0 && (
+                  <div
+                    data-testid="hud-thermometer-shield"
+                    className="absolute inset-y-0 left-0 rounded-r-full border-r-2 border-[#FFFDF0] bg-gradient-to-r from-[#38BDF8]/35 to-[#A0C4FF]/65 transition-all duration-100"
+                    style={{
+                      width: `${Math.min(100, Math.round((hud.shieldHp / Math.max(1, hud.maxHp)) * 100))}%`,
+                    }}
+                  />
+                )}
+
+                {/* Glass Tube Top Specular Reflection */}
+                <div className="absolute top-0.5 inset-x-1 h-1 rounded-full bg-gradient-to-r from-[#FFFDF0]/35 via-[#FFFDF0]/20 to-transparent pointer-events-none" />
+
+                {/* Thermometer Calibration Tick Marks */}
+                <div className="absolute inset-0 flex items-end justify-evenly px-2 pointer-events-none">
+                  {[0, 1, 2, 3, 4, 5, 6].map((tick) => (
+                    <span
+                      key={tick}
+                      className={`w-[1.5px] bg-[#2D1E2F]/80 ${
+                        tick % 2 === 1 ? 'h-2 sm:h-2.5' : 'h-1 sm:h-1.5'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Full-Width Segmented Dash Cooldown Line (splits into smaller parts as dash count increases) */}

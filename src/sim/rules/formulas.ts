@@ -36,7 +36,8 @@ export function computeHeroStats(
   professionId: ProfessionId,
   ownedCards: Record<string, number>,
   equippedTrinkets: readonly string[],
-  activeCurses: readonly string[]
+  activeCurses: readonly string[],
+  trinketLevels: Readonly<Record<string, number>> = {}
 ): ComputedHeroStats {
   const prof = PROFESSIONS[professionId] ?? PROFESSIONS.warden!;
   const base = prof.baseStats;
@@ -89,19 +90,33 @@ export function computeHeroStats(
     if (b.dodgeChanceAdd) dodgeChanceAdd += b.dodgeChanceAdd * level;
   }
 
-  // Apply Trinkets
-  if (equippedTrinkets.includes('aegis_leaf')) {
-    maxHpFlat += 10;
+  const getTrinketLv = (id: string, alias?: string): number => {
+    const raw = trinketLevels[id] ?? (alias ? trinketLevels[alias] : undefined) ?? 1;
+    return Math.max(1, Math.min(3, Math.floor(raw)));
+  };
+
+  // Apply Trinkets (scaled by upgrade level 1..3)
+  if (equippedTrinkets.includes('aegis_leaf') || equippedTrinkets.includes('leaf_brooch')) {
+    const lv = getTrinketLv('aegis_leaf', 'leaf_brooch');
+    maxHpFlat += 10 * lv;
   }
   if (equippedTrinkets.includes('clover_charm')) {
     luckFlat += 12;
   }
-  if (equippedTrinkets.includes('magnet_root')) {
-    pickupRadiusAdd += 0.35;
+  if (equippedTrinkets.includes('magnet_root') || equippedTrinkets.includes('magnet_ring')) {
+    const lv = getTrinketLv('magnet_root', 'magnet_ring');
+    pickupRadiusAdd += 0.2 + (lv - 1) * 0.1;
   }
   if (equippedTrinkets.includes('wind_anklet')) {
-    moveSpeedAdd += 0.08;
+    const lv = getTrinketLv('wind_anklet');
+    moveSpeedAdd += 0.03 * lv;
     dashCooldownDelta -= 0.25;
+    if (lv >= 2) {
+      dodgeChanceAdd += 0.05;
+    }
+    if (lv >= 3) {
+      extraDashCharges += 1;
+    }
   }
 
   // Apply Curses

@@ -282,11 +282,6 @@ export function LoadoutAndStoreModal({
                       }`}
                     />
                   )}
-                  {!unlocked && (
-                    <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-[#1E1520]/90 border border-[#DED2F9]/30 text-[9px] font-mono-tabular font-bold text-[#DED2F9]">
-                      SHADOW
-                    </span>
-                  )}
                 </div>
 
                 <div className="min-w-0 flex-1">

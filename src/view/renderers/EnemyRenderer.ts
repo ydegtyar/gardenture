@@ -93,30 +93,44 @@ export class EnemyRenderer {
             sim.elapsedSeconds
           );
         } else {
-          const slamRadiusPx = (e.isMiniBoss ? 2.0 : 1.6) * PPU;
-          const tx = e.telegraphTargetX * PPU;
-          const ty = e.telegraphTargetY * PPU;
+          const slamRadiusPx = (e.isMiniBoss ? 2.15 : 1.85) * PPU;
+          const easeGrow = 0.16 + 0.84 * Math.pow(progress, 0.85);
+          const growR = slamRadiusPx * easeGrow;
+          const flashWindow = clamp((progress - 0.78) / 0.22, 0, 1);
+
+          // Growing seismic charge area centered on the moving brute
           telegraphGraphic
-            .circle(tx, ty, slamRadiusPx)
-            .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.14 })
-            .stroke({ color: PALETTE.CRIMSON_WARN, width: 2.5, alpha: 0.75 });
-          telegraphGraphic
-            .circle(tx, ty, slamRadiusPx * progress)
-            .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.32 });
+            .circle(ex, ey, growR)
+            .fill({
+              color: flashWindow > 0 ? PALETTE.BUTTER_YELLOW : PALETTE.CRIMSON_WARN,
+              alpha: 0.16 + 0.28 * progress + 0.22 * flashWindow,
+            })
+            .stroke({
+              color: flashWindow > 0 ? PALETTE.CREAM_WHITE : 0xfbbf24,
+              width: 2.2 + 2.0 * progress,
+              alpha: 0.55 + 0.4 * progress,
+            });
+
+          // Inner pulsing shock-wave ripple ring inside the growing charge area
+          const ripplePhase = (sim.elapsedSeconds * 4.5) % 1;
+          const rippleR = growR * (0.35 + 0.55 * ripplePhase);
+          telegraphGraphic.circle(ex, ey, rippleR).stroke({
+            color: PALETTE.BUTTER_YELLOW,
+            width: 1.8,
+            alpha: (0.38 + 0.35 * progress) * (1 - ripplePhase * 0.5),
+          });
+
+          // Final pre-slam flash core when nearing impact
+          if (flashWindow > 0) {
+            telegraphGraphic.circle(ex, ey, growR * (0.35 + 0.55 * flashWindow)).fill({
+              color: PALETTE.CREAM_WHITE,
+              alpha: 0.52 * flashWindow,
+            });
+          }
         }
       }
 
-      // Elite / Special / Boss base ring
-      if (e.isElite || e.isSpecial || e.isMiniBoss || e.isFinalBoss) {
-        const ringColor =
-          e.isFinalBoss || e.isMiniBoss ? PALETTE.CRIMSON_WARN : PALETTE.GOLD_STAR;
-        gUnder.circle(ex, ey + rPx * 0.2, rPx + 6).stroke({
-          color: ringColor,
-          width: 2.5,
-          alpha: 0.75,
-        });
-      }
-
+      // No base circle or dashed circle around special/elite/boss enemies — differentiated by larger scale and floating crowns/rhombus & lines above them
       const isFrostTouched = e.slowTimer > 0 && e.webSlowTimer <= 0;
       const accentColor = e.hitFlashTimer > 0 ? PALETTE.CREAM_WHITE : e.accentColor;
 
@@ -157,8 +171,15 @@ export class EnemyRenderer {
       sprite.visible = true;
       sprite.anchor.set(0.5, 0.54);
 
+      // Special and Elite enemies use visibly larger scale + floating crowns/rhombus & radiant lines above them
       const sizeMult =
-        e.isFinalBoss || e.isMiniBoss ? 3.15 : e.isSpecial ? 3.05 : 2.95;
+        e.isFinalBoss || e.isMiniBoss
+          ? 3.38
+          : e.isSpecial
+            ? 3.34
+            : e.isElite
+              ? 3.24
+              : 2.95;
       const baseScale = (rPx * sizeMult) / 256;
       const flipX = cosA < -0.15 ? -1 : 1;
 
@@ -224,6 +245,13 @@ export class EnemyRenderer {
           animScaleX = 1.24;
           animScaleY = 0.82;
         }
+      } else if (e.archetypeId === 'brute' || e.isMiniBoss) {
+        if (e.aiState === 'telegraph') {
+          const prog = clamp(1 - e.aiTimer / Math.max(0.01, e.telegraphDuration), 0, 1);
+          animScaleX = 1 + prog * 0.16;
+          animScaleY = 1 + prog * 0.12;
+          cy -= Math.sin(prog * Math.PI) * 5.5;
+        }
       } else if (e.archetypeId === 'splitter') {
         const jellySquash = Math.sin(walkPhase * 1.5) * 0.12;
         animScaleX = 1 + jellySquash;
@@ -256,13 +284,15 @@ export class EnemyRenderer {
 
       // Final Boss dramatic death convulsion & collapse animation before Angel Wings ascension
       const isFinalBossDying = e.isFinalBoss && (sim.bossDeathTimer > 0 || e.koTimer > 0);
+      const bossDeathAnimTime =
+        sim.elapsedSeconds + (sim.victorySequenceTimer > 0 ? 1.95 - sim.victorySequenceTimer : 0);
       if (isFinalBossDying) {
         const deathProg = clamp(1 - sim.bossDeathTimer / 0.85, 0, 1);
-        renderX += Math.sin(sim.elapsedSeconds * 75) * 6.5 * (1 - deathProg * 0.4);
-        cy += Math.cos(sim.elapsedSeconds * 62) * 4.5 + deathProg * 10;
-        animScaleX *= 1 + Math.sin(sim.elapsedSeconds * 48) * 0.16 - deathProg * 0.28;
-        animScaleY *= 1 - Math.sin(sim.elapsedSeconds * 48) * 0.16 - deathProg * 0.35;
-        animRotation += Math.sin(sim.elapsedSeconds * 35) * 0.22;
+        renderX += Math.sin(bossDeathAnimTime * 75) * 6.5 * (1 - deathProg * 0.4);
+        cy += Math.cos(bossDeathAnimTime * 62) * 4.5 + deathProg * 10;
+        animScaleX *= 1 + Math.sin(bossDeathAnimTime * 48) * 0.16 - deathProg * 0.28;
+        animScaleY *= 1 - Math.sin(bossDeathAnimTime * 48) * 0.16 - deathProg * 0.35;
+        animRotation += Math.sin(bossDeathAnimTime * 35) * 0.22;
       }
 
       sprite.position.set(renderX, cy);
@@ -271,13 +301,13 @@ export class EnemyRenderer {
 
       // Status & hit-flash tinting on the Bestiary sprite
       if (isFinalBossDying) {
-        const flashPhase = Math.floor(sim.elapsedSeconds * 24) % 2 === 0;
+        const flashPhase = Math.floor(bossDeathAnimTime * 24) % 2 === 0;
         sprite.tint = flashPhase ? PALETTE.CRIMSON_WARN : PALETTE.GOLD_STAR;
         // Radiating fracture rays & bursting thorn petals from dying Final Boss
         for (let ray = 0; ray < 6; ray++) {
-          const ra = sim.elapsedSeconds * 5 + (ray * Math.PI) / 3;
+          const ra = bossDeathAnimTime * 5 + (ray * Math.PI) / 3;
           const rIn = rPx * 0.25;
-          const rOut = rPx * (1.25 + 0.35 * Math.sin(sim.elapsedSeconds * 18 + ray));
+          const rOut = rPx * (1.25 + 0.35 * Math.sin(bossDeathAnimTime * 18 + ray));
           gOver
             .moveTo(renderX + Math.cos(ra) * rIn, cy + Math.sin(ra) * rIn)
             .lineTo(renderX + Math.cos(ra) * rOut, cy + Math.sin(ra) * rOut)
@@ -349,28 +379,20 @@ export class EnemyRenderer {
         }
       }
 
-      // Poison Status: green venom drop grows above the enemy and drops into the enemy on each poison tick!
-      if (e.poisonTimer > 0) {
-        const sporePulse = 0.85 + 0.15 * Math.sin(sim.elapsedSeconds * 10);
-        gOver.circle(renderX, cy, (rPx + 3.5) * sporePulse).stroke({
-          color: PALETTE.MINT_GREEN,
-          width: 2.2,
-          alpha: 0.8,
-        });
-        for (let b = 0; b < 3; b++) {
-          const ba = sim.elapsedSeconds * 3.0 + e.id + (b * Math.PI * 2) / 3;
-          const bx = renderX + Math.cos(ba) * (rPx * 0.85);
-          const by =
-            cy -
-            rPx * 0.3 +
-            Math.sin(ba) * (rPx * 0.45) -
-            ((sim.elapsedSeconds * 16 + b * 6) % 10);
-          gOver
-            .circle(bx, by, 2.8)
-            .fill({ color: PALETTE.MINT_GREEN, alpha: 0.9 })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 1.2 });
-        }
+      // Floating Crown / Rhombus & Radiant Lines above Special, Elite, Mini-Boss, and Final Boss enemies (no ground circles!)
+      if (e.isSpecial || e.isElite || e.isMiniBoss || e.isFinalBoss) {
+        EnemyRenderer.drawSpecialOrEliteCrestAbove(
+          gOver,
+          e,
+          renderX,
+          cy,
+          rPx,
+          sim.elapsedSeconds
+        );
+      }
 
+      // Poison Status: NO circles around enemy — falling green venom drop is the sole clean indicator!
+      if (e.poisonTimer > 0) {
         const dropBaseY = e.stormMarkTimer > 0 ? cy - rPx - 28 : cy - rPx - 13;
         EnemyRenderer.drawPoisonDropIcon(
           gOver,
@@ -415,13 +437,6 @@ export class EnemyRenderer {
           .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
         gOver.rect(bx + 1, by + 1, (bw - 2) * clamp(e.hp / e.maxHp, 0, 1), bh - 2).fill({
           color: e.respawnOnDeath ? PALETTE.MINT_GREEN : PALETTE.CRIMSON_WARN,
-        });
-      }
-      if (e.respawnOnDeath) {
-        gOver.circle(renderX, ey, rPx + 4).stroke({
-          color: PALETTE.MINT_GREEN,
-          width: 1.8,
-          alpha: 0.65,
         });
       }
     }
@@ -919,27 +934,13 @@ export class EnemyRenderer {
     drawRipStrokes(PALETTE.INK_OUTLINE, 3.8);
     drawRipStrokes(PALETTE.CREAM_WHITE, 1.8);
 
-    // Small wildflower offering at base of grave
+    // Small wildflower offering at base of grave (no health bar above grave!)
     g.circle(ex - rPx * 0.45, ey + 4, 4.2)
       .fill({ color: PALETTE.BLUSH_ROSE })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
     g.circle(ex + rPx * 0.45, ey + 4, 3.8)
       .fill({ color: PALETTE.BUTTER_YELLOW })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-
-    // HP Bar above the Hero Grave when damaged or nearby
-    if (e.hp > 0) {
-      const bw = rPx * 2.0;
-      const bh = 5;
-      const bx = ex - bw / 2;
-      const by = ey - rPx * 1.45;
-      g.rect(bx, by, bw, bh)
-        .fill({ color: PALETTE.DEEP_SLATE, alpha: 0.9 })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-      g.rect(bx + 1, by + 1, (bw - 2) * clamp(e.hp / e.maxHp, 0, 1), bh - 2).fill({
-        color: PALETTE.MINT_GREEN,
-      });
-    }
   }
 
   public static drawArenaFlowerModel(
@@ -1001,7 +1002,91 @@ export class EnemyRenderer {
   }
 
   /**
-   * Slight blue frost filter overlay for enemies slowed by Frost Touch (no spider web!).
+   * Floating Crown / Rhombus & Radiant Lines above Special, Elite, Mini-Boss, and Final Boss enemies
+   * (Replaces circles & dashed circles around special enemies).
+   */
+  public static drawSpecialOrEliteCrestAbove(
+    g: PIXI.Graphics,
+    e: SimEnemy,
+    ex: number,
+    cy: number,
+    rPx: number,
+    elapsedSeconds: number
+  ): void {
+    const bob = Math.sin(elapsedSeconds * 5.2 + e.id * 0.9) * 2.4;
+    const crestY = cy - rPx * 1.18 - 10 + bob;
+    const isBossTier = e.isFinalBoss || e.isMiniBoss;
+    const primaryCol = isBossTier
+      ? PALETTE.CRIMSON_WARN
+      : e.isSpecial
+        ? PALETTE.GOLD_STAR
+        : PALETTE.BUTTER_YELLOW;
+    const secondaryCol = isBossTier ? PALETTE.GOLD_STAR : PALETTE.CREAM_WHITE;
+
+    // 1. Radiant vertical & angled accent lines above the crest
+    const lineRays: ReadonlyArray<readonly [number, number, number, number]> = [
+      [-12, -3, -17, -9],
+      [-6, -6, -8, -13],
+      [0, -8, 0, -16],
+      [6, -6, 8, -13],
+      [12, -3, 17, -9],
+    ];
+    for (let i = 0; i < lineRays.length; i++) {
+      const [x1, y1, x2, y2] = lineRays[i]!;
+      const pulse = 0.75 + 0.25 * Math.sin(elapsedSeconds * 8 + i + e.id);
+      g.moveTo(ex + x1, crestY + y1)
+        .lineTo(ex + x2, crestY + y2)
+        .stroke({
+          color: i % 2 === 0 ? primaryCol : secondaryCol,
+          width: 2.2,
+          alpha: 0.92 * pulse,
+          cap: 'round',
+        });
+    }
+
+    if (e.isSpecial || isBossTier) {
+      // 3-spired sovereign crown + center floating rhombus jewel for Special & Boss enemies
+      g.moveTo(ex - 11, crestY + 3)
+        .lineTo(ex - 9, crestY - 5)
+        .lineTo(ex - 4, crestY - 1)
+        .lineTo(ex, crestY - 8)
+        .lineTo(ex + 4, crestY - 1)
+        .lineTo(ex + 9, crestY - 5)
+        .lineTo(ex + 11, crestY + 3)
+        .closePath()
+        .fill({ color: primaryCol, alpha: 0.96 })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.0, join: 'round' });
+
+      // Floating center rhombus gem inside/above the crown
+      g.moveTo(ex, crestY - 4.5)
+        .lineTo(ex + 3.2, crestY - 0.5)
+        .lineTo(ex, crestY + 3.0)
+        .lineTo(ex - 3.2, crestY - 0.5)
+        .closePath()
+        .fill({ color: secondaryCol })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.3 });
+    } else {
+      // Floating twin-horn rhombus crest for Elites
+      g.moveTo(ex, crestY - 6.5)
+        .lineTo(ex + 5.5, crestY)
+        .lineTo(ex, crestY + 5.5)
+        .lineTo(ex - 5.5, crestY)
+        .closePath()
+        .fill({ color: primaryCol, alpha: 0.96 })
+        .stroke({ color: PALETTE.INK_OUTLINE, width: 2.0 });
+
+      g.moveTo(ex, crestY - 3.0)
+        .lineTo(ex + 2.4, crestY)
+        .lineTo(ex, crestY + 2.4)
+        .lineTo(ex - 2.4, crestY)
+        .closePath()
+        .fill({ color: secondaryCol });
+    }
+  }
+
+  /**
+   * Sophisticated crystalline snowflake & frost-needle overlay for enemies slowed by Frost Touch
+   * (No blue circles!).
    */
   public static drawFrostTouchFilter(
     g: PIXI.Graphics,
@@ -1011,17 +1096,62 @@ export class EnemyRenderer {
     elapsedSeconds: number,
     enemyId: number
   ): void {
-    const shimmer = 0.85 + 0.15 * Math.sin(elapsedSeconds * 7.0 + enemyId);
-    // Translucent icy blue filter glaze over the enemy body
-    g.circle(ex, cy, rPx * 1.04)
-      .fill({ color: PALETTE.SKY_BLUE, alpha: 0.28 * shimmer })
-      .stroke({ color: 0xbae6fd, width: 2.0, alpha: 0.82 });
+    const flakeCount = 3;
+    for (let f = 0; f < flakeCount; f++) {
+      const orbitA =
+        elapsedSeconds * (1.35 + f * 0.25) +
+        enemyId * 1.47 +
+        (f * Math.PI * 2) / flakeCount;
+      const dist = rPx * (0.48 + (f % 2) * 0.28);
+      const fx = ex + Math.cos(orbitA) * dist;
+      const fy =
+        cy - rPx * 0.15 + Math.sin(orbitA * 1.3) * (rPx * 0.42);
+      const flakeSize = (6.2 + (f === 0 ? 2.0 : 0)) * (0.88 + 0.12 * Math.sin(elapsedSeconds * 6 + f));
+      const spin = elapsedSeconds * (f % 2 === 0 ? 1.8 : -1.5) + f * 0.9;
 
-    // Subtle top frost sheen highlight
-    g.ellipse(ex - rPx * 0.18, cy - rPx * 0.28, rPx * 0.45, rPx * 0.22).fill({
-      color: 0xe0f2fe,
-      alpha: 0.45,
-    });
+      // Draw 6-pointed crystalline snowflake with dendrite side-branches
+      for (let arm = 0; arm < 6; arm++) {
+        const a = spin + (arm * Math.PI) / 3;
+        const cosA = Math.cos(a);
+        const sinA = Math.sin(a);
+        const tipX = fx + cosA * flakeSize;
+        const tipY = fy + sinA * flakeSize;
+
+        g.moveTo(fx, fy)
+          .lineTo(tipX, tipY)
+          .stroke({
+            color: arm % 2 === 0 ? PALETTE.CREAM_WHITE : 0xbae6fd,
+            width: 1.9,
+            alpha: 0.94,
+            cap: 'round',
+          });
+
+        // Side crystal barbs on each arm
+        const midX = fx + cosA * (flakeSize * 0.56);
+        const midY = fy + sinA * (flakeSize * 0.56);
+        const barbLen = flakeSize * 0.38;
+        const b1 = a + Math.PI / 3;
+        const b2 = a - Math.PI / 3;
+        g.moveTo(midX + Math.cos(b1) * barbLen, midY + Math.sin(b1) * barbLen)
+          .lineTo(midX, midY)
+          .lineTo(midX + Math.cos(b2) * barbLen, midY + Math.sin(b2) * barbLen)
+          .stroke({
+            color: PALETTE.SKY_BLUE,
+            width: 1.35,
+            alpha: 0.88,
+            cap: 'round',
+            join: 'round',
+          });
+      }
+
+      // Crisp diamond ice crystal core at the center of the snowflake
+      g.moveTo(fx, fy - 2.2)
+        .lineTo(fx + 2.2, fy)
+        .lineTo(fx, fy + 2.2)
+        .lineTo(fx - 2.2, fy)
+        .closePath()
+        .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.95 });
+    }
   }
 
   /**
