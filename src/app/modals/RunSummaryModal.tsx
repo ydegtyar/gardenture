@@ -10,6 +10,7 @@ import { STYLE_RANKS } from '../../content/data/catalog';
 import { getDailyStreakHighlight } from '../../meta/SaveManager';
 import { CoinIcon } from '../SvgIcons';
 import { useGameShell } from '../context/GameShellContext';
+import { cn } from '../../utils/cn';
 
 export interface RunSummarySnapshot {
   outcome: 'victory' | 'defeat' | 'timeout';
@@ -87,33 +88,23 @@ export function RunSummaryModal() {
         </div>
 
         {/* Modal Header */}
-        <header className="relative mb-5 flex items-start justify-between">
+        <header className="relative mb-5 flex items-center justify-between">
           <div className="flex-1 pr-3">
-            {/* Eyebrow Banner */}
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#5FE0C8] shadow-[0_0_6px_#5FE0C8]" />
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#86C581]">
-                {summary.outcome === 'victory'
-                  ? 'MYSTIC GARDEN CLEARED!'
-                  : summary.outcome === 'timeout'
-                    ? 'DUSK FELL OVER THE GARDEN'
-                    : 'EXPEDITION ENDED'}
-              </p>
-            </div>
             {/* Headline Title */}
             <h2
               id="summary-modal-title"
               className="text-3xl sm:text-[34px] leading-tight font-serif font-black tracking-tight text-[#EDE6D0] drop-shadow-[0_2px_12px_rgba(232,182,74,0.25)]"
             >
-              {summary.outcome === 'victory' ? 'Glorious Bloom!' : 'Run Summary'}
+              {summary.outcome === 'victory'
+                ? 'Mystic Garden Cleared!'
+                : summary.outcome === 'timeout'
+                  ? 'Dusk Fell Over The Garden'
+                  : 'Expedition Ended'}
             </h2>
           </div>
 
           {/* Peak Style Wax Seal Medallion */}
           <div className="flex flex-col items-center justify-center shrink-0">
-            <span className="text-[9px] font-black uppercase tracking-[0.15em] text-[#EDE6D0]/50 mb-0.5">
-              PEAK STYLE
-            </span>
             <div className="relative px-3 py-1 rounded-xl bg-gradient-to-b from-[#352512] to-[#1F170D] border border-[#E8B64A]/60 shadow-[0_0_20px_rgba(232,182,74,0.35)] flex items-center justify-center min-w-[58px]">
               <span
                 className="text-2xl font-black font-display tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
@@ -151,11 +142,12 @@ export function RunSummaryModal() {
             </div>
             <div className="mt-2.5 flex items-center gap-1.5">
               <span
-                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase ${
+                className={cn(
+                  'inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase',
                   summary.isNewBest
                     ? 'bg-[#6FA36B]/20 text-[#86C581] border border-[#6FA36B]/40'
                     : 'text-[#EDE6D0]/50'
-                }`}
+                )}
               >
                 {summary.isNewBest ? '✦ NEW RECORD!' : `Best: ${summary.bestScore.toLocaleString()}`}
               </span>
@@ -200,7 +192,10 @@ export function RunSummaryModal() {
             data-testid="daily-streak-indicator"
             data-streak-highlighted={streakHighlight.isHighlighted ? 'true' : 'false'}
             data-streak-milestone={streakHighlight.isMilestone ? 'true' : 'false'}
-            className={`p-3.5 rounded-2xl flex flex-col justify-between bg-[linear-gradient(165deg,rgba(28,38,35,0.8)_0%,rgba(18,26,24,0.9)_100%)] border shadow-[inset_0_1px_0_rgba(237,230,208,0.06),0_4px_12px_rgba(0,0,0,0.35)] transition-all ${streakAnimationClass}`}
+            className={cn(
+              'p-3.5 rounded-2xl flex flex-col justify-between bg-[linear-gradient(165deg,rgba(28,38,35,0.8)_0%,rgba(18,26,24,0.9)_100%)] border shadow-[inset_0_1px_0_rgba(237,230,208,0.06),0_4px_12px_rgba(0,0,0,0.35)] transition-all',
+              streakAnimationClass
+            )}
           >
             <div>
               <div className="flex items-center justify-between gap-1 mb-1">

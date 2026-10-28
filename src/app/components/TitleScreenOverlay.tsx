@@ -13,6 +13,7 @@ export function TitleScreenOverlay() {
     lastEndedRunRewards,
     startNewOrResumedRun,
     setSanctuaryTab,
+    handleWatchCoinsAd,
   } = useGameShell();
 
   if (shellState !== 'title') return null;
@@ -41,10 +42,16 @@ export function TitleScreenOverlay() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-[#2B1F2D]/95 border-2 border-[#2D1E2F] font-mono-tabular text-xs sm:text-sm font-bold shadow-lg shrink-0 ml-auto">
-          <span className="flex items-center gap-1 sm:gap-1.5 text-[#FDFFB6]">
+          <button
+            type="button"
+            onClick={() => void handleWatchCoinsAd()}
+            title="Watch ad for +100 Coins"
+            className="flex items-center gap-1 sm:gap-1.5 text-[#FDFFB6] hover:text-[#FFEE8C] active:scale-95 transition-all cursor-pointer"
+          >
             <CoinIcon />
             {saveData.currencies.coins}
-          </span>
+            <span className="text-[10px] text-[#A8E6CF] font-sans font-normal ml-0.5">+100 🎬</span>
+          </button>
           <span className="flex items-center gap-1 sm:gap-1.5 text-[#DED2F9]">
             <SeedGemIcon />
             {saveData.currencies.gems}

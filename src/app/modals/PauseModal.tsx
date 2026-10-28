@@ -10,6 +10,7 @@ import { CARDS, WEAPONS } from '../../content/data/catalog';
 import { useGameShell } from '../context/GameShellContext';
 import { LazyModalDebugCardsButton } from '../debug/LazyDebugComponents';
 import { IS_DEV } from '../debug/devGate';
+import { cn } from '../../utils/cn';
 
 /**
  * @llm-component PauseModal
@@ -74,7 +75,12 @@ export function PauseModal() {
                     className="p-2 rounded-lg bg-[#2B1F2D]/80 border border-[#FFFDF0]/10 flex flex-col gap-0.5"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className={`text-sm font-bold ${w.evolved ? 'text-[#FDFFB6]' : 'text-[#FFFDF0]'}`}>
+                      <span
+                        className={cn(
+                          'text-sm font-bold',
+                          w.evolved ? 'text-[#FDFFB6]' : 'text-[#FFFDF0]'
+                        )}
+                      >
                         {currentName}
                         {w.evolved && (
                           <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-[#FDFFB6]/20 text-[#FDFFB6] font-extrabold uppercase">

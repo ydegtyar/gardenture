@@ -148,6 +148,7 @@ export interface GameShellContextValue {
   handleUnlockCurse: (curseId: string, cost: number) => void;
   handleWatchPersonaPipAd: (personaId: string) => Promise<void>;
   handleWatchSanctuaryRewardAd: () => Promise<void>;
+  handleWatchCoinsAd: () => Promise<void>;
   handleSavePlayerStateNow: () => Promise<void>;
   handleReloadAndReconcileSave: () => Promise<void>;
   handleClaimQuest: (questId: string) => void;
@@ -205,8 +206,11 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
   const [sanctuaryTab, setSanctuaryTab] = useState<SanctuaryTab>(null);
   const [draftOffers, setDraftOffers] = useState<DraftOfferItem[]>([]);
+  const draftOffersRef = useRef<DraftOfferItem[]>([]);
+  draftOffersRef.current = draftOffers;
   const [awaitingRevive, setAwaitingRevive] = useState(false);
   const [isAdLoading, setIsAdLoading] = useState(false);
+  const isAdPlayingRef = useRef(false);
   const [runSummary, setRunSummary] = useState<RunSummarySnapshot | null>(null);
   const [lastEndedRunRewards, setLastEndedRunRewards] =
     useState<EndedRunRewardsSummary | null>(null);
@@ -727,7 +731,15 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         onPauseGame: () => {
           inputRef.current.clearAllIntents();
           audioRef.current.onPlatformPause();
-          if (shellStateRef.current === 'playing' && simRef.current) {
+          // If an ad is actively playing or Tarot card drafting is open,
+          // mute audio and clear inputs, but DO NOT switch shellState to 'paused'
+          // which would unmount the active modal.
+          if (
+            shellStateRef.current === 'playing' &&
+            simRef.current &&
+            !isAdPlayingRef.current &&
+            draftOffersRef.current.length === 0
+          ) {
             saveDataRef.current.activeRun = simRef.current.serializeCheckpoint();
             void saveManagerRef.current.flushImmediate();
             updateShellState('paused');
@@ -1034,19 +1046,24 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
   const handleRerollAd = useCallback(async () => {
     const sim = simRef.current;
-    if (!sim || sim.adRerollsUsed >= Simulation.MAX_AD_REROLLS) return;
+    if (!sim || sim.adRerollsUsed >= Simulation.MAX_AD_REROLLS || isAdLoading) return;
     setIsAdLoading(true);
+    isAdPlayingRef.current = true;
     audioRef.current.setAdPlaying(true);
-    const earned = await platformRef.current.ads.requestRewardedAd('reward_card_reroll_v1');
-    audioRef.current.setAdPlaying(false);
-    setIsAdLoading(false);
-    if (earned) {
-      saveManagerRef.current.recordAdWatched();
-      setDraftOffers([...sim.rerollCardDraft('ad')]);
-      saveDataRef.current.activeRun = sim.serializeCheckpoint();
-      void saveManagerRef.current.flushImmediate();
+    try {
+      const earned = await platformRef.current.ads.requestRewardedAd('reward_card_reroll_v1');
+      if (earned) {
+        saveManagerRef.current.recordAdWatched();
+        setDraftOffers([...sim.rerollCardDraft('ad')]);
+        saveDataRef.current.activeRun = sim.serializeCheckpoint();
+        void saveManagerRef.current.flushImmediate();
+      }
+    } finally {
+      audioRef.current.setAdPlaying(false);
+      isAdPlayingRef.current = false;
+      setIsAdLoading(false);
     }
-  }, []);
+  }, [isAdLoading]);
 
   const handleRerollCoins = useCallback(() => {
     const sim = simRef.current;
@@ -1071,22 +1088,27 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
   const handleWatchAdRevive = useCallback(async () => {
     const sim = simRef.current;
-    if (!sim) return;
+    if (!sim || isAdLoading) return;
     setIsAdLoading(true);
+    isAdPlayingRef.current = true;
     audioRef.current.setAdPlaying(true);
-    const earned = await platformRef.current.ads.requestRewardedAd('reward_revive_run_v1');
-    audioRef.current.setAdPlaying(false);
-    setIsAdLoading(false);
-    if (earned) {
-      saveManagerRef.current.recordAdWatched();
-      sim.applyPlayerRevive({ isAdRevive: true });
-      setAwaitingRevive(false);
-      clockRef.current.startResumeCountdown(1.0);
-      syncHudFromSim(sim);
-      saveDataRef.current.activeRun = sim.serializeCheckpoint();
-      void saveManagerRef.current.flushImmediate();
+    try {
+      const earned = await platformRef.current.ads.requestRewardedAd('reward_revive_run_v1');
+      if (earned) {
+        saveManagerRef.current.recordAdWatched();
+        sim.applyPlayerRevive({ isAdRevive: true });
+        setAwaitingRevive(false);
+        clockRef.current.startResumeCountdown(1.0);
+        syncHudFromSim(sim);
+        saveDataRef.current.activeRun = sim.serializeCheckpoint();
+        void saveManagerRef.current.flushImmediate();
+      }
+    } finally {
+      audioRef.current.setAdPlaying(false);
+      isAdPlayingRef.current = false;
+      setIsAdLoading(false);
     }
-  }, [syncHudFromSim]);
+  }, [isAdLoading, syncHudFromSim]);
 
   const handleSpendCoinsRevive = useCallback(() => {
     const sim = simRef.current;
@@ -1113,29 +1135,37 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleWatchDoubleCoinsAd = useCallback(async () => {
-    if (!runSummary || runSummary.doubleCoinsClaimed) return;
+    if (!runSummary || runSummary.doubleCoinsClaimed || isAdLoading) return;
     setIsAdLoading(true);
+    isAdPlayingRef.current = true;
     audioRef.current.setAdPlaying(true);
-    const earned = await platformRef.current.ads.requestRewardedAd('reward_double_coins_v1');
-    audioRef.current.setAdPlaying(false);
-    setIsAdLoading(false);
-    if (earned) {
-      saveManagerRef.current.recordAdWatched();
-      const sd = saveDataRef.current;
-      sd.currencies.coins += runSummary.coinsEarned;
-      setSaveData({ ...sd });
-      setRunSummary({
-        ...runSummary,
-        coinsEarned: runSummary.coinsEarned * 2,
-        doubleCoinsClaimed: true,
-      });
-      void saveManagerRef.current.flushImmediate();
+    try {
+      const earned = await platformRef.current.ads.requestRewardedAd('reward_double_coins_v1');
+      if (earned) {
+        saveManagerRef.current.recordAdWatched();
+        const sd = saveDataRef.current;
+        sd.currencies.coins += runSummary.coinsEarned;
+        setSaveData({ ...sd });
+        setRunSummary({
+          ...runSummary,
+          coinsEarned: runSummary.coinsEarned * 2,
+          doubleCoinsClaimed: true,
+        });
+        void saveManagerRef.current.flushImmediate();
+      }
+    } finally {
+      audioRef.current.setAdPlaying(false);
+      isAdPlayingRef.current = false;
+      setIsAdLoading(false);
     }
-  }, [runSummary]);
+  }, [isAdLoading, runSummary]);
 
   const handleReturnToTitleFromSummary = useCallback(() => {
     setRunSummary(null);
     updateShellState('title');
+    if (platform.canUse(PlatformFeature.INTERSTITIAL_ADS)) {
+      void platformRef.current.ads.requestInterstitialAd();
+    }
   }, [updateShellState]);
 
   const handleSelectLoadout = useCallback(
@@ -1246,63 +1276,99 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
   const handleWatchPersonaPipAd = useCallback(
     async (personaId: string) => {
+      if (isAdLoading) return;
       setIsAdLoading(true);
+      isAdPlayingRef.current = true;
       audioRef.current.setAdPlaying(true);
-      const earned = await platformRef.current.ads.requestRewardedAd('reward_persona_pip_v1');
-      audioRef.current.setAdPlaying(false);
-      setIsAdLoading(false);
-      if (!earned) {
-        refreshYtDiagnostics('Ad skipped or unavailable — no Persona pip awarded.');
-        return;
+      try {
+        const earned = await platformRef.current.ads.requestRewardedAd('reward_persona_pip_v1');
+        if (!earned) {
+          refreshYtDiagnostics('Ad skipped or unavailable — no Persona pip awarded.');
+          return;
+        }
+        saveManagerRef.current.recordAdWatched();
+        const sd = saveDataRef.current;
+        const currentPips = (sd.unlocks.personaAdPips[personaId] ?? 0) + 1;
+        sd.unlocks.personaAdPips[personaId] = currentPips;
+        const pDef = PERSONAS.find((p) => p.id === personaId);
+        if (pDef && currentPips >= pDef.adPipsRequired) {
+          if (!sd.unlocks.personas.includes(personaId)) {
+            sd.unlocks.personas.push(personaId);
+          }
+          if (!sd.unlocks.professions.includes(pDef.professionId)) {
+            sd.unlocks.professions.push(pDef.professionId);
+          }
+          sd.loadout.personaId = personaId;
+          sd.loadout.professionId = pDef.professionId;
+          sd.loadout.startingWeaponId =
+            PROFESSIONS[pDef.professionId]?.startingWeaponId ?? sd.loadout.startingWeaponId;
+          if (simRef.current) {
+            simRef.current.personaId = personaId;
+            simRef.current.professionId = pDef.professionId;
+          }
+        }
+        setSaveData({ ...sd });
+        await saveManagerRef.current.flushImmediate();
+        refreshYtDiagnostics(
+          `Rewarded Ad completed (${pDef?.name ?? personaId}: ${currentPips}/${pDef?.adPipsRequired ?? 1} watched ads).`
+        );
+      } finally {
+        audioRef.current.setAdPlaying(false);
+        isAdPlayingRef.current = false;
+        setIsAdLoading(false);
       }
-      saveManagerRef.current.recordAdWatched();
-      const sd = saveDataRef.current;
-      const currentPips = (sd.unlocks.personaAdPips[personaId] ?? 0) + 1;
-      sd.unlocks.personaAdPips[personaId] = currentPips;
-      const pDef = PERSONAS.find((p) => p.id === personaId);
-      if (pDef && currentPips >= pDef.adPipsRequired) {
-        if (!sd.unlocks.personas.includes(personaId)) {
-          sd.unlocks.personas.push(personaId);
-        }
-        if (!sd.unlocks.professions.includes(pDef.professionId)) {
-          sd.unlocks.professions.push(pDef.professionId);
-        }
-        sd.loadout.personaId = personaId;
-        sd.loadout.professionId = pDef.professionId;
-        sd.loadout.startingWeaponId =
-          PROFESSIONS[pDef.professionId]?.startingWeaponId ?? sd.loadout.startingWeaponId;
-        if (simRef.current) {
-          simRef.current.personaId = personaId;
-          simRef.current.professionId = pDef.professionId;
-        }
-      }
-      setSaveData({ ...sd });
-      await saveManagerRef.current.flushImmediate();
-      refreshYtDiagnostics(
-        `Rewarded Ad completed (${pDef?.name ?? personaId}: ${currentPips}/${pDef?.adPipsRequired ?? 1} watched ads).`
-      );
     },
-    [refreshYtDiagnostics]
+    [isAdLoading, refreshYtDiagnostics]
   );
 
   const handleWatchSanctuaryRewardAd = useCallback(async () => {
+    if (isAdLoading) return;
     setIsAdLoading(true);
+    isAdPlayingRef.current = true;
     audioRef.current.setAdPlaying(true);
-    const earned = await platformRef.current.ads.requestRewardedAd('reward_sanctuary_grant_v1');
-    audioRef.current.setAdPlaying(false);
-    setIsAdLoading(false);
-    if (!earned) {
-      refreshYtDiagnostics('Ad skipped or unavailable — no Sanctuary reward granted.');
-      return;
+    try {
+      const earned = await platformRef.current.ads.requestRewardedAd('reward_sanctuary_grant_v1');
+      if (!earned) {
+        refreshYtDiagnostics('Ad skipped or unavailable — no Sanctuary reward granted.');
+        return;
+      }
+      const { coinsAdded, gemsAdded } = saveManagerRef.current.claimSanctuaryAdReward(120, 2);
+      const sd = saveDataRef.current;
+      setSaveData({ ...sd });
+      await saveManagerRef.current.flushImmediate();
+      refreshYtDiagnostics(
+        `Ad Reward Granted: +${coinsAdded} Coins & +${gemsAdded} Rare Seeds saved to player state!`
+      );
+    } finally {
+      audioRef.current.setAdPlaying(false);
+      isAdPlayingRef.current = false;
+      setIsAdLoading(false);
     }
-    const { coinsAdded, gemsAdded } = saveManagerRef.current.claimSanctuaryAdReward(120, 2);
-    const sd = saveDataRef.current;
-    setSaveData({ ...sd });
-    await saveManagerRef.current.flushImmediate();
-    refreshYtDiagnostics(
-      `Ad Reward Granted: +${coinsAdded} Coins & +${gemsAdded} Rare Seeds saved to player state!`
-    );
-  }, [refreshYtDiagnostics]);
+  }, [isAdLoading, refreshYtDiagnostics]);
+
+  const handleWatchCoinsAd = useCallback(async () => {
+    if (isAdLoading) return;
+    setIsAdLoading(true);
+    isAdPlayingRef.current = true;
+    audioRef.current.setAdPlaying(true);
+    try {
+      const earned = await platformRef.current.ads.requestRewardedAd('reward_loadout_coins_v1');
+      if (earned) {
+        saveManagerRef.current.recordAdWatched();
+        const sd = saveDataRef.current;
+        sd.currencies.coins += 100;
+        setSaveData({ ...sd });
+        await saveManagerRef.current.flushImmediate();
+        refreshYtDiagnostics('Ad Reward Granted: +100 Coins added to your purse!');
+      } else {
+        refreshYtDiagnostics('Ad skipped or unavailable — no Coins granted.');
+      }
+    } finally {
+      audioRef.current.setAdPlaying(false);
+      isAdPlayingRef.current = false;
+      setIsAdLoading(false);
+    }
+  }, [isAdLoading, refreshYtDiagnostics]);
 
   const handleSavePlayerStateNow = useCallback(async () => {
     const ok = await saveManagerRef.current.flushImmediate();
@@ -1618,6 +1684,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     handleUnlockCurse,
     handleWatchPersonaPipAd,
     handleWatchSanctuaryRewardAd,
+    handleWatchCoinsAd,
     handleSavePlayerStateNow,
     handleReloadAndReconcileSave,
     handleClaimQuest,

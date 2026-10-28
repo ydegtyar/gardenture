@@ -17,17 +17,10 @@ import {
 } from '../../content/data/catalog';
 import type { ProfessionId } from '../../content/schema/types';
 import type { SaveDataV1 } from '../../meta/SaveManager';
-import type {
-  DevStubAdOutcomeMode,
-  DevStubStorageMode,
-  YtSdkDiagnosticsState,
-} from '../../platform/ports/PlatformFacade';
 import {
   CATALOG_SPRITE_PROMPTS,
   getSpritePortraitDataUrl,
-  getSpriteSilhouetteDataUrl,
   resolveHeroSpriteKey,
-  resolvePersonaSkinSpriteKey,
   type SpriteKey,
 } from '../../view/SpriteAtlas';
 import { CoinIcon, SeedGemIcon } from '../SvgIcons';
@@ -36,13 +29,13 @@ import { useGameShell } from '../context/GameShellContext';
 import {
   LazyBestiaryEnemyDebugBadge,
   LazyBestiaryEnemyDebugSpawner,
-  LazyPersonaDebugAllButton,
-  LazyPersonaDebugSingleButton,
   LazySanctuaryHeaderDebugGoldButton,
   LazyStoreDebugTreasuryPanel,
-  LazyYouTubeDevStubControls,
 } from '../debug/LazyDebugComponents';
 import { IS_DEV } from '../debug/devGate';
+import { HeroPersonasSection } from './HeroPersonasSection';
+import { YouTubeSdkPanel } from './YouTubeSdkPanel';
+import { cn } from '../../utils/cn';
 
 /**
  * @llm-component LoadoutAndStoreModal
@@ -53,25 +46,13 @@ export function LoadoutAndStoreModal() {
     saveData,
     sanctuaryTab,
     setSanctuaryTab,
-    ytDiagnostics,
-    ytSdkBanner,
-    lastSyncSource,
-    isAdLoading,
     handleSelectLoadout,
     handleUnlockProfession,
     handleUnlockTrinket,
     handleUpgradeTrinket,
     handleUnlockCurse,
-    handleWatchPersonaPipAd,
-    handleWatchSanctuaryRewardAd,
-    handleDebugIncrementPersonaAdPip,
-    handleDebugIncrementAllPersonaAdPips,
-    handleSavePlayerStateNow,
-    handleReloadAndReconcileSave,
-    handleSetDevAdOutcomeMode,
-    handleSetDevCloudStorageMode,
-    handleSimulateYtAudioToggle,
-    handleSyncScoreNow,
+    handleWatchCoinsAd,
+    isAdLoading,
     handleDebugSpawnBestiaryEnemy,
     handleClaimQuest,
     handleDebugAddGold,
@@ -79,23 +60,13 @@ export function LoadoutAndStoreModal() {
   } = useGameShell();
 
   const initialTab = (sanctuaryTab ?? 'loadout') as 'loadout' | 'store' | 'quests' | 'bestiary';
-  const statusBannerText = ytSdkBanner ?? null;
   const onClose = () => setSanctuaryTab(null);
   const onSelectLoadout = handleSelectLoadout;
   const onUnlockProfession = handleUnlockProfession;
   const onUnlockTrinket = handleUnlockTrinket;
   const onUpgradeTrinket = handleUpgradeTrinket;
   const onUnlockCurse = handleUnlockCurse;
-  const onWatchPersonaPipAd = handleWatchPersonaPipAd;
-  const onWatchSanctuaryRewardAd = handleWatchSanctuaryRewardAd;
-  const onIncrementPersonaAdPip = IS_DEV ? handleDebugIncrementPersonaAdPip : undefined;
-  const onIncrementAllPersonaAdPips = IS_DEV ? handleDebugIncrementAllPersonaAdPips : undefined;
-  const onSavePlayerStateNow = handleSavePlayerStateNow;
-  const onReloadAndReconcileSave = handleReloadAndReconcileSave;
-  const onSetDevAdOutcomeMode = IS_DEV ? handleSetDevAdOutcomeMode : undefined;
-  const onSetDevCloudStorageMode = IS_DEV ? handleSetDevCloudStorageMode : undefined;
-  const onSimulateYtAudioToggle = IS_DEV ? handleSimulateYtAudioToggle : undefined;
-  const onSyncScoreNow = IS_DEV ? handleSyncScoreNow : undefined;
+  const onWatchCoinsAd = handleWatchCoinsAd;
   const onSpawnBestiaryEnemy = IS_DEV ? handleDebugSpawnBestiaryEnemy : undefined;
   const onClaimQuest = handleClaimQuest;
   const onAddDebugGold = handleDebugAddGold;
@@ -104,304 +75,6 @@ export function LoadoutAndStoreModal() {
   const [tab, setTab] = useState<'loadout' | 'store' | 'quests' | 'bestiary'>(initialTab);
   const [activeDebugEnemyKey, setActiveDebugEnemyKey] = useState<string | null>(null);
   const { loadout, unlocks, currencies, retention } = saveData;
-
-  const renderYouTubeSdkPanel = () => {
-    if (!ytDiagnostics) return null;
-    return (
-      <div
-        data-testid="yt-sdk-panel"
-        className="p-3.5 rounded-xl bg-[#1E1520] border-2 border-[#A8E6CF]/45 space-y-3"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-[#A8E6CF] uppercase tracking-wider">
-                YouTube Playables SDK · Ad Rewards, Cloud Save & Dev Stubs
-              </span>
-              <span
-                data-testid="yt-sdk-env-badge"
-                className={`px-2 py-0.5 rounded text-[10px] font-mono-tabular font-bold ${
-                  ytDiagnostics.isPlayablesEnv
-                    ? 'bg-[#A8E6CF] text-[#2D1E2F]'
-                    : 'bg-[#DED2F9] text-[#2D1E2F]'
-                }`}
-              >
-                {ytDiagnostics.isPlayablesEnv
-                  ? `YT Host (${ytDiagnostics.sdkVersion})`
-                  : `Dev Mode Stub (${ytDiagnostics.sdkVersion})`}
-              </span>
-            </div>
-            <div className="text-[11px] text-[#FFFDF0]/75 mt-0.5 font-mono-tabular">
-              Ads Today: {currencies.adWatchCountToday}/6 · Ad Tokens: {currencies.adTokensToday} · Cloud Payload: {ytDiagnostics.lastSavedCloudBytes} / 16,384 B · Sync: {lastSyncSource.toUpperCase()}
-              {ytDiagnostics.lastSubmittedScore !== null &&
-                ` · Synced Score: ${ytDiagnostics.lastSubmittedScore}`}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            {onWatchSanctuaryRewardAd && (
-              <button
-                type="button"
-                data-testid="watch-sanctuary-reward-ad"
-                disabled={isAdLoading}
-                onClick={onWatchSanctuaryRewardAd}
-                className="btn-herbarium-lichen px-3 py-1.5 text-xs whitespace-nowrap min-h-[38px]"
-              >
-                {isAdLoading ? 'Playing Ad...' : 'Watch Ad (+120 Coins & +2 Seeds)'}
-              </button>
-            )}
-            {onSavePlayerStateNow && (
-              <button
-                type="button"
-                data-testid="yt-sdk-save-now-btn"
-                onClick={onSavePlayerStateNow}
-                className="btn-herbarium-secondary-compact px-2.5 py-1.5 text-xs whitespace-nowrap min-h-[38px] text-[#A8E6CF]"
-              >
-                Save Player State
-              </button>
-            )}
-            {onReloadAndReconcileSave && (
-              <button
-                type="button"
-                data-testid="yt-sdk-load-cloud-btn"
-                onClick={onReloadAndReconcileSave}
-                className="btn-herbarium-secondary-compact px-2.5 py-1.5 text-xs whitespace-nowrap min-h-[38px]"
-              >
-                Load & Reconcile Save
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Dev Mode Stub Controls */}
-        <LazyYouTubeDevStubControls
-          ytDiagnostics={ytDiagnostics}
-          onSetDevAdOutcomeMode={onSetDevAdOutcomeMode}
-          onSetDevCloudStorageMode={onSetDevCloudStorageMode}
-          onSimulateYtAudioToggle={onSimulateYtAudioToggle}
-          onSyncScoreNow={onSyncScoreNow}
-        />
-
-        {statusBannerText && (
-          <div
-            data-testid="yt-sdk-status-banner"
-            className="px-3 py-1.5 rounded-lg bg-[#2B1F2D] border border-[#FDFFB6]/50 text-[11px] font-mono-tabular font-bold text-[#FDFFB6]"
-          >
-            {statusBannerText}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderHeroPersonasSection = (sectionNumberLabel?: string) => (
-    <div className="pt-2 border-t border-[#FFFDF0]/10">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-        <div>
-          <h3 className="text-xs font-bold tracking-wider text-[#DED2F9]">
-            {sectionNumberLabel ? `${sectionNumberLabel} ` : ''}ARCANA CHARACTER SKINS (AD-EXCLUSIVE POP-CULTURE MASHUPS & PERMANENT VFX)
-          </h3>
-          <p className="text-[11px] text-[#FFFDF0]/70 mt-0.5">
-            Locked skins appear only as mysterious shadow silhouettes until opened by watching 3 Rewarded Ads.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {loadout.personaId !== 'adventurer_default' && (
-            <button
-              type="button"
-              data-testid="reset-default-persona-btn"
-              onClick={() => onSelectLoadout({ personaId: 'adventurer_default' })}
-              className="btn-herbarium-secondary-compact px-2.5 py-1 text-[11px] whitespace-nowrap"
-            >
-              Use Default Hero Look
-            </button>
-          )}
-          {onIncrementAllPersonaAdPips && (
-            <LazyPersonaDebugAllButton
-              onIncrementAllPersonaAdPips={onIncrementAllPersonaAdPips}
-            />
-          )}
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {PERSONAS.map((persona) => {
-          const unlocked = unlocks.personas.includes(persona.id);
-          const selected = loadout.personaId === persona.id;
-          const pips = unlocks.personaAdPips[persona.id] ?? 0;
-          const skinKey = resolvePersonaSkinSpriteKey(persona.id);
-          const portraitUrl = skinKey
-            ? unlocked
-              ? getSpritePortraitDataUrl(skinKey)
-              : getSpriteSilhouetteDataUrl(skinKey)
-            : '';
-          const profName = PROFESSIONS[persona.professionId]?.name ?? persona.professionId;
-          const eyeLeftHex = `#${persona.eyeLeftColor.toString(16).padStart(6, '0')}`;
-          const eyeRightHex = `#${persona.eyeRightColor.toString(16).padStart(6, '0')}`;
-
-          return (
-            <div
-              key={persona.id}
-              data-testid={`persona-card-${persona.id}`}
-              data-unlocked={unlocked ? 'true' : 'false'}
-              className={`p-3.5 rounded-xl border-2 flex flex-col justify-between gap-3 transition-colors ${
-                selected
-                  ? 'bg-[#36493E] border-[#A8E6CF] shadow-[0_0_14px_rgba(168,230,207,0.22)]'
-                  : unlocked
-                    ? 'bg-[#1E1520] border-[#DED2F9]/45'
-                    : 'bg-[#130D16] border-[#FFFDF0]/15'
-              }`}
-            >
-              <div className="flex items-start gap-3 min-w-0">
-                <div
-                  className={`relative w-20 h-20 rounded-xl border-2 shrink-0 flex items-center justify-center overflow-hidden p-1 ${
-                    unlocked
-                      ? 'bg-[#2B1F2D] border-[#A8E6CF]/60'
-                      : 'bg-[#08050B] border-[#2D1E2F] shadow-inner'
-                  }`}
-                >
-                  {portraitUrl && (
-                    <img
-                      src={portraitUrl}
-                      alt={
-                        unlocked
-                          ? `${persona.name} skin`
-                          : `Mystery ${profName} shadow silhouette`
-                      }
-                      data-testid={
-                        unlocked
-                          ? `persona-portrait-${persona.id}`
-                          : `persona-silhouette-${persona.id}`
-                      }
-                      data-silhouette={unlocked ? 'false' : 'true'}
-                      referrerPolicy="no-referrer"
-                      className={`w-full h-full object-contain transition-all duration-300 ${
-                        unlocked ? '' : 'opacity-90 contrast-200 drop-shadow-[0_0_6px_rgba(168,85,247,0.35)]'
-                      }`}
-                    />
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-1.5 mb-0.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#2B1F2D] text-[#FDFFB6] border border-[#FDFFB6]/25">
-                      {profName} Arcana Skin
-                    </span>
-                    {unlocked && (
-                      <span
-                        className="flex items-center gap-1 text-[10px] text-[#FFFDF0]/75"
-                        title="Heterochromia Eyes"
-                      >
-                        <span
-                          className="w-2.5 h-2.5 rounded-full border border-[#140E16]"
-                          style={{ backgroundColor: eyeLeftHex }}
-                        />
-                        <span
-                          className="w-2.5 h-2.5 rounded-full border border-[#140E16]"
-                          style={{ backgroundColor: eyeRightHex }}
-                        />
-                      </span>
-                    )}
-                  </div>
-
-                  {unlocked ? (
-                    <>
-                      <div
-                        data-testid={`persona-title-${persona.id}`}
-                        className="font-display font-bold text-sm text-[#FFFDF0] truncate"
-                      >
-                        {persona.name}
-                      </div>
-                      <div className="text-[11px] font-semibold text-[#DED2F9] truncate">
-                        {persona.popCultureMashup}
-                      </div>
-                      <p className="text-[11px] text-[#A8E6CF] mt-1 leading-snug">
-                        <span className="font-bold">{persona.permanentVfxLabel}:</span>{' '}
-                        {persona.permanentVfxDescription}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div
-                        data-testid={`persona-title-${persona.id}`}
-                        className="font-display font-bold text-sm text-[#DED2F9]/85 truncate"
-                      >
-                        ??? · Shadowed {profName}
-                      </div>
-                      <p className="text-[11px] text-[#FFFDF0]/60 mt-0.5 leading-snug">
-                        Unopened silhouette. Watch {persona.adPipsRequired} Rewarded Ads to reveal this pop-culture skin & its permanent footsteps VFX.
-                      </p>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        {Array.from({ length: persona.adPipsRequired }).map((_, idx) => (
-                          <span
-                            key={idx}
-                            className={`h-1.5 flex-1 rounded-full ${
-                              idx < pips ? 'bg-[#A8E6CF]' : 'bg-[#FFFDF0]/15'
-                            }`}
-                          />
-                        ))}
-                        <span className="text-[10px] font-mono-tabular text-[#DED2F9] ml-1">
-                          {pips}/{persona.adPipsRequired} Ads
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-[#FFFDF0]/10 flex items-center justify-between gap-2">
-                <span className="text-[10px] text-[#FFFDF0]/60 truncate">
-                  {unlocked ? persona.subtitle : 'Ad-Exclusive Arcana Unlock'}
-                </span>
-                {unlocked ? (
-                  <button
-                    type="button"
-                    data-testid={`wear-persona-${persona.id}`}
-                    onClick={() => {
-                      if (selected) {
-                        onSelectLoadout({ personaId: 'adventurer_default' });
-                      } else {
-                        onSelectLoadout({
-                          personaId: persona.id,
-                          professionId: persona.professionId,
-                          startingWeaponId:
-                            PROFESSIONS[persona.professionId]?.startingWeaponId ??
-                            loadout.startingWeaponId,
-                        });
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors ${
-                      selected
-                        ? 'bg-[#E11D48] hover:bg-[#BE123C] text-[#FFFDF0] shadow-sm'
-                        : 'btn-herbarium-secondary-compact'
-                    }`}
-                  >
-                    {selected ? 'Unequip' : 'Wear Skin'}
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      data-testid={`watch-persona-ad-${persona.id}`}
-                      onClick={() => onWatchPersonaPipAd(persona.id)}
-                      className="btn-herbarium-lichen px-2.5 py-1.5 text-xs whitespace-nowrap min-h-[38px]"
-                    >
-                      Watch Ad ({pips}/{persona.adPipsRequired})
-                    </button>
-                    {onIncrementPersonaAdPip && (
-                      <LazyPersonaDebugSingleButton
-                        personaId={persona.id}
-                        onIncrementPersonaAdPip={onIncrementPersonaAdPip}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 
   return (
     <div
@@ -424,11 +97,12 @@ export function LoadoutAndStoreModal() {
                   type="button"
                   data-testid={`sanctuary-tab-${t}`}
                   onClick={() => setTab(t)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors whitespace-nowrap ${
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors whitespace-nowrap',
                     tab === t
                       ? 'bg-[#E8B64A] text-[#201A09] shadow-sm'
                       : 'text-[#EDE6D0]/70 hover:text-[#EDE6D0]'
-                  }`}
+                  )}
                 >
                   {t}
                 </button>
@@ -437,13 +111,21 @@ export function LoadoutAndStoreModal() {
           </div>
 
           <div className="flex items-center gap-3 text-sm font-mono-tabular">
-            <span
+            <button
+              type="button"
               data-testid="store-coins-balance"
-              className="flex items-center gap-1.5 text-[#FDFFB6]"
+              onClick={onWatchCoinsAd}
+              disabled={isAdLoading}
+              title="Watch ad for +100 Coins"
+              aria-label="Watch ad for +100 Coins"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FDFFB6]/10 hover:bg-[#FDFFB6]/20 active:scale-95 transition-all text-[#FDFFB6] border border-[#FDFFB6]/25 cursor-pointer group disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <CoinIcon />
-              {currencies.coins}
-            </span>
+              <span className="font-bold">{currencies.coins}</span>
+              <span className="text-[10px] bg-[#FDFFB6]/25 group-hover:bg-[#FDFFB6]/35 text-[#18241E] font-extrabold px-1.5 py-0.5 rounded-full ml-0.5 flex items-center gap-1 whitespace-nowrap">
+                {isAdLoading ? '...' : '+100 🎬'}
+              </span>
+            </button>
             <LazySanctuaryHeaderDebugGoldButton onAddDebugGold={onAddDebugGold} />
             <span className="flex items-center gap-1.5 text-[#DED2F9]">
               <SeedGemIcon />
@@ -485,11 +167,12 @@ export function LoadoutAndStoreModal() {
                     return (
                       <div
                         key={profId}
-                        className={`p-3.5 rounded-xl border-2 flex flex-col justify-between ${
+                        className={cn(
+                          'p-3.5 rounded-xl border-2 flex flex-col justify-between',
                           isSelected
                             ? 'bg-[#36493E] border-[#A8E6CF]'
                             : 'bg-[#1E1520] border-[#FFFDF0]/15'
-                        }`}
+                        )}
                       >
                         <div className="flex items-start gap-3">
                           {spriteUrl && (
@@ -554,9 +237,10 @@ export function LoadoutAndStoreModal() {
                 </div>
               </div>
 
-              {renderHeroPersonasSection('02.')}
+              {/* Hero Personas */}
+              <HeroPersonasSection sectionNumberLabel="02." />
 
-              {renderYouTubeSdkPanel()}
+              <YouTubeSdkPanel />
 
               {/* Biome & Daily Seed Toggle */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#FFFDF0]/10">
@@ -619,9 +303,9 @@ export function LoadoutAndStoreModal() {
 
           {tab === 'store' && (
             <div className="space-y-5">
-              {renderHeroPersonasSection()}
+              <HeroPersonasSection />
 
-              {renderYouTubeSdkPanel()}
+              <YouTubeSdkPanel />
 
               <LazyStoreDebugTreasuryPanel onAddDebugGold={onAddDebugGold} />
 
@@ -800,13 +484,14 @@ export function LoadoutAndStoreModal() {
                       type="button"
                       disabled={!done || q.claimed}
                       onClick={() => onClaimQuest(q.id)}
-                      className={`px-4 py-2 text-xs font-bold whitespace-nowrap ${
+                      className={cn(
+                        'px-4 py-2 text-xs font-bold whitespace-nowrap',
                         q.claimed
                           ? 'btn-herbarium-secondary-compact opacity-40 cursor-not-allowed'
                           : done
                           ? 'btn-herbarium-primary shadow-md'
                           : 'btn-herbarium-secondary-compact opacity-50 cursor-not-allowed'
-                      }`}
+                      )}
                     >
                       {q.claimed ? 'Claimed' : done ? 'Claim Reward' : 'In Progress'}
                     </button>

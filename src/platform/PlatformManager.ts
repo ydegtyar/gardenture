@@ -100,7 +100,10 @@ export class PlatformManager {
           break;
         }
         case 'GAMEMONETIZE': {
-          const hasKeyOrSdk = gameMonetizeGameId || (typeof window !== 'undefined' && typeof window.sdk !== 'undefined');
+          const hasKeyOrSdk =
+            gameMonetizeGameId ||
+            (typeof window !== 'undefined' &&
+              (typeof window.sdk !== 'undefined' || typeof window.SDK_OPTIONS?.gameId === 'string'));
           if (!hasKeyOrSdk) {
             console.warn(
               "[PlatformManager] Provider 'GAMEMONETIZE' requested but VITE_GAMEMONETIZE_GAME_ID is empty. Falling back to lazy STUB provider."
@@ -139,7 +142,10 @@ export class PlatformManager {
         }
         case 'GAMEMONETIZE': {
           const { GameMonetizeAdapter } = await import('./providers/GameMonetizeAdapter');
-          this.adapter = new GameMonetizeAdapter({ gameId: gameMonetizeGameId });
+          this.adapter = new GameMonetizeAdapter({
+            gameId: gameMonetizeGameId,
+            allowBannerAsRewardFallback: true,
+          });
           break;
         }
         case 'NONE': {

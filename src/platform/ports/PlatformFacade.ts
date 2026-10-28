@@ -8,7 +8,8 @@ export type RewardAdPlacementId =
   | 'reward_card_reroll_v1'
   | 'reward_double_coins_v1'
   | 'reward_persona_pip_v1'
-  | 'reward_sanctuary_grant_v1';
+  | 'reward_sanctuary_grant_v1'
+  | 'reward_loadout_coins_v1';
 
 export type DevStubAdOutcomeMode = 'grant' | 'skip' | 'error';
 export type DevStubStorageMode = 'synced' | 'offline';

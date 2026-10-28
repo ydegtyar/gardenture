@@ -1,8 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  POWER_UPS,
-  STYLE_RANKS,
-} from '../../content/data/catalog';
+import { POWER_UPS, STYLE_RANKS } from '../../content/data/catalog';
 import { Simulation } from '../../sim/Simulation';
 import {
   HeartSocketIcon,
@@ -13,6 +10,7 @@ import {
 } from '../SvgIcons';
 import { useGameShell } from '../context/GameShellContext';
 import { LazyHudDebugButton } from '../debug/LazyDebugComponents';
+import { cn } from '../../utils/cn';
 
 /**
  * STATE 2: PLAYING HUD (World-Matched Botanical Perimeter, >85% Clear)
@@ -55,7 +53,7 @@ export function PlayingHudOverlay() {
   const xpRatio = Math.max(0, Math.min(1, hud.xp / Math.max(1, hud.xpToNext)));
   const bossProgressRatio = Math.max(
     0,
-    Math.min(1, hud.elapsedSec / Simulation.FINAL_BOSS_SPAWN_SEC)
+    Math.min(1, hud.elapsedSec / Simulation.FINAL_BOSS_SPAWN_SEC),
   );
 
   return (
@@ -70,18 +68,20 @@ export function PlayingHudOverlay() {
           className="absolute inset-y-0 left-0 overflow-hidden transition-all duration-150 ease-out shadow-[0_0_10px_#88D49E]"
           style={{ width: `${Math.round(xpRatio * 100)}%` }}
         >
-          <div className="h-full w-screen bg-gradient-to-r from-[#52B788] via-[#88D49E] to-[#FDFFB6]" />
+          <div
+            className="h-full w-screen bg-gradient-to-r from-[#52B788] via-[#88D49E] to-[#FDFFB6]" />
         </div>
         <div className="absolute inset-x-0 top-0 h-[40%] bg-white/10 pointer-events-none" />
         <span
           data-testid="hud-level-indicator"
           className="relative z-10 px-2 py-0.5 rounded bg-[#140E16]/75 text-[10px] sm:text-[11px] font-mono-tabular font-black tracking-widest text-[#FFFDF0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-none"
         >
-          LV {hud.level}
+          Level {hud.level}
         </span>
       </div>
 
-      <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5 pt-6 sm:pt-7 pb-5 sm:pb-6">
+      <div
+        className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5 pt-6 sm:pt-7 pb-5 sm:pb-6">
         {/* TOP PERIMETER ROW: 3 Compact Corner Clusters */}
         <div className="flex items-start justify-between gap-1.5 sm:gap-3 w-full">
           {/* Cluster 1 (Top-Left): Botanical Thermometer Vitality Indicator + Segmented Dash Cooldown (Outer Container Box Removed) */}
@@ -102,7 +102,8 @@ export function PlayingHudOverlay() {
               {/* Thermometer Heart Reservoir Bulb at Start */}
               <div
                 data-testid="hud-thermometer-bulb"
-                className={`relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 border-2 border-[#2D1E2F] shadow-[0_2px_8px_rgba(0,0,0,0.65)] transition-all duration-200 ${
+                className={cn(
+                  'relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 border-2 border-[#2D1E2F] shadow-[0_2px_8px_rgba(0,0,0,0.65)] transition-all duration-200',
                   heartPulse === 'damage'
                     ? 'scale-125 bg-gradient-to-br from-[#FB7185] via-[#F43F5E] to-[#881337] shadow-[0_0_12px_#F43F5E]'
                     : heartPulse === 'heal'
@@ -110,10 +111,11 @@ export function PlayingHudOverlay() {
                       : hpRatio <= 0.3
                         ? 'bg-gradient-to-br from-[#FB7185] via-[#F43F5E] to-[#881337] animate-pulse'
                         : 'bg-gradient-to-br from-[#FFAAA6] via-[#F43F5E] to-[#9F1239]'
-                }`}
+                )}
               >
                 {/* Glass bulb specular highlight */}
-                <div className="absolute top-1 left-1.5 w-2.5 h-1.5 rounded-full bg-[#FFFDF0]/45 -rotate-12 pointer-events-none" />
+                <div
+                  className="absolute top-1 left-1.5 w-2.5 h-1.5 rounded-full bg-[#FFFDF0]/45 -rotate-12 pointer-events-none" />
                 <HeartSocketIcon
                   state={hpRatio > 0.5 ? 'full' : hpRatio > 0.25 ? 'damaged' : 'empty'}
                 />
@@ -133,11 +135,12 @@ export function PlayingHudOverlay() {
                 {/* Active Theme-Gradient Botanical Mercury Fill */}
                 <div
                   data-testid="hud-thermometer-fill"
-                  className={`absolute inset-y-0 left-0 rounded-full transition-all duration-100 ${
+                  className={cn(
+                    'absolute inset-y-0 left-0 rounded-full transition-all duration-100',
                     hpRatio <= 0.3
                       ? 'bg-gradient-to-r from-[#9F1239] via-[#F43F5E] to-[#FB7185] shadow-[0_0_10px_#F43F5E]'
                       : 'bg-gradient-to-r from-[#F43F5E] via-[#FBBF24] to-[#88D49E] shadow-[0_0_10px_rgba(136,212,158,0.55)]'
-                  }`}
+                  )}
                   style={{ width: `${Math.round(hpRatio * 100)}%` }}
                 />
 
@@ -153,7 +156,8 @@ export function PlayingHudOverlay() {
                 )}
 
                 {/* Glass Tube Top Specular Reflection */}
-                <div className="absolute top-0.5 inset-x-1 h-1 rounded-full bg-gradient-to-r from-[#FFFDF0]/35 via-[#FFFDF0]/20 to-transparent pointer-events-none" />
+                <div
+                  className="absolute top-0.5 inset-x-1 h-1 rounded-full bg-gradient-to-r from-[#FFFDF0]/35 via-[#FFFDF0]/20 to-transparent pointer-events-none" />
               </div>
             </div>
 
@@ -177,13 +181,14 @@ export function PlayingHudOverlay() {
                     className="relative flex-1 h-2 sm:h-2.5 rounded-full bg-[#18111A] border border-[#2D1E2F] overflow-hidden"
                   >
                     <div
-                      className={`h-full transition-all duration-75 ${
+                      className={cn(
+                        'h-full transition-all duration-75',
                         hud.isDashInvisible
                           ? 'bg-[#A0C4FF] shadow-[0_0_6px_#A0C4FF]'
                           : isReady
                             ? 'bg-[#A8E6CF] shadow-[0_0_6px_rgba(168,230,207,0.65)]'
                             : 'bg-[#5FE0C8]/75'
-                      }`}
+                      )}
                       style={{ width: `${fillPct}%` }}
                     />
                   </div>
@@ -198,7 +203,8 @@ export function PlayingHudOverlay() {
               data-testid="hud-rank-score-badge"
               className="relative flex flex-col items-center px-2 py-0.5 shrink-0 transition-all duration-300 z-10"
             >
-              <div className="flex items-baseline justify-center gap-2 sm:gap-2.5 whitespace-nowrap">
+              <div
+                className="flex items-baseline justify-center gap-2 sm:gap-2.5 whitespace-nowrap">
                 <span
                   key={`rank-${currentRankDef.letter}-${rankAura?.key ?? 0}`}
                   data-testid="hud-rank-letter"
@@ -214,7 +220,8 @@ export function PlayingHudOverlay() {
                   {hud.score.toLocaleString()} PTS
                 </span>
               </div>
-              <div className="w-24 sm:w-32 h-2 rounded-full bg-[#18111A]/90 border border-[#2D1E2F] overflow-hidden mt-1 shadow-sm">
+              <div
+                className="w-24 sm:w-32 h-2 rounded-full bg-[#18111A]/90 border border-[#2D1E2F] overflow-hidden mt-1 shadow-sm">
                 <div
                   className="h-full transition-all duration-75"
                   style={{
@@ -275,25 +282,19 @@ export function PlayingHudOverlay() {
 
         {/* BOTTOM PERIMETER STACK: Special Enemy / Boss Alert Banner at Bottom + Held Power-Up Row */}
         <div className="flex flex-col items-center gap-2 w-full">
-          {hud.isOutsideArena ? (
-            <div
-              data-testid="bottom-alert-banner"
-              className="mx-auto px-4 py-1.5 rounded-xl bg-[#3B1622]/95 border-2 border-[#F43F5E] text-xs font-extrabold text-[#FFAAA6] shadow-lg whitespace-nowrap animate-pulse"
-            >
-              OUTSIDE THORN ARENA · TAKING BRIAR BLEED DPS!
-            </div>
-          ) : hud.activeAlert ? (
+          {hud.activeAlert && (
             <div
               data-testid="bottom-alert-banner"
               className="mx-auto px-4 py-1.5 rounded-xl bg-[#2B1F2D]/95 border-2 border-[#FDFFB6] text-xs font-bold text-[#FDFFB6] shadow-lg whitespace-nowrap"
             >
               {hud.activeAlert}
             </div>
-          ) : null}
+          )}
 
           <div className="flex items-end justify-end gap-2 w-full">
             {/* Held One-Time Usable Items / Power-Up Slots [Q] and [E] */}
-            <div className="flex items-center gap-2 pointer-events-auto shrink-0 p-1.5 sm:p-2 rounded-2xl bg-[#2B1F2D]/90 border-2 border-[#2D1E2F] shadow-xl">
+            <div
+              className="flex items-center gap-2 pointer-events-auto shrink-0 p-1.5 sm:p-2 rounded-2xl bg-[#2B1F2D]/90 border-2 border-[#2D1E2F] shadow-xl">
               {[0, 1].map((slotIdx) => {
                 const pId = hud.heldPowerUps[slotIdx];
                 const pDef = pId ? POWER_UPS[pId] : null;
@@ -311,23 +312,28 @@ export function PlayingHudOverlay() {
                       e.currentTarget.blur();
                       usePowerUpSlot(slotIdx);
                     }}
-                    className={`relative flex flex-col items-center justify-center rounded-xl border-2 transition-all active:scale-95 whitespace-nowrap shrink-0 p-2 sm:p-2.5 min-w-[70px] sm:min-w-[84px] cursor-pointer ${
+                    className={cn(
+                      'relative flex flex-col items-center justify-center rounded-xl border-2 transition-all active:scale-95 whitespace-nowrap shrink-0 p-2 sm:p-2.5 min-w-[70px] sm:min-w-[84px] cursor-pointer',
                       pDef
                         ? 'bg-gradient-to-b from-[#251E12] to-[#161307] border-[#8F691C] text-[#EDE6D0] shadow-md hover:border-[#E8B64A] hover:shadow-[0_0_10px_rgba(232,182,74,0.3)]'
                         : 'bg-[#0E1A17]/60 border-[#3D392A]/40 text-[#EDE6D0]/30 cursor-not-allowed'
-                    }`}
+                    )}
                   >
-                    <span className="portrait:hidden absolute -top-2 -right-2 px-1.5 py-0.2 rounded-full bg-[#2B1F2D] border border-[#A8E6CF] font-mono-tabular text-[10px] font-bold text-[#A8E6CF] shadow">
+                    <span
+                      className="portrait:hidden absolute -top-2 -right-2 px-1.5 py-0.2 rounded-full bg-[#2B1F2D] border border-[#A8E6CF] font-mono-tabular text-[10px] font-bold text-[#A8E6CF] shadow">
                       {keyBind}
                     </span>
                     <div className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center mb-1">
                       {pDef ? (
-                        <PowerUpAbilityIcon powerUpId={pDef.id} className="w-8 h-8 sm:w-10 sm:h-10" />
+                        <PowerUpAbilityIcon powerUpId={pDef.id}
+                                            className="w-8 h-8 sm:w-10 sm:h-10" />
                       ) : (
-                        <div className="w-5 h-5 rounded-full border border-dashed border-[#FFFDF0]/20" />
+                        <div
+                          className="w-5 h-5 rounded-full border border-dashed border-[#FFFDF0]/20" />
                       )}
                     </div>
-                    <span className="text-[10px] sm:text-xs font-bold truncate max-w-[68px] sm:max-w-[80px]">
+                    <span
+                      className="text-[10px] sm:text-xs font-bold truncate max-w-[68px] sm:max-w-[80px]">
                       {pDef ? pDef.name : 'Empty'}
                     </span>
                   </button>
@@ -348,7 +354,8 @@ export function PlayingHudOverlay() {
           className="h-full overflow-hidden transition-all duration-300 ease-out shadow-[0_0_8px_rgba(244,63,94,0.75)]"
           style={{ width: `${Math.round(bossProgressRatio * 100)}%` }}
         >
-          <div className="h-full w-screen bg-gradient-to-r from-[#FB7185] via-[#F43F5E] to-[#FDE047]" />
+          <div
+            className="h-full w-screen bg-gradient-to-r from-[#FB7185] via-[#F43F5E] to-[#FDE047]" />
         </div>
       </div>
     </>

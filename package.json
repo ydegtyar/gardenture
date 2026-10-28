@@ -6,10 +6,13 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
+    "build:gamemonetize": "VITE_PLATFORM_PROVIDER=GAMEMONETIZE VITE_GAMEMONETIZE_GAME_ID=jyg60hwle8o4ch7vh9rn4wnajwztewgj vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js *.zip",
     "lint": "tsc --noEmit",
-    "itch:pack": "npm run build && rm -f gardenture-html5.zip && (cd dist && zip -r -q ../gardenture-html5.zip .)",
+    "gamemonetize:pack": "npm run build:gamemonetize && rm -f gardenture-gamemonetize.zip gamemonetize.zip && (cd dist && find . -name .DS_Store -delete && zip -r -q ../gardenture-gamemonetize.zip . -x '*.DS_Store*') && cp gardenture-gamemonetize.zip gamemonetize.zip",
+    "gamemonetize:zip": "npm run gamemonetize:pack",
+    "itch:pack": "npm run build && rm -f gardenture-html5.zip && (cd dist && find . -name .DS_Store -delete && zip -r -q ../gardenture-html5.zip . -x '*.DS_Store*')",
     "itch:zip": "npm run itch:pack",
     "itch:push": "dotenv -e .env.local -- sh -c 'npm run build && butler push dist/ $ITCH_USERNAME/$ITCH_GAME:html5'",
     "itch:push:dev": "dotenv -e .env.local -- sh -c 'butler push dist/ $ITCH_USERNAME/$ITCH_GAME:html5-dev'",
@@ -19,7 +22,10 @@
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/classnames": "^2.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "classnames": "^2.5.1",
+    "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
@@ -27,6 +33,7 @@
     "pixi.js": "^8.22.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "tailwind-merge": "^3.7.0",
     "vite": "^8.3.0"
   },
   "devDependencies": {

@@ -2075,6 +2075,53 @@ test('Unified Ads & Platform Manager: Lazy-loading, Capability queries, STUB pro
   assert.equal(noOpReward.rewarded, false, 'NoOp must return false for rewarded ads');
   const noOpInterstitial = await pmNoOp.requestInterstitialAd();
   assert.equal(noOpInterstitial, false, 'NoOp must return false for interstitials');
+
+  // 3. Test GameMonetizeAdapter lifecycle according to official MonetizeGame SDK spec
+  const { GameMonetizeAdapter } = await import('../platform/providers/GameMonetizeAdapter');
+  let gmPaused = false;
+  let gmMuted = false;
+  const gmHooks = {
+    onPauseGame: () => { gmPaused = true; },
+    onResumeGame: () => { gmPaused = false; },
+    onMuteAudio: () => { gmMuted = true; },
+    onUnmuteAudio: () => { gmMuted = false; },
+  };
+
+  const gmAdapter = new GameMonetizeAdapter({
+    gameId: 'jyg60hwle8o4ch7vh9rn4wnajwztewgj',
+    allowBannerAsRewardFallback: true,
+  });
+
+  // Mock GameMonetize ambient window.sdk
+  (globalThis as any).window = globalThis.window || {};
+  (globalThis as any).window.sdk = {
+    showBanner: () => {
+      // GameMonetize fires SDK_GAME_PAUSE when video opens, and SDK_GAME_START when video finishes
+      setTimeout(() => {
+        gmAdapter.handleGlobalSdkEvent('SDK_GAME_PAUSE');
+        setTimeout(() => {
+          gmAdapter.handleGlobalSdkEvent('SDK_GAME_START');
+        }, 10);
+      }, 5);
+    },
+  };
+
+  await gmAdapter.init(gmHooks);
+  assert.equal(gmAdapter.providerName, 'GameMonetize');
+  assert.equal(gmAdapter.isFeatureSupported(PlatformFeature.REWARDED_ADS), true);
+  assert.equal(gmAdapter.isFeatureSupported(PlatformFeature.INTERSTITIAL_ADS), true);
+
+  // Rewarded ad for card reroll:
+  const cardRerollAdResult = await gmAdapter.showRewardedAd('reward_card_reroll_v1');
+  assert.equal(cardRerollAdResult.rewarded, true);
+  assert.equal(cardRerollAdResult.rewardId, 'reward_card_reroll_v1');
+  assert.equal(gmPaused, false, 'Game should resume after SDK_GAME_START');
+  assert.equal(gmMuted, false, 'Audio should unmute after SDK_GAME_START');
+
+  // Rewarded ad for loadout coins click (+100 coins):
+  const coinsAdResult = await gmAdapter.showRewardedAd('reward_loadout_coins_v1');
+  assert.equal(coinsAdResult.rewarded, true);
+  assert.equal(coinsAdResult.rewardId, 'reward_loadout_coins_v1');
 });
 
 

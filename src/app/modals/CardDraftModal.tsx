@@ -13,6 +13,7 @@ import { getTarotMetadata, TarotCardBackSvg, TarotIllustrationSvg } from '../Tar
 import { useGameShell } from '../context/GameShellContext';
 import { LazyModalDebugCardsButton } from '../debug/LazyDebugComponents';
 import { IS_DEV } from '../debug/devGate';
+import { cn } from '../../utils/cn';
 
 /**
  * @llm-component CardDraftModal
@@ -155,12 +156,12 @@ export function CardDraftModal() {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-4 bg-[#140E16]/88 backdrop-blur-[2px] pointer-events-auto overflow-y-auto overflow-x-hidden"
+      className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-4 bg-[#140E16]/45 backdrop-blur-[1px] pointer-events-auto overflow-y-auto overflow-x-hidden"
       role="dialog"
       aria-modal="true"
       aria-labelledby="draft-modal-title"
     >
-      <div className="w-full max-w-[560px] landscape:max-w-4xl rounded-2xl bg-gradient-to-b from-[#312334] via-[#2B1F2D] to-[#221724] border-4 border-[#2D1E2F] shadow-[0_24px_60px_rgba(0,0,0,0.75)] p-3.5 sm:p-5 landscape:p-5 text-[#FFFDF0] my-auto overflow-visible">
+      <div className="w-full max-w-[560px] landscape:max-w-4xl rounded-2xl bg-gradient-to-b from-[#312334]/90 via-[#2B1F2D]/85 to-[#221724]/90 backdrop-blur-md border border-[#E8B64A]/30 shadow-[0_20px_50px_rgba(0,0,0,0.65),0_0_30px_rgba(45,30,47,0.5)] p-3.5 sm:p-5 landscape:p-5 text-[#FFFDF0] my-auto overflow-visible">
         {/* Header Bar */}
         <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-[#FFFDF0]/15">
           <div className="min-w-0">
@@ -197,11 +198,12 @@ export function CardDraftModal() {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUpOrLeave}
           onMouseLeave={handleMouseUpOrLeave}
-          className={`flex flex-col landscape:flex-row lg:landscape:grid lg:landscape:grid-cols-3 ${
+          className={cn(
+            'flex flex-col landscape:flex-row lg:landscape:grid lg:landscape:grid-cols-3 snap-x snap-mandatory gap-2.5 sm:gap-3.5 py-3 px-2.5 -my-1.5 -mx-2.5 mb-2.5 touch-pan-x select-none items-stretch',
             isFlipping
               ? 'overflow-visible'
               : 'overflow-visible max-lg:landscape:overflow-x-auto lg:landscape:overflow-visible'
-          } snap-x snap-mandatory gap-2.5 sm:gap-3.5 py-3 px-2.5 -my-1.5 -mx-2.5 mb-2.5 touch-pan-x select-none items-stretch`}
+          )}
         >
           {offers.map((offer, idx) => {
             const tarotMeta = getTarotMetadata(offer.targetId);
@@ -258,7 +260,10 @@ export function CardDraftModal() {
                         onSelectOffer(offer.offerId);
                       }
                     }}
-                    className={`group backface-hidden w-full h-full flex-1 text-left rounded-2xl text-[#2D1E2F] border-[3px] ${outerFrameStyles} p-1.5 sm:p-2 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xl active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5FE0C8] cursor-pointer`}
+                    className={cn(
+                      'group backface-hidden w-full h-full flex-1 text-left rounded-2xl text-[#2D1E2F] border-[3px] p-1.5 sm:p-2 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xl active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5FE0C8] cursor-pointer',
+                      outerFrameStyles
+                    )}
                   >
                     {/* Inner Vintage Ink Tarot Frame */}
                     <div className="w-full h-full flex-1 rounded-xl border-2 border-[#2D1E2F] p-2 sm:p-2.5 flex flex-col justify-between bg-gradient-to-b from-[#FFFDF7]/95 via-[#FAF4E4]/90 to-[#F3EAD3]/95 landscape:min-h-[348px]">
@@ -297,7 +302,10 @@ export function CardDraftModal() {
 
                               <div className="flex items-center gap-1 shrink-0">
                                 <span
-                                  className={`px-1.5 py-0.5 rounded-full border text-[9px] font-extrabold uppercase tracking-wider ${rarityPillStyles}`}
+                                  className={cn(
+                                    'px-1.5 py-0.5 rounded-full border text-[9px] font-extrabold uppercase tracking-wider',
+                                    rarityPillStyles
+                                  )}
                                 >
                                   {offer.subtitle}
                                 </span>
@@ -426,11 +434,12 @@ export function CardDraftModal() {
                 type="button"
                 aria-label={`Go to card ${dotIdx + 1}`}
                 onClick={() => scrollToIndex(dotIdx)}
-                className={`transition-all duration-200 rounded-full h-1.5 ${
+                className={cn(
+                  'transition-all duration-200 rounded-full h-1.5',
                   dotIdx === activeSwipeIndex
                     ? 'w-6 bg-[#FDFFB6]'
                     : 'w-2 bg-[#FFFDF0]/30 hover:bg-[#FFFDF0]/60'
-                }`}
+                )}
               />
             ))}
           </div>

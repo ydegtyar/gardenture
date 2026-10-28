@@ -9,4 +9,6 @@ export { RescueReviveModal } from './RescueReviveModal';
 export { PauseModal } from './PauseModal';
 export { RunSummaryModal, type RunSummarySnapshot } from './RunSummaryModal';
 export { LoadoutAndStoreModal } from './LoadoutAndStoreModal';
+export { HeroPersonasSection } from './HeroPersonasSection';
+export { YouTubeSdkPanel } from './YouTubeSdkPanel';
 export { DebugCardModal, type DebugCardModalProps } from './DebugCardModal';

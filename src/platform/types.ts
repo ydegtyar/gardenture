@@ -113,5 +113,8 @@ declare global {
       onEvent: (event: { name: string; [key: string]: any }) => void;
       [key: string]: any;
     };
+    __gmPause?: () => void;
+    __gmResume?: () => void;
+    __gmReady?: () => void;
   }
 }
