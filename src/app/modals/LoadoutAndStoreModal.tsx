@@ -26,6 +26,7 @@ import {
 import { CoinIcon, SeedGemIcon } from '../SvgIcons';
 import { getTarotMetadata, TarotIllustrationSvg } from '../TarotCardArt';
 import { useGameShell } from '../context/GameShellContext';
+import { NO_ADS } from '../../config/ads';
 import {
   LazyBestiaryEnemyDebugBadge,
   LazyBestiaryEnemyDebugSpawner,
@@ -52,6 +53,7 @@ export function LoadoutAndStoreModal() {
     handleUpgradeTrinket,
     handleUnlockCurse,
     handleWatchCoinsAd,
+    canWatchRewardedAd,
     isAdLoading,
     handleDebugSpawnBestiaryEnemy,
     handleClaimQuest,
@@ -111,21 +113,33 @@ export function LoadoutAndStoreModal() {
           </div>
 
           <div className="flex items-center gap-3 text-sm font-mono-tabular">
-            <button
-              type="button"
-              data-testid="store-coins-balance"
-              onClick={onWatchCoinsAd}
-              disabled={isAdLoading}
-              title="Watch ad for +100 Coins"
-              aria-label="Watch ad for +100 Coins"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FDFFB6]/10 hover:bg-[#FDFFB6]/20 active:scale-95 transition-all text-[#FDFFB6] border border-[#FDFFB6]/25 cursor-pointer group disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <CoinIcon />
-              <span className="font-bold">{currencies.coins}</span>
-              <span className="text-[10px] bg-[#FDFFB6]/25 group-hover:bg-[#FDFFB6]/35 text-[#18241E] font-extrabold px-1.5 py-0.5 rounded-full ml-0.5 flex items-center gap-1 whitespace-nowrap">
-                {isAdLoading ? '...' : '+100 🎬'}
-              </span>
-            </button>
+            {NO_ADS || !canWatchRewardedAd ? (
+              <div
+                data-testid="store-coins-balance"
+                title="Purse Coins"
+                aria-label="Purse Coins"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FDFFB6]/10 text-[#FDFFB6] border border-[#FDFFB6]/25"
+              >
+                <CoinIcon />
+                <span className="font-bold">{currencies.coins}</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-testid="store-coins-balance"
+                onClick={onWatchCoinsAd}
+                disabled={isAdLoading}
+                title="Watch ad for +100 Coins"
+                aria-label="Watch ad for +100 Coins"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FDFFB6]/10 hover:bg-[#FDFFB6]/20 active:scale-95 transition-all text-[#FDFFB6] border border-[#FDFFB6]/25 cursor-pointer group disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <CoinIcon />
+                <span className="font-bold">{currencies.coins}</span>
+                <span className="text-[10px] bg-[#FDFFB6]/25 group-hover:bg-[#FDFFB6]/35 text-[#18241E] font-extrabold px-1.5 py-0.5 rounded-full ml-0.5 flex items-center gap-1 whitespace-nowrap">
+                  {isAdLoading ? '...' : '+100 🎬'}
+                </span>
+              </button>
+            )}
             <LazySanctuaryHeaderDebugGoldButton onAddDebugGold={onAddDebugGold} />
             <span className="flex items-center gap-1.5 text-[#DED2F9]">
               <SeedGemIcon />

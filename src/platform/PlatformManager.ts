@@ -4,6 +4,7 @@
  * injects external scripts only when provider keys are configured, and exposes a capability-driven API.
  */
 
+import { NO_ADS } from '../config/ads';
 import {
   GameSystemHooks,
   IPlatformAdapter,
@@ -63,6 +64,9 @@ export class PlatformManager {
         !window.ytgame.__IS_DEV_STUB__;
 
       let resolvedProvider: PlatformProviderType = rawProvider;
+      if (NO_ADS && rawProvider === 'STUB') {
+        resolvedProvider = 'NONE';
+      }
       if (isLiveYouTube) {
         resolvedProvider = 'YOUTUBE';
       }
@@ -90,13 +94,7 @@ export class PlatformManager {
           break;
         }
         case 'CRAZYGAMES': {
-          const hasKeyOrSdk = crazyGamesGameId || (typeof window !== 'undefined' && typeof window.CrazyGames !== 'undefined');
-          if (!hasKeyOrSdk) {
-            console.warn(
-              "[PlatformManager] Provider 'CRAZYGAMES' requested but VITE_CRAZYGAMES_GAME_ID is empty. Falling back to lazy STUB provider."
-            );
-            resolvedProvider = 'STUB';
-          }
+          // CrazyGames SDK v3 detects the domain and game automatically in HTML5
           break;
         }
         case 'GAMEMONETIZE': {
@@ -181,6 +179,12 @@ export class PlatformManager {
    * Primary handle to check if a feature (e.g. REWARDED_ADS) is available right now.
    */
   public canUse(feature: PlatformFeature): boolean {
+    if (
+      NO_ADS &&
+      (feature === PlatformFeature.REWARDED_ADS || feature === PlatformFeature.INTERSTITIAL_ADS)
+    ) {
+      return false;
+    }
     if (!this.adapter) return false;
     return this.adapter.isFeatureSupported(feature);
   }
@@ -195,6 +199,10 @@ export class PlatformManager {
 
   public notifyGameplayStop(): void {
     this.adapter?.gameplayStop();
+  }
+
+  public notifyHappyTime(): void {
+    (this.adapter as any)?.happytime?.();
   }
 
   public async requestRewardAd(rewardId: string): Promise<RewardResult> {

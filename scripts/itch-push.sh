@@ -11,6 +11,9 @@ fi
 USERNAME="${ITCH_USERNAME:-ydegtyar}"
 GAME="${ITCH_GAME:-gardenture}"
 
+echo "Building itch.io standalone release (VITE_NO_ADS=true)..."
+npm run build:itch
+
 echo "Target: $USERNAME/$GAME:html5"
 
 ~/.local/bin/butler push dist/ "$USERNAME/$GAME:html5" --userversion "0.1.0"

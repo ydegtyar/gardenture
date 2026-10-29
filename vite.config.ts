@@ -38,10 +38,28 @@ function locatorPlugin() {
   };
 }
 
-function gamePlatformHtmlPlugin(provider: string, gameMonetizeId: string) {
+function gamePlatformHtmlPlugin(provider: string, gameMonetizeId: string, noAds: boolean) {
   return {
     name: 'vite-plugin-game-platform-html',
     transformIndexHtml(html: string) {
+      if (noAds || provider === 'NONE') {
+        // Cleanly strip YouTube SDK script tag for itch.io / no-ads standalone builds
+        return html.replace(
+          /<!-- Load YouTube Playables SDK FIRST per specification \[F\] -->\s*<script src="https:\/\/www\.youtube\.com\/game_api\/v1"><\/script>/,
+          ''
+        );
+      }
+      if (provider === 'CRAZYGAMES') {
+        const cgSnippet = `    <!-- CrazyGames SDK v3 Integration -->\n    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>`;
+        if (html.includes('https://www.youtube.com/game_api/v1')) {
+          return html.replace(
+            /<!-- Load YouTube Playables SDK FIRST per specification \[F\] -->\s*<script src="https:\/\/www\.youtube\.com\/game_api\/v1"><\/script>/,
+            cgSnippet
+          );
+        } else {
+          return html.replace('</head>', `${cgSnippet}\n  </head>`);
+        }
+      }
       if (provider === 'GAMEMONETIZE') {
         const gmSnippet = `    <!-- GameMonetize HTML5 SDK Integration -->
     <script type="text/javascript">
@@ -98,7 +116,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const provider = (process.env.VITE_PLATFORM_PROVIDER || env.VITE_PLATFORM_PROVIDER || 'STUB').toUpperCase();
+  const noAds =
+    (process.env.VITE_NO_ADS || env.VITE_NO_ADS || 'false').toLowerCase() === 'true';
+  const provider = (
+    process.env.VITE_PLATFORM_PROVIDER ||
+    env.VITE_PLATFORM_PROVIDER ||
+    (noAds ? 'NONE' : 'STUB')
+  ).toUpperCase();
   const gameMonetizeId =
     process.env.VITE_GAMEMONETIZE_GAME_ID ||
     env.VITE_GAMEMONETIZE_GAME_ID ||
@@ -110,7 +134,7 @@ export default defineConfig(({ mode }) => {
       locatorPlugin(),
       react(),
       tailwindcss(),
-      gamePlatformHtmlPlugin(provider, gameMonetizeId),
+      gamePlatformHtmlPlugin(provider, gameMonetizeId, noAds),
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: null, // Custom registration handled in src/pwa.ts

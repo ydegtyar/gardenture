@@ -32,9 +32,13 @@ export class CrazyGamesAdapter implements IPlatformAdapter {
 
     try {
       await cg.init();
-      const env = typeof cg.getEnvironment === 'function' ? await cg.getEnvironment() : 'crazygames';
+      const env = (cg as any).environment ?? (typeof cg.getEnvironment === 'function' ? await cg.getEnvironment() : 'crazygames');
       this.isSupportedEnv = env === 'crazygames' || env === 'local';
       console.info(`[CrazyGamesAdapter] Initialized in environment: ${env}`);
+
+      if (this.isSupportedEnv && cg.game?.loadingStart) {
+        cg.game.loadingStart();
+      }
     } catch (e) {
       console.warn('[CrazyGamesAdapter] Init error:', e);
       this.isSupportedEnv = false;
@@ -72,23 +76,34 @@ export class CrazyGamesAdapter implements IPlatformAdapter {
     }
   }
 
+  happytime(): void {
+    if (this.isSupportedEnv && window.CrazyGames?.SDK?.game?.happytime) {
+      window.CrazyGames.SDK.game.happytime();
+    }
+  }
+
   async showRewardedAd(rewardId = 'default'): Promise<RewardResult> {
     if (!this.isFeatureSupported(PlatformFeature.REWARDED_ADS) || !window.CrazyGames?.SDK?.ad?.requestAd) {
       return { rewarded: false, rewardId, error: 'CrazyGames environment disabled or ad unsupported' };
     }
 
     return new Promise((resolve) => {
+      let settled = false;
       window.CrazyGames!.SDK.ad.requestAd('rewarded', {
         adStarted: () => {
           this.hooks.onPauseGame();
           this.hooks.onMuteAudio();
         },
         adFinished: () => {
+          if (settled) return;
+          settled = true;
           this.hooks.onUnmuteAudio();
           this.hooks.onResumeGame();
           resolve({ rewarded: true, rewardId });
         },
         adError: (error: any) => {
+          if (settled) return;
+          settled = true;
           this.hooks.onUnmuteAudio();
           this.hooks.onResumeGame();
           resolve({ rewarded: false, rewardId, error: typeof error === 'string' ? error : JSON.stringify(error) });
@@ -97,23 +112,28 @@ export class CrazyGamesAdapter implements IPlatformAdapter {
     });
   }
 
-  async showInterstitialAd(): Promise<boolean> {
+  async showInterstitialAd(placement?: string): Promise<boolean> {
     if (!this.isFeatureSupported(PlatformFeature.INTERSTITIAL_ADS) || !window.CrazyGames?.SDK?.ad?.requestAd) {
       return false;
     }
 
     return new Promise((resolve) => {
+      let settled = false;
       window.CrazyGames!.SDK.ad.requestAd('midgame', {
         adStarted: () => {
           this.hooks.onPauseGame();
           this.hooks.onMuteAudio();
         },
         adFinished: () => {
+          if (settled) return;
+          settled = true;
           this.hooks.onUnmuteAudio();
           this.hooks.onResumeGame();
           resolve(true);
         },
         adError: () => {
+          if (settled) return;
+          settled = true;
           this.hooks.onUnmuteAudio();
           this.hooks.onResumeGame();
           resolve(false);

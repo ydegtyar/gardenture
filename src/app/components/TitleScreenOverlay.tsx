@@ -1,5 +1,6 @@
 import React from 'react';
 import { PROFESSIONS, THEME_PACKS } from '../../content/data/catalog';
+import { NO_ADS } from '../../config/ads';
 import { CoinIcon, SeedGemIcon, TitleLockupSvg } from '../SvgIcons';
 import { useGameShell } from '../context/GameShellContext';
 
@@ -13,6 +14,7 @@ export function TitleScreenOverlay() {
     lastEndedRunRewards,
     startNewOrResumedRun,
     setSanctuaryTab,
+    canWatchRewardedAd,
     handleWatchCoinsAd,
   } = useGameShell();
 
@@ -42,16 +44,26 @@ export function TitleScreenOverlay() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-[#2B1F2D]/95 border-2 border-[#2D1E2F] font-mono-tabular text-xs sm:text-sm font-bold shadow-lg shrink-0 ml-auto">
-          <button
-            type="button"
-            onClick={() => void handleWatchCoinsAd()}
-            title="Watch ad for +100 Coins"
-            className="flex items-center gap-1 sm:gap-1.5 text-[#FDFFB6] hover:text-[#FFEE8C] active:scale-95 transition-all cursor-pointer"
-          >
-            <CoinIcon />
-            {saveData.currencies.coins}
-            <span className="text-[10px] text-[#A8E6CF] font-sans font-normal ml-0.5">+100 🎬</span>
-          </button>
+          {NO_ADS || !canWatchRewardedAd ? (
+            <div
+              title="Purse Coins"
+              className="flex items-center gap-1 sm:gap-1.5 text-[#FDFFB6]"
+            >
+              <CoinIcon />
+              {saveData.currencies.coins}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleWatchCoinsAd()}
+              title="Watch ad for +100 Coins"
+              className="flex items-center gap-1 sm:gap-1.5 text-[#FDFFB6] hover:text-[#FFEE8C] active:scale-95 transition-all cursor-pointer"
+            >
+              <CoinIcon />
+              {saveData.currencies.coins}
+              <span className="text-[10px] text-[#A8E6CF] font-sans font-normal ml-0.5">+100 🎬</span>
+            </button>
+          )}
           <span className="flex items-center gap-1 sm:gap-1.5 text-[#DED2F9]">
             <SeedGemIcon />
             {saveData.currencies.gems}

@@ -1,5 +1,7 @@
 import React from 'react';
 import { PERSONAS, PROFESSIONS } from '../../content/data/catalog';
+import { NO_ADS, PERSONA_NO_ADS_COST_SEEDS } from '../../config/ads';
+import { SeedGemIcon } from '../SvgIcons';
 import {
   getSpritePortraitDataUrl,
   getSpriteSilhouetteDataUrl,
@@ -29,6 +31,7 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
     saveData,
     handleSelectLoadout,
     handleWatchPersonaPipAd,
+    handleBuyPersonaWithSeeds,
     handleDebugIncrementPersonaAdPip,
     handleDebugIncrementAllPersonaAdPips,
   } = useGameShell();
@@ -36,18 +39,21 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
   const { loadout, unlocks } = saveData;
   const onSelectLoadout = handleSelectLoadout;
   const onWatchPersonaPipAd = handleWatchPersonaPipAd;
-  const onIncrementPersonaAdPip = IS_DEV ? handleDebugIncrementPersonaAdPip : undefined;
-  const onIncrementAllPersonaAdPips = IS_DEV ? handleDebugIncrementAllPersonaAdPips : undefined;
+  const onBuyPersonaWithSeeds = handleBuyPersonaWithSeeds;
+  const onIncrementPersonaAdPip = IS_DEV && !NO_ADS ? handleDebugIncrementPersonaAdPip : undefined;
+  const onIncrementAllPersonaAdPips = IS_DEV && !NO_ADS ? handleDebugIncrementAllPersonaAdPips : undefined;
 
   return (
     <div className="pt-2 border-t border-[#FFFDF0]/10">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
         <div>
           <h3 className="text-xs font-bold tracking-wider text-[#DED2F9]">
-            {sectionNumberLabel ? `${sectionNumberLabel} ` : ''}ARCANA CHARACTER SKINS (AD-EXCLUSIVE POP-CULTURE MASHUPS & PERMANENT VFX)
+            {sectionNumberLabel ? `${sectionNumberLabel} ` : ''}ARCANA CHARACTER SKINS ({NO_ADS ? 'RARE SEED UNLOCKS' : 'AD-EXCLUSIVE'} & PERMANENT VFX)
           </h3>
           <p className="text-[11px] text-[#FFFDF0]/70 mt-0.5">
-            Locked skins appear only as mysterious shadow silhouettes until opened by watching 3 Rewarded Ads.
+            {NO_ADS
+              ? `Locked skins appear only as mysterious shadow silhouettes until unlocked with Rare Seeds.`
+              : `Locked skins appear only as mysterious shadow silhouettes until opened by watching 3 Rewarded Ads.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -73,6 +79,9 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
           const unlocked = unlocks.personas.includes(persona.id);
           const selected = loadout.personaId === persona.id;
           const pips = unlocks.personaAdPips[persona.id] ?? 0;
+          const costSeeds =
+            persona.unlockCostSeeds > 0 ? persona.unlockCostSeeds : PERSONA_NO_ADS_COST_SEEDS;
+          const canAffordSeeds = saveData.currencies.gems >= costSeeds;
           const skinKey = resolvePersonaSkinSpriteKey(persona.id);
           const portraitUrl = skinKey
             ? unlocked
@@ -168,19 +177,33 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
                         ??? · Shadowed {profName}
                       </div>
                       <p className="text-[11px] text-[#FFFDF0]/60 mt-0.5 leading-snug">
-                        Unopened silhouette. Watch {persona.adPipsRequired} Rewarded Ads to reveal this pop-culture skin & its permanent footsteps VFX.
+                        {NO_ADS
+                          ? `Unopened silhouette. Unlock with ${costSeeds} Rare Seeds to reveal this pop-culture skin & its permanent footsteps VFX.`
+                          : `Unopened silhouette. Watch ${persona.adPipsRequired} Rewarded Ads to reveal this pop-culture skin & its permanent footsteps VFX.`}
                       </p>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        {Array.from({ length: persona.adPipsRequired }).map((_, idx) => (
-                          <span
-                            key={idx}
-                            className={`h-1.5 flex-1 rounded-full ${getPipClassName(idx < pips)}`}
-                          />
-                        ))}
-                        <span className="text-[10px] font-mono-tabular text-[#DED2F9] ml-1">
-                          {pips}/{persona.adPipsRequired} Ads
-                        </span>
-                      </div>
+                      {NO_ADS ? (
+                        <div className="mt-2 flex items-center justify-between gap-1.5">
+                          <span className="text-[11px] font-bold text-[#DED2F9] flex items-center gap-1">
+                            <SeedGemIcon className="w-3.5 h-3.5 inline text-[#DED2F9]" />
+                            Cost: {costSeeds} Rare Seeds
+                          </span>
+                          <span className="text-[10px] text-[#FFFDF0]/60 font-mono-tabular">
+                            Have: {saveData.currencies.gems}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex items-center gap-1.5">
+                          {Array.from({ length: persona.adPipsRequired }).map((_, idx) => (
+                            <span
+                              key={idx}
+                              className={`h-1.5 flex-1 rounded-full ${getPipClassName(idx < pips)}`}
+                            />
+                          ))}
+                          <span className="text-[10px] font-mono-tabular text-[#DED2F9] ml-1">
+                            {pips}/{persona.adPipsRequired} Ads
+                          </span>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -188,7 +211,11 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
 
               <div className="pt-2 border-t border-[#FFFDF0]/10 flex items-center justify-between gap-2">
                 <span className="text-[10px] text-[#FFFDF0]/60 truncate">
-                  {unlocked ? persona.subtitle : 'Ad-Exclusive Arcana Unlock'}
+                  {unlocked
+                    ? persona.subtitle
+                    : NO_ADS
+                    ? `Rare Seed Arcana Unlock (${costSeeds} Seeds)`
+                    : 'Ad-Exclusive Arcana Unlock'}
                 </span>
                 {unlocked ? (
                   <button
@@ -212,6 +239,25 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
                     )}`}
                   >
                     {selected ? 'Unequip' : 'Wear Skin'}
+                  </button>
+                ) : NO_ADS ? (
+                  <button
+                    type="button"
+                    data-testid={`buy-persona-seeds-${persona.id}`}
+                    disabled={!canAffordSeeds}
+                    onClick={() => void onBuyPersonaWithSeeds(persona.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors ${
+                      canAffordSeeds
+                        ? 'btn-herbarium-primary min-h-[38px] cursor-pointer'
+                        : 'bg-[#2B1F2D] text-[#FFFDF0]/40 border border-[#FFFDF0]/10 cursor-not-allowed min-h-[38px]'
+                    }`}
+                    title={
+                      canAffordSeeds
+                        ? `Unlock for ${costSeeds} Seeds`
+                        : `Need ${costSeeds - saveData.currencies.gems} more seeds`
+                    }
+                  >
+                    Unlock ({costSeeds} Seeds)
                   </button>
                 ) : (
                   <div className="flex items-center gap-1.5 shrink-0">

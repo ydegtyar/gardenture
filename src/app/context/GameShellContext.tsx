@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { hashStringToSeed } from '../../core/rng/rng';
 import { FixedClock } from '../../core/time/clock';
+import { NO_ADS, PERSONA_NO_ADS_COST_SEEDS } from '../../config/ads';
 import {
   CARDS,
   PERSONAS,
@@ -147,6 +148,7 @@ export interface GameShellContextValue {
   handleUpgradeTrinket: (trinketId: string) => void;
   handleUnlockCurse: (curseId: string, cost: number) => void;
   handleWatchPersonaPipAd: (personaId: string) => Promise<void>;
+  handleBuyPersonaWithSeeds: (personaId: string) => Promise<boolean>;
   handleWatchSanctuaryRewardAd: () => Promise<void>;
   handleWatchCoinsAd: () => Promise<void>;
   handleSavePlayerStateNow: () => Promise<void>;
@@ -1321,6 +1323,44 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     [isAdLoading, refreshYtDiagnostics]
   );
 
+  const handleBuyPersonaWithSeeds = useCallback(
+    async (personaId: string): Promise<boolean> => {
+      const pDef = PERSONAS.find((p) => p.id === personaId);
+      if (!pDef) return false;
+      const cost =
+        pDef.unlockCostSeeds > 0 ? pDef.unlockCostSeeds : PERSONA_NO_ADS_COST_SEEDS;
+      const sd = saveDataRef.current;
+      if (sd.currencies.gems < cost) {
+        refreshYtDiagnostics(
+          `Need ${cost} Rare Seeds to unlock ${pDef.name} (have ${sd.currencies.gems}).`
+        );
+        return false;
+      }
+      sd.currencies.gems -= cost;
+      if (!sd.unlocks.personas.includes(personaId)) {
+        sd.unlocks.personas.push(personaId);
+      }
+      if (!sd.unlocks.professions.includes(pDef.professionId)) {
+        sd.unlocks.professions.push(pDef.professionId);
+      }
+      sd.loadout.personaId = personaId;
+      sd.loadout.professionId = pDef.professionId;
+      sd.loadout.startingWeaponId =
+        PROFESSIONS[pDef.professionId]?.startingWeaponId ?? sd.loadout.startingWeaponId;
+      if (simRef.current) {
+        simRef.current.personaId = personaId;
+        simRef.current.professionId = pDef.professionId;
+      }
+      setSaveData({ ...sd });
+      await saveManagerRef.current.flushImmediate();
+      refreshYtDiagnostics(
+        `Arcana Persona Unlocked: ${pDef.name} for ${cost} Rare Seeds!`
+      );
+      return true;
+    },
+    [refreshYtDiagnostics]
+  );
+
   const handleWatchSanctuaryRewardAd = useCallback(async () => {
     if (isAdLoading) return;
     setIsAdLoading(true);
@@ -1626,6 +1666,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     ? Math.max(0, Simulation.MAX_COIN_REROLLS - simRef.current.coinRerollsUsed)
     : Simulation.MAX_COIN_REROLLS;
   const canWatchRewardedAd =
+    !NO_ADS &&
     saveManagerRef.current.canWatchRewardedAd() &&
     (!platform.activeAdapter || platform.canUse(PlatformFeature.REWARDED_ADS));
   const canAdReroll = Boolean(
@@ -1683,6 +1724,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     handleUpgradeTrinket,
     handleUnlockCurse,
     handleWatchPersonaPipAd,
+    handleBuyPersonaWithSeeds,
     handleWatchSanctuaryRewardAd,
     handleWatchCoinsAd,
     handleSavePlayerStateNow,
