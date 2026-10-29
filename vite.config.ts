@@ -38,7 +38,14 @@ function locatorPlugin() {
   };
 }
 
-function gamePlatformHtmlPlugin(provider: string, gameMonetizeId: string, noAds: boolean) {
+function gamePlatformHtmlPlugin(
+  provider: string,
+  gameMonetizeId: string,
+  gameDistributionId: string,
+  noAds: boolean,
+  y8GameId: string,
+  y8AppId: string
+) {
   return {
     name: 'vite-plugin-game-platform-html',
     transformIndexHtml(html: string) {
@@ -48,6 +55,17 @@ function gamePlatformHtmlPlugin(provider: string, gameMonetizeId: string, noAds:
           /<!-- Load YouTube Playables SDK FIRST per specification \[F\] -->\s*<script src="https:\/\/www\.youtube\.com\/game_api\/v1"><\/script>/,
           ''
         );
+      }
+      if (provider === 'Y8') {
+        const y8Snippet = `    <!-- Y8 Minimal SDK Integration -->\n    <script src="https://cdn.y8.com/minimal-sdk/2-0/y8.min.js" async></script>`;
+        if (html.includes('https://www.youtube.com/game_api/v1')) {
+          return html.replace(
+            /<!-- Load YouTube Playables SDK FIRST per specification \[F\] -->\s*<script src="https:\/\/www\.youtube\.com\/game_api\/v1"><\/script>/,
+            y8Snippet
+          );
+        } else {
+          return html.replace('</head>', `${y8Snippet}\n  </head>`);
+        }
       }
       if (provider === 'CRAZYGAMES') {
         const cgSnippet = `    <!-- CrazyGames SDK v3 Integration -->\n    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>`;
@@ -59,6 +77,48 @@ function gamePlatformHtmlPlugin(provider: string, gameMonetizeId: string, noAds:
         } else {
           return html.replace('</head>', `${cgSnippet}\n  </head>`);
         }
+      }
+      if (provider === 'GAMEDISTRIBUTION') {
+        const gdSnippet = `    <!-- GameDistribution HTML5 SDK Integration -->
+    <script type="text/javascript">
+      window["GD_OPTIONS"] = {
+        gameId: "${gameDistributionId}",
+        onEvent: function (event) {
+          switch (event.name) {
+            case "SDK_GAME_START":
+              if (typeof window.__gdResume === 'function') window.__gdResume();
+              else (window.__gdEventQueue = window.__gdEventQueue || []).push('SDK_GAME_START');
+              break;
+            case "SDK_GAME_PAUSE":
+              if (typeof window.__gdPause === 'function') window.__gdPause();
+              else (window.__gdEventQueue = window.__gdEventQueue || []).push('SDK_GAME_PAUSE');
+              break;
+            case "SDK_REWARDED_WATCH_COMPLETE":
+              if (typeof window.__gdRewardedComplete === 'function') window.__gdRewardedComplete();
+              else (window.__gdEventQueue = window.__gdEventQueue || []).push('SDK_REWARDED_WATCH_COMPLETE');
+              break;
+          }
+        }
+      };
+      (function(d, s, id) {
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s);
+        js.id = id;
+        js.src = 'https://html5.api.gamedistribution.com/main.min.js';
+        fjs.parentNode.insertBefore(js, fjs);
+      })(document, 'script', 'gamedistribution-jssdk');
+    </script>`;
+
+        if (html.includes('https://www.youtube.com/game_api/v1')) {
+          html = html.replace(
+            /<!-- Load YouTube Playables SDK FIRST per specification \[F\] -->\s*<script src="https:\/\/www\.youtube\.com\/game_api\/v1"><\/script>/,
+            gdSnippet
+          );
+        } else {
+          html = html.replace('</head>', `${gdSnippet}\n  </head>`);
+        }
+        return html;
       }
       if (provider === 'GAMEMONETIZE') {
         const gmSnippet = `    <!-- GameMonetize HTML5 SDK Integration -->
@@ -127,6 +187,18 @@ export default defineConfig(({ mode }) => {
     process.env.VITE_GAMEMONETIZE_GAME_ID ||
     env.VITE_GAMEMONETIZE_GAME_ID ||
     'jyg60hwle8o4ch7vh9rn4wnajwztewgj';
+  const gameDistributionId =
+    process.env.VITE_GAMEDISTRIBUTION_GAME_ID ||
+    env.VITE_GAMEDISTRIBUTION_GAME_ID ||
+    '';
+  const y8GameId =
+    process.env.VITE_Y8_GAME_ID ||
+    env.VITE_Y8_GAME_ID ||
+    '290159';
+  const y8AppId =
+    process.env.VITE_Y8_APP_ID ||
+    env.VITE_Y8_APP_ID ||
+    '6ae32a67ba1f868b83779a1f';
 
   return {
     base: './',
@@ -134,7 +206,7 @@ export default defineConfig(({ mode }) => {
       locatorPlugin(),
       react(),
       tailwindcss(),
-      gamePlatformHtmlPlugin(provider, gameMonetizeId, noAds),
+      gamePlatformHtmlPlugin(provider, gameMonetizeId, gameDistributionId, noAds, y8GameId, y8AppId),
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: null, // Custom registration handled in src/pwa.ts

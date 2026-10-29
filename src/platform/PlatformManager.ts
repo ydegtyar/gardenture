@@ -55,6 +55,9 @@ export class PlatformManager {
       const pokiGameId = env?.VITE_POKI_GAME_ID || '';
       const crazyGamesGameId = env?.VITE_CRAZYGAMES_GAME_ID || '';
       const gameMonetizeGameId = env?.VITE_GAMEMONETIZE_GAME_ID || '';
+      const gameDistributionGameId = env?.VITE_GAMEDISTRIBUTION_GAME_ID || '';
+      const y8GameId = env?.VITE_Y8_GAME_ID || '';
+      const y8AppId = env?.VITE_Y8_APP_ID || '';
 
       // Check auto-detection for live YouTube environment
       const isLiveYouTube =
@@ -110,6 +113,14 @@ export class PlatformManager {
           }
           break;
         }
+        case 'GAMEDISTRIBUTION': {
+          // GameDistribution SDK uses gameId if present, or defaults to developer dashboard correlation
+          break;
+        }
+        case 'Y8': {
+          // Y8 SDK uses gameId and appId
+          break;
+        }
       }
 
       // Dynamic lazy imports: Vite splits each provider into a separate asynchronous chunk!
@@ -143,6 +154,21 @@ export class PlatformManager {
           this.adapter = new GameMonetizeAdapter({
             gameId: gameMonetizeGameId,
             allowBannerAsRewardFallback: true,
+          });
+          break;
+        }
+        case 'GAMEDISTRIBUTION': {
+          const { GameDistributionAdapter } = await import('./providers/GameDistributionAdapter');
+          this.adapter = new GameDistributionAdapter({
+            gameId: gameDistributionGameId,
+          });
+          break;
+        }
+        case 'Y8': {
+          const { Y8Adapter } = await import('./providers/Y8Adapter');
+          this.adapter = new Y8Adapter({
+            gameId: y8GameId,
+            appId: y8AppId,
           });
           break;
         }

@@ -19,6 +19,8 @@ export type PlatformProviderType =
   | 'POKI'
   | 'CRAZYGAMES'
   | 'GAMEMONETIZE'
+  | 'GAMEDISTRIBUTION'
+  | 'Y8'
   | 'NONE';
 
 export interface RewardResult {
@@ -61,6 +63,9 @@ export interface PlatformConfig {
   pokiGameId?: string;
   crazyGamesGameId?: string;
   gameMonetizeGameId?: string;
+  gameDistributionGameId?: string;
+  y8GameId?: string;
+  y8AppId?: string;
   stubAdDurationMs?: number;
 }
 
@@ -115,8 +120,42 @@ declare global {
       onEvent: (event: { name: string; [key: string]: any }) => void;
       [key: string]: any;
     };
+    GD_OPTIONS?: {
+      gameId: string;
+      onEvent: (event: { name: string; [key: string]: any }) => void;
+      [key: string]: any;
+    };
+    gdsdk?: {
+      showAd: (type?: string | any) => Promise<void>;
+      preloadAd?: (type?: string | any) => Promise<void>;
+      openConsole?: () => void;
+      AdType?: {
+        Rewarded?: any;
+        Interstitial?: any;
+        [key: string]: any;
+      };
+      [key: string]: any;
+    };
+    __gdPause?: () => void;
+    __gdResume?: () => void;
+    __gdRewardedComplete?: () => void;
     __gmPause?: () => void;
     __gmResume?: () => void;
     __gmReady?: () => void;
+    y8?: {
+      sdk: () => any;
+      emitReadyEvent?: () => void;
+      [key: string]: any;
+    };
+    y8Sdk?: {
+      init: (appConfig?: any, adConfig?: any) => void;
+      showAd: (options: any) => Promise<any>;
+      saveData?: (options: { key: string; value: string; retries?: boolean }) => Promise<any>;
+      loadData?: (options: { key: string }) => Promise<string | null>;
+      saveLeaderboardScore?: (options: any) => Promise<any>;
+      onAuth?: (callback: (user: any, error: any) => void) => void;
+      login?: () => void;
+      [key: string]: any;
+    };
   }
 }

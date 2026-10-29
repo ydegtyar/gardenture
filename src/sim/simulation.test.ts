@@ -2122,6 +2122,56 @@ test('Unified Ads & Platform Manager: Lazy-loading, Capability queries, STUB pro
   const coinsAdResult = await gmAdapter.showRewardedAd('reward_loadout_coins_v1');
   assert.equal(coinsAdResult.rewarded, true);
   assert.equal(coinsAdResult.rewardId, 'reward_loadout_coins_v1');
+
+  // 4. Test GameDistributionAdapter lifecycle according to official GD-HTML5 SDK spec
+  const { GameDistributionAdapter } = await import('../platform/providers/GameDistributionAdapter');
+  let gdPaused = false;
+  let gdMuted = false;
+  const gdHooks = {
+    onPauseGame: () => { gdPaused = true; },
+    onResumeGame: () => { gdPaused = false; },
+    onMuteAudio: () => { gdMuted = true; },
+    onUnmuteAudio: () => { gdMuted = false; },
+  };
+
+  const gdAdapter = new GameDistributionAdapter({
+    gameId: 'test-gd-game-id-12345',
+  });
+
+  // Mock GameDistribution ambient window.gdsdk
+  (globalThis as any).window.gdsdk = {
+    AdType: { Rewarded: 'rewarded', Interstitial: 'interstitial' },
+    preloadAd: async () => {},
+    showAd: async (type?: any) => {
+      setTimeout(() => {
+        (gdAdapter as any).handleGlobalSdkEvent('SDK_GAME_PAUSE');
+        setTimeout(() => {
+          if (type === 'rewarded' || type === (globalThis as any).window.gdsdk?.AdType?.Rewarded) {
+            (gdAdapter as any).handleGlobalSdkEvent('SDK_REWARDED_WATCH_COMPLETE');
+          }
+          (gdAdapter as any).handleGlobalSdkEvent('SDK_GAME_START');
+        }, 15);
+      }, 5);
+    },
+  };
+
+  await gdAdapter.init(gdHooks);
+  assert.equal(gdAdapter.providerName, 'GameDistribution');
+  assert.equal(gdAdapter.isFeatureSupported(PlatformFeature.REWARDED_ADS), true);
+  assert.equal(gdAdapter.isFeatureSupported(PlatformFeature.INTERSTITIAL_ADS), true);
+
+  // Interstitial ad:
+  const gdInterstitialResult = await gdAdapter.showInterstitialAd();
+  assert.equal(gdInterstitialResult, true);
+  assert.equal(gdPaused, false, 'Game should resume after SDK_GAME_START');
+  assert.equal(gdMuted, false, 'Audio should unmute after SDK_GAME_START');
+
+  // Rewarded ad:
+  const gdRewardResult = await gdAdapter.showRewardedAd('reward_arcana_persona_v1');
+  assert.equal(gdRewardResult.rewarded, true);
+  assert.equal(gdRewardResult.rewardId, 'reward_arcana_persona_v1');
+  assert.equal(gdPaused, false, 'Game should resume after rewarded ad finishes');
+  assert.equal(gdMuted, false, 'Audio should unmute after rewarded ad finishes');
 });
 
 
