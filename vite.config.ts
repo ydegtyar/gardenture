@@ -44,7 +44,9 @@ function gamePlatformHtmlPlugin(
   gameDistributionId: string,
   noAds: boolean,
   y8GameId: string,
-  y8AppId: string
+  y8AppId: string,
+  _facebookRewardedPlacementId?: string,
+  _facebookInterstitialPlacementId?: string
 ) {
   return {
     name: 'vite-plugin-game-platform-html',
@@ -65,6 +67,24 @@ function gamePlatformHtmlPlugin(
           );
         } else {
           return html.replace('</head>', `${y8Snippet}\n  </head>`);
+        }
+      }
+      if (provider === 'FACEBOOK') {
+        // Facebook Instant Games SDK MUST be loaded FIRST before any game code
+        const fbSnippet = `    <!-- Facebook Instant Games SDK - MUST load first per Meta specification -->
+    <script src="https://connect.facebook.net/en_US/fbinstant.6.3.js"></script>
+    <script>
+      window.__fbInstantInitPromise = (typeof FBInstant !== 'undefined')
+        ? FBInstant.initializeAsync().then(function() { FBInstant.setLoadingProgress(50); }).catch(function(e) { console.warn('[FBInstant] Early init notice:', e); })
+        : Promise.resolve();
+    </script>`;
+        if (html.includes('https://www.youtube.com/game_api/v1')) {
+          return html.replace(
+            /<!-- Load YouTube Playables SDK FIRST per specification \[F\] -->\s*<script src="https:\/\/www\.youtube\.com\/game_api\/v1"><\/script>/,
+            fbSnippet
+          );
+        } else {
+          return html.replace('</head>', `${fbSnippet}\n  </head>`);
         }
       }
       if (provider === 'CRAZYGAMES') {
@@ -199,6 +219,14 @@ export default defineConfig(({ mode }) => {
     process.env.VITE_Y8_APP_ID ||
     env.VITE_Y8_APP_ID ||
     '6ae32a67ba1f868b83779a1f';
+  const facebookRewardedPlacementId =
+    process.env.VITE_FACEBOOK_REWARDED_PLACEMENT_ID ||
+    env.VITE_FACEBOOK_REWARDED_PLACEMENT_ID ||
+    '';
+  const facebookInterstitialPlacementId =
+    process.env.VITE_FACEBOOK_INTERSTITIAL_PLACEMENT_ID ||
+    env.VITE_FACEBOOK_INTERSTITIAL_PLACEMENT_ID ||
+    '';
 
   return {
     base: './',
@@ -206,7 +234,7 @@ export default defineConfig(({ mode }) => {
       locatorPlugin(),
       react(),
       tailwindcss(),
-      gamePlatformHtmlPlugin(provider, gameMonetizeId, gameDistributionId, noAds, y8GameId, y8AppId),
+      gamePlatformHtmlPlugin(provider, gameMonetizeId, gameDistributionId, noAds, y8GameId, y8AppId, facebookRewardedPlacementId, facebookInterstitialPlacementId),
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: null, // Custom registration handled in src/pwa.ts

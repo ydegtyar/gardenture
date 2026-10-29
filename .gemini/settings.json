@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "meta-devtools": {
+      "httpUrl": "https://mcp.facebook.com/devtools",
+      "timeout": 30000
+    }
+  }
+}

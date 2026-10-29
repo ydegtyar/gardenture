@@ -21,6 +21,7 @@ export type PlatformProviderType =
   | 'GAMEMONETIZE'
   | 'GAMEDISTRIBUTION'
   | 'Y8'
+  | 'FACEBOOK'
   | 'NONE';
 
 export interface RewardResult {
@@ -142,6 +143,8 @@ declare global {
     __gmPause?: () => void;
     __gmResume?: () => void;
     __gmReady?: () => void;
+    // Facebook Instant Games SDK (declared fully in FacebookInstantGamesAdapter.ts)
+    FBInstant?: any;
     y8?: {
       sdk: () => any;
       emitReadyEvent?: () => void;

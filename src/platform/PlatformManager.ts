@@ -58,6 +58,8 @@ export class PlatformManager {
       const gameDistributionGameId = env?.VITE_GAMEDISTRIBUTION_GAME_ID || '';
       const y8GameId = env?.VITE_Y8_GAME_ID || '';
       const y8AppId = env?.VITE_Y8_APP_ID || '';
+      const facebookRewardedPlacementId = env?.VITE_FACEBOOK_REWARDED_PLACEMENT_ID || '';
+      const facebookInterstitialPlacementId = env?.VITE_FACEBOOK_INTERSTITIAL_PLACEMENT_ID || '';
 
       // Check auto-detection for live YouTube environment
       const isLiveYouTube =
@@ -121,6 +123,10 @@ export class PlatformManager {
           // Y8 SDK uses gameId and appId
           break;
         }
+        case 'FACEBOOK': {
+          // Facebook Instant Games SDK is injected via HTML <script> tag; FBInstant is on window
+          break;
+        }
       }
 
       // Dynamic lazy imports: Vite splits each provider into a separate asynchronous chunk!
@@ -169,6 +175,14 @@ export class PlatformManager {
           this.adapter = new Y8Adapter({
             gameId: y8GameId,
             appId: y8AppId,
+          });
+          break;
+        }
+        case 'FACEBOOK': {
+          const { FacebookInstantGamesAdapter } = await import('./providers/FacebookInstantGamesAdapter');
+          this.adapter = new FacebookInstantGamesAdapter({
+            rewardedPlacementId: facebookRewardedPlacementId,
+            interstitialPlacementId: facebookInterstitialPlacementId,
           });
           break;
         }
