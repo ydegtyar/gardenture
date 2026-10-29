@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { PALETTE, POWER_UPS } from '../../content/data/catalog';
+import { PALETTE } from '../../content/data/catalog';
 import { clamp, lerp } from '../../core/math/vec2';
 import type { SimVisualEffect, Simulation } from '../../sim/Simulation';
 import { PPU } from './EnvironmentRenderer';
@@ -15,11 +15,22 @@ import {
   drawThornTrailHazard,
   drawSporePopGasCloud,
 } from './weapons';
+import {
+  pickupRegistry,
+  drawAegisBurstEffect,
+  drawEmberBurstEffect,
+  drawShockwaveBlastEffect,
+  drawSecondWindBlastEffect,
+  drawDashStrikeBurstEffect,
+  drawCritStarfallEffect,
+  drawLuckyCloverStepEffect,
+  drawHeroHealPulseEffect,
+} from './items';
 
 /**
  * Renders Ground Hazards, Pickups, Orbiting Petals, Weapon Visual Effects,
  * Persona step effects, Hero buffs & heals, and Projectiles.
- * Individual weapon effects are delegated to weapon renderers in `./weapons/`.
+ * Individual weapon effects are delegated to `./weapons/` and item effects to `./items/`.
  */
 export class WeaponEffectsRenderer {
   public static drawGroundHazards(
@@ -73,139 +84,10 @@ export class WeaponEffectsRenderer {
       const px = p.x * PPU;
       const py = p.y * PPU + bob;
 
-      if (p.kind === 'xp_gem') {
-        g.moveTo(px, py - 7)
-          .lineTo(px + 6, py)
-          .lineTo(px, py + 7)
-          .lineTo(px - 6, py)
-          .closePath()
-          .fill({ color: PALETTE.MINT_GREEN })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
-      } else if (p.kind === 'xp_cluster') {
-        g.circle(px, py, 9)
-          .fill({ color: PALETTE.BUTTER_YELLOW })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-        g.circle(px - 2, py - 2, 3.5).fill({ color: PALETTE.CREAM_WHITE });
-      } else if (p.kind === 'gold_coin') {
-        const spinScale = 0.72 + 0.28 * Math.abs(Math.cos(sim.elapsedSeconds * 5.5 + p.id));
-        const rOuter = p.value >= 5 ? 9.5 : p.value >= 3 ? 8.2 : 7.0;
-        g.ellipse(px, py + 8, rOuter * 0.8, 3.2).fill({ color: 0x0f131d, alpha: 0.32 });
-        g.ellipse(px, py, rOuter * spinScale, rOuter)
-          .fill({ color: PALETTE.GOLD_STAR })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
-        g.ellipse(px, py, rOuter * 0.62 * spinScale, rOuter * 0.62).stroke({
-          color: PALETTE.BUTTER_YELLOW,
-          width: 1.4,
-          alpha: 0.9,
-        });
-        g.moveTo(px, py - 3.2)
-          .lineTo(px + 2.4 * spinScale, py)
-          .lineTo(px, py + 3.2)
-          .lineTo(px - 2.4 * spinScale, py)
-          .closePath()
-          .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.92 });
-      } else if (p.kind === 'healing_seed') {
-        g.circle(px, py, 8)
-          .fill({ color: PALETTE.MINT_GREEN })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-        g.rect(px - 1.5, py - 4.5, 3, 9).fill({ color: PALETTE.CREAM_WHITE });
-        g.rect(px - 4.5, py - 1.5, 9, 3).fill({ color: PALETTE.CREAM_WHITE });
-      } else if (p.kind === 'heal_potion') {
-        const pulse = 1 + 0.08 * Math.sin(sim.elapsedSeconds * 6.5 + p.id);
-        g.ellipse(px, py + 10, 9.5, 4.2).fill({ color: 0x0f131d, alpha: 0.35 });
-        // Soft emerald-rose aura petals behind flask
-        for (let i = 0; i < 4; i++) {
-          const a = sim.elapsedSeconds * 1.8 + (i * Math.PI) / 2;
-          const ox = px + Math.cos(a) * 9.5 * pulse;
-          const oy = py + Math.sin(a) * 9.5 * pulse;
-          g.ellipse(ox, oy, 3.2, 1.8).fill({
-            color: i % 2 === 0 ? PALETTE.MINT_GREEN : PALETTE.BLUSH_ROSE,
-            alpha: 0.72,
-          });
-        }
-        // Golden flask neck & leaf stopper
-        g.roundRect(px - 3.5, py - 11.5, 7, 4.5, 1.5)
-          .fill({ color: PALETTE.GOLD_STAR })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
-        g.moveTo(px, py - 11)
-          .lineTo(px + 5.5, py - 14.5)
-          .lineTo(px + 2, py - 9.5)
-          .closePath()
-          .fill({ color: PALETTE.MINT_GREEN })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.4 });
-        // Rounded heart-blossom potion body
-        g.circle(px, py, 9.5)
-          .fill({ color: 0x10b981 })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-        g.circle(px - 2.5, py - 2.5, 3.2).fill({ color: 0xa7f3d0, alpha: 0.65 });
-        // Crisp white healing cross (+20 HP)
-        g.rect(px - 1.8, py - 5.2, 3.6, 10.4).fill({ color: PALETTE.CREAM_WHITE });
-        g.rect(px - 5.2, py - 1.8, 10.4, 3.6).fill({ color: PALETTE.CREAM_WHITE });
-      } else if (p.kind === 'power_up') {
-        const pId = p.powerUpId ?? 'shield';
-        const pDef = POWER_UPS[pId];
-        const col = pDef?.color ?? PALETTE.SKY_BLUE;
-        const pulse = 1 + 0.1 * Math.sin(sim.elapsedSeconds * 7 + p.id);
-
-        g.ellipse(px, py + 11, 11, 5).fill({ color: 0x0f131d, alpha: 0.38 });
-        g.circle(px, py, 14 * pulse).stroke({
-          color: col,
-          width: 2,
-          alpha: 0.55,
-        });
-        g.circle(px, py, 11)
-          .fill({ color: col })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-
-        if (pId === 'fire_breath') {
-          g.moveTo(px, py - 6.5)
-            .lineTo(px + 5, py + 2)
-            .lineTo(px + 1.5, py + 5.5)
-            .lineTo(px - 1.5, py + 5.5)
-            .lineTo(px - 5, py + 2)
-            .closePath()
-            .fill({ color: PALETTE.BUTTER_YELLOW })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-          g.circle(px, py + 1.5, 2.4).fill({ color: PALETTE.CREAM_WHITE });
-        } else if (pId === 'shield') {
-          g.moveTo(px - 4.5, py - 4.5)
-            .lineTo(px + 4.5, py - 4.5)
-            .lineTo(px + 4.5, py + 1)
-            .lineTo(px, py + 5.5)
-            .lineTo(px - 4.5, py + 1)
-            .closePath()
-            .fill({ color: PALETTE.CREAM_WHITE })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-        } else if (pId === 'freeze') {
-          g.moveTo(px, py - 6)
-            .lineTo(px + 4.5, py)
-            .lineTo(px, py + 6)
-            .lineTo(px - 4.5, py)
-            .closePath()
-            .fill({ color: PALETTE.CREAM_WHITE })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-        } else if (pId === 'magnet') {
-          g.moveTo(px + 4.5, py - 0.5)
-            .arc(px, py - 0.5, 4.5, 0, Math.PI, false)
-            .stroke({
-              color: PALETTE.CREAM_WHITE,
-              width: 2.8,
-            });
-        } else {
-          g.moveTo(px - 4, py - 4.5)
-            .lineTo(px + 4, py - 4.5)
-            .lineTo(px - 4, py + 4.5)
-            .lineTo(px + 4, py + 4.5)
-            .closePath()
-            .fill({ color: PALETTE.CREAM_WHITE })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 1.4 });
-        }
-      } else if (p.kind === 'chest') {
-        g.roundRect(px - 13, py - 10, 26, 20, 4)
-          .fill({ color: PALETTE.GOLD_STAR })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 3 });
-        g.rect(px - 13, py - 2, 26, 4).fill({ color: PALETTE.INK_OUTLINE });
-        g.circle(px, py, 3.5).fill({ color: PALETTE.CREAM_WHITE });
+      // Strategy pattern: dispatch via pickupRegistry without if/else ladders
+      const renderer = pickupRegistry.findForPickup(p);
+      if (renderer) {
+        renderer.draw({ g, pickup: p, sim, px, py });
       }
     }
   }
@@ -235,88 +117,13 @@ export class WeaponEffectsRenderer {
       } else if (fx.kind === 'bloom_hammer') {
         drawBloomHammerEffect(g, fx, progress);
       } else if (fx.kind === 'shockwave_blast') {
-        const cx = fx.x * PPU;
-        const cy = fx.y * PPU;
-        const maxR = fx.radius * PPU;
-        const easeOut = 1 - Math.pow(1 - progress, 2.4);
-        const outerR = maxR * (0.22 + 0.78 * easeOut);
-        const innerR = maxR * Math.max(0.08, easeOut - 0.24);
-
-        g.circle(cx, cy, outerR)
-          .fill({ color: fx.color, alpha: 0.2 * fade })
-          .stroke({ color: fx.color, width: 7 * fade, alpha: 0.95 * fade });
-        g.circle(cx, cy, innerR).stroke({
-          color: PALETTE.CREAM_WHITE,
-          width: 3.5 * fade,
-          alpha: 0.9 * fade,
-        });
-
-        const rays = 8;
-        for (let rIdx = 0; rIdx < rays; rIdx++) {
-          const ra = fx.angle + (rIdx / rays) * Math.PI * 2;
-          const rStart = innerR * 0.45;
-          const rEnd = outerR * 1.06;
-          g.moveTo(cx + Math.cos(ra) * rStart, cy + Math.sin(ra) * rStart)
-            .lineTo(cx + Math.cos(ra) * rEnd, cy + Math.sin(ra) * rEnd)
-            .stroke({
-              color: PALETTE.CREAM_WHITE,
-              width: 2.8 * fade,
-              alpha: 0.85 * fade,
-              cap: 'round',
-            });
-        }
+        drawShockwaveBlastEffect(g, fx, progress, fade);
       } else if (fx.kind === 'second_wind_blast') {
-        // Second Wind resurrection shockwave + rising golden-emerald feathers
-        const cx = fx.x * PPU;
-        const cy = fx.y * PPU;
-        const maxR = fx.radius * PPU;
-        const easeOut = 1 - Math.pow(1 - progress, 2.2);
-        const r = maxR * (0.25 + 0.75 * easeOut);
-
-        g.circle(cx, cy, r)
-          .fill({ color: PALETTE.MINT_GREEN, alpha: 0.22 * fade })
-          .stroke({ color: PALETTE.BUTTER_YELLOW, width: 6 * fade, alpha: 0.95 * fade });
-        g.circle(cx, cy, r * 0.72).stroke({
-          color: PALETTE.MINT_GREEN,
-          width: 3.5 * fade,
-          alpha: 0.9 * fade,
-        });
-
-        for (let i = 0; i < 8; i++) {
-          const a = (i / 8) * Math.PI * 2 + progress * 1.5;
-          const px = cx + Math.cos(a) * (r * 0.65);
-          const py = cy + Math.sin(a) * (r * 0.5) - progress * 34;
-          g.ellipse(px, py, 5 * fade, 2.4 * fade)
-            .fill({ color: i % 2 === 0 ? PALETTE.BUTTER_YELLOW : PALETTE.MINT_GREEN, alpha: 0.95 * fade })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 1.4, alpha: 0.75 * fade });
-        }
+        drawSecondWindBlastEffect(g, fx, progress, fade);
       } else if (fx.kind === 'ember_burst') {
-        const cx = fx.x * PPU;
-        const cy = fx.y * PPU;
-        const maxR = fx.radius * PPU;
-        const easeOut = 1 - Math.pow(1 - progress, 2.0);
-        const r = maxR * (0.35 + 0.65 * easeOut);
-
-        g.circle(cx, cy, r)
-          .fill({ color: 0xfb923c, alpha: 0.22 * fade })
-          .stroke({ color: 0xf43f5e, width: 6 * fade, alpha: 0.92 * fade });
-        g.circle(cx, cy, r * 0.75).stroke({
-          color: PALETTE.BUTTER_YELLOW,
-          width: 3 * fade,
-          alpha: 0.9 * fade,
-        });
-
-        const tongues = 8;
-        for (let tIdx = 0; tIdx < tongues; tIdx++) {
-          const ta = fx.angle + progress * 2.2 + (tIdx / tongues) * Math.PI * 2;
-          const tx = cx + Math.cos(ta) * r;
-          const ty = cy + Math.sin(ta) * r;
-          g.circle(tx, ty, 5.5 * fade)
-            .fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.92 * fade })
-            .stroke({ color: 0xf43f5e, width: 2 * fade, alpha: 0.85 * fade });
-        }
+        drawEmberBurstEffect(g, fx, progress, fade);
       } else if (fx.kind === 'clover_step') {
-        WeaponEffectsRenderer.drawLuckyCloverStep(decalGraphic, fx, progress, fade);
+        drawLuckyCloverStepEffect(decalGraphic, fx, progress, fade);
       } else if (
         fx.kind === 'zagreus_fire_step' ||
         fx.kind === 'void_soul_step' ||
@@ -325,13 +132,13 @@ export class WeaponEffectsRenderer {
       ) {
         WeaponEffectsRenderer.drawPersonaStepEffect(decalGraphic, g, fx, progress, fade);
       } else if (fx.kind === 'heal_pulse') {
-        WeaponEffectsRenderer.drawHeroHealPulse(g, fx, hx, hy, progress, fade);
+        drawHeroHealPulseEffect(g, fx, hx, hy, progress, fade);
       } else if (fx.kind === 'dash_strike_burst') {
-        WeaponEffectsRenderer.drawDashStrikeBurst(g, fx, progress, fade);
+        drawDashStrikeBurstEffect(g, fx, progress, fade);
       } else if (fx.kind === 'aegis_burst') {
-        WeaponEffectsRenderer.drawAegisActivationBurst(g, fx, progress, fade);
+        drawAegisBurstEffect(g, fx, progress, fade);
       } else if (fx.kind === 'crit_starfall') {
-        WeaponEffectsRenderer.drawCritStarfall(g, fx, progress, fade);
+        drawCritStarfallEffect(g, fx, progress, fade);
       } else if (fx.kind === 'brute_slam_flash') {
         const cx = fx.x * PPU;
         const cy = fx.y * PPU;
@@ -496,321 +303,10 @@ export class WeaponEffectsRenderer {
     }
   }
 
-  /**
-   * Renders a Hero Heal visual effect centered on the hero with rising green particles
-   * (glowing emerald motes, rising leaf particles, and floating green '+' crosses).
-   */
-  public static drawHeroHealPulse(
-    g: PIXI.Graphics,
-    fx: SimVisualEffect,
-    heroPxX: number,
-    heroPxY: number,
-    progress: number,
-    fade: number
-  ): void {
-    const healPower = Math.max(1, fx.arcRad);
-    const powerNorm = clamp(healPower / 25, 0.08, 1.5);
-    const maxR = fx.radius * PPU;
-    const easeOut = 1 - Math.pow(1 - progress, 2.1);
-    const currentR = maxR * (0.32 + 0.68 * easeOut);
-
-    // Expanding emerald aura ring around hero
-    const ringAlpha = clamp((0.28 + powerNorm * 0.42) * fade, 0.12, 0.85);
-    const ringWidth = (2.2 + powerNorm * 3.8) * fade;
-    g.circle(heroPxX, heroPxY, currentR)
-      .fill({ color: PALETTE.MINT_GREEN, alpha: ringAlpha * 0.28 })
-      .stroke({ color: PALETTE.MINT_GREEN, width: ringWidth, alpha: ringAlpha });
-
-    // Rising green particles around the hero (motes + leaves + emerald '+' crosses)
-    const particleCount = clamp(Math.round(5 + powerNorm * 7), 5, 14);
-    for (let i = 0; i < particleCount; i++) {
-      const seedA = (i / particleCount) * Math.PI * 2 + fx.id * 0.65;
-      const spreadR = 10 + (i % 3) * 8 + powerNorm * 8;
-      const riseHeight = (26 + (i % 4) * 9 + powerNorm * 22) * easeOut;
-      const px = heroPxX + Math.cos(seedA + progress * 1.1) * spreadR;
-      const py = heroPxY + 10 + Math.sin(seedA) * (spreadR * 0.45) - riseHeight;
-      const pSize = (3.4 + (i % 2) * 1.4 + powerNorm * 1.5) * fade;
-
-      if (i % 3 === 0) {
-        // Rising emerald '+' cross particle
-        g.rect(px - pSize * 0.32, py - pSize, pSize * 0.64, pSize * 2).fill({
-          color: PALETTE.MINT_GREEN,
-          alpha: 0.92 * fade,
-        });
-        g.rect(px - pSize, py - pSize * 0.32, pSize * 2, pSize * 0.64).fill({
-          color: PALETTE.MINT_GREEN,
-          alpha: 0.92 * fade,
-        });
-      } else if (i % 3 === 1) {
-        // Rising green leaf particle
-        g.ellipse(px, py, pSize * 1.15, pSize * 0.62)
-          .fill({ color: 0x22c55e, alpha: 0.9 * fade })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 1.1, alpha: 0.65 * fade });
-      } else {
-        // Glowing mint mote particle going up
-        g.circle(px, py, pSize * 0.85)
-          .fill({ color: PALETTE.MINT_GREEN, alpha: 0.92 * fade })
-          .stroke({ color: PALETTE.CREAM_WHITE, width: 1.0, alpha: 0.75 * fade });
-      }
-    }
-  }
-
-  /**
-   * Renders a Celestial Starfall effect when Crit Burst procs!
-   * Falling golden-arcane shooting stars streak diagonally from the heavens and burst into
-   * radiant 4-point star flares and constellation shards across the AoE.
-   */
-  public static drawCritStarfall(
-    g: PIXI.Graphics,
-    fx: SimVisualEffect,
-    progress: number,
-    fade: number
-  ): void {
-    const cx = fx.x * PPU;
-    const cy = fx.y * PPU;
-    const maxR = fx.radius * PPU;
-    const lv = clamp(Math.round(fx.arcRad), 1, 3);
-    const starCount = 3 + lv;
-
-    const drawFourPointStar = (
-      sx: number,
-      sy: number,
-      outerR: number,
-      innerR: number,
-      rot: number,
-      col: number,
-      alphaVal: number
-    ) => {
-      for (let i = 0; i < 8; i++) {
-        const a = rot + (i * Math.PI) / 4;
-        const r = i % 2 === 0 ? outerR : innerR;
-        const px = sx + Math.cos(a) * r;
-        const py = sy + Math.sin(a) * r;
-        if (i === 0) g.moveTo(px, py);
-        else g.lineTo(px, py);
-      }
-      g.closePath()
-        .fill({ color: col, alpha: alphaVal })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 * fade, alpha: alphaVal * 0.85 });
-    };
-
-    // 1. Falling Shooting Stars streaking down from the sky in staggered cascade
-    for (let s = 0; s < starCount; s++) {
-      const stagger = s * (0.38 / starCount);
-      const localT = clamp((progress - stagger) / (1 - stagger * 0.7), 0, 1);
-      if (localT <= 0) continue;
-
-      const seedAngle = fx.angle + (s / starCount) * Math.PI * 2 + fx.id * 0.7;
-      const offsetDist = s === 0 ? 0 : maxR * (0.32 + (s % 2) * 0.26);
-      const landX = cx + Math.cos(seedAngle) * offsetDist;
-      const landY = cy + Math.sin(seedAngle) * (offsetDist * 0.75);
-
-      const fallPhase = clamp(localT / 0.52, 0, 1);
-      const impactPhase = clamp((localT - 0.45) / 0.55, 0, 1);
-
-      if (fallPhase < 1) {
-        const skyStartX = landX + 52;
-        const skyStartY = landY - 145;
-        const headX = lerp(skyStartX, landX, fallPhase);
-        const headY = lerp(skyStartY, landY, fallPhase);
-        const tailFrac = Math.max(0, fallPhase - 0.35);
-        const tailX = lerp(skyStartX, landX, tailFrac);
-        const tailY = lerp(skyStartY, landY, tailFrac);
-
-        // Luminous shooting-star comet tail
-        g.moveTo(tailX, tailY)
-          .lineTo(headX, headY)
-          .stroke({
-            color: s % 2 === 0 ? PALETTE.GOLD_STAR : PALETTE.SKY_BLUE,
-            width: 6.5,
-            alpha: 0.65 * (1 - fallPhase * 0.2),
-            cap: 'round',
-          });
-        g.moveTo(tailX, tailY)
-          .lineTo(headX, headY)
-          .stroke({
-            color: PALETTE.CREAM_WHITE,
-            width: 2.6,
-            alpha: 0.95,
-            cap: 'round',
-          });
-
-        // Falling 4-point star head
-        drawFourPointStar(
-          headX,
-          headY,
-          10.5,
-          3.6,
-          fallPhase * 4.5 + s,
-          PALETTE.BUTTER_YELLOW,
-          0.98
-        );
-      }
-
-      // 2. Ground Starburst Impact when each shooting star strikes
-      if (impactPhase > 0) {
-        const impFade = 1 - impactPhase;
-        const burstR = (s === 0 ? maxR * 0.68 : maxR * 0.42) * (0.35 + 0.65 * impactPhase);
-
-        // Starburst cross rays at impact site
-        for (let ray = 0; ray < 4; ray++) {
-          const ra = (ray * Math.PI) / 4 + s * 0.4;
-          g.moveTo(landX - Math.cos(ra) * burstR, landY - Math.sin(ra) * burstR)
-            .lineTo(landX + Math.cos(ra) * burstR, landY + Math.sin(ra) * burstR)
-            .stroke({
-              color: ray % 2 === 0 ? PALETTE.GOLD_STAR : PALETTE.CREAM_WHITE,
-              width: (s === 0 ? 3.2 : 2.2) * impFade,
-              alpha: 0.9 * impFade,
-              cap: 'round',
-            });
-        }
-
-        drawFourPointStar(
-          landX,
-          landY,
-          (s === 0 ? 13 : 9) * impFade,
-          (s === 0 ? 4.2 : 3.0) * impFade,
-          impactPhase * 2.2 + s,
-          s % 2 === 0 ? PALETTE.GOLD_STAR : PALETTE.BUTTER_YELLOW,
-          0.92 * impFade
-        );
-      }
-    }
-  }
-
-  /**
-   * Renders a delicate Lucky Clover footstep decal behind the hero (Lv 1–5).
-   */
-  public static drawLuckyCloverStep(
-    decalGraphic: PIXI.Graphics,
-    fx: SimVisualEffect,
-    progress: number,
-    fade: number
-  ): void {
-    const lv = clamp(Math.round(fx.arcRad), 1, 5);
-    const cx = fx.x * PPU;
-    const cy = fx.y * PPU;
-
-    const popScale = progress < 0.16 ? progress / 0.16 : 1 - (progress - 0.16) * 0.22;
-    const baseR = fx.radius * PPU * popScale;
-    const baseAlpha = clamp((0.42 + lv * 0.09) * fade, 0.08, 0.92);
-
-    const drawSingleClover = (
-      ox: number,
-      oy: number,
-      cloverR: number,
-      rotAngle: number,
-      leaves: number,
-      withVeins: boolean
-    ) => {
-      // Curved botanical stem first so leaves sit cleanly on top
-      const stemAngle = rotAngle + Math.PI * 0.72;
-      const stemLen = cloverR * 1.15;
-      decalGraphic
-        .moveTo(ox, oy)
-        .quadraticCurveTo(
-          ox + Math.cos(stemAngle - 0.3) * (stemLen * 0.55),
-          oy + Math.sin(stemAngle - 0.3) * (stemLen * 0.55),
-          ox + Math.cos(stemAngle) * stemLen,
-          oy + Math.sin(stemAngle) * stemLen
-        )
-        .stroke({
-          color: 0x047857,
-          width: Math.max(1.2, cloverR * 0.22),
-          alpha: baseAlpha,
-          cap: 'round',
-        });
-
-      // Heart-cleft clover leaflets (formed by two angled lobes per leaflet)
-      const leafDist = cloverR * 0.56;
-      const lobeR = cloverR * 0.34;
-      for (let i = 0; i < leaves; i++) {
-        const a = rotAngle + (i / leaves) * Math.PI * 2;
-        const lx = ox + Math.cos(a) * leafDist;
-        const ly = oy + Math.sin(a) * leafDist;
-        const perpX = -Math.sin(a);
-        const perpY = Math.cos(a);
-        const lobeSpread = cloverR * 0.16;
-        const leafCol = i % 2 === 0 ? PALETTE.MINT_GREEN : 0x10b981;
-
-        for (const side of [-1, 1] as const) {
-          decalGraphic
-            .circle(lx + perpX * lobeSpread * side, ly + perpY * lobeSpread * side, lobeR)
-            .fill({ color: leafCol, alpha: baseAlpha })
-            .stroke({
-              color: PALETTE.INK_OUTLINE,
-              width: 1.1,
-              alpha: baseAlpha * 0.82,
-            });
-        }
-
-        if (withVeins) {
-          decalGraphic
-            .moveTo(ox + Math.cos(a) * (cloverR * 0.12), oy + Math.sin(a) * (cloverR * 0.12))
-            .lineTo(lx + Math.cos(a) * (cloverR * 0.14), ly + Math.sin(a) * (cloverR * 0.14))
-            .stroke({
-              color: 0xd1fae5,
-              width: 1.0,
-              alpha: baseAlpha * 0.9,
-              cap: 'round',
-            });
-        }
-      }
-    };
-
-    // Primary compact clover
-    drawSingleClover(cx, cy, baseR, fx.angle, lv >= 2 ? 4 : 3, lv >= 2);
-
-    // Lv 3+: Companion miniature clover sprouts beside the main step
-    if (lv >= 3) {
-      const subAngle1 = fx.angle + 2.15;
-      const subDist1 = baseR * 1.38;
-      drawSingleClover(
-        cx + Math.cos(subAngle1) * subDist1,
-        cy + Math.sin(subAngle1) * subDist1,
-        baseR * 0.62,
-        fx.angle - 0.6,
-        3,
-        lv >= 4
-      );
-    }
-    if (lv >= 4) {
-      const subAngle2 = fx.angle - 1.95;
-      const subDist2 = baseR * 1.28;
-      drawSingleClover(
-        cx + Math.cos(subAngle2) * subDist2,
-        cy + Math.sin(subAngle2) * subDist2,
-        baseR * 0.54,
-        fx.angle + 0.85,
-        4,
-        true
-      );
-    }
-
-    // Lv 3+: Tiny rising emerald-mint luck sparkles & star glints that drift upward and vanish
-    if (lv >= 3) {
-      const sparkleCount = lv - 1;
-      for (let s = 0; s < sparkleCount; s++) {
-        const sa = fx.id * 1.37 + (s * Math.PI * 2) / sparkleCount;
-        const sx = cx + Math.cos(sa) * (baseR * (0.65 + (s % 2) * 0.45));
-        const sy = cy + Math.sin(sa) * (baseR * 0.4) - progress * (10 + s * 4.5);
-        const spSize = (2.2 + (lv >= 5 ? 1.1 : 0.4)) * fade;
-
-        // Crisp 4-point mint-emerald star glint
-        decalGraphic
-          .moveTo(sx - spSize, sy)
-          .lineTo(sx + spSize, sy)
-          .moveTo(sx, sy - spSize)
-          .lineTo(sx, sy + spSize)
-          .stroke({
-            color: s % 2 === 0 ? 0xa7f3d0 : PALETTE.MINT_GREEN,
-            width: 1.4,
-            alpha: baseAlpha * 0.95,
-            cap: 'round',
-          });
-      }
-    }
-  }
+  // Preserve backwards-compatible static methods
+  public static drawHeroHealPulse = drawHeroHealPulseEffect;
+  public static drawCritStarfall = drawCritStarfallEffect;
+  public static drawLuckyCloverStep = drawLuckyCloverStepEffect;
 
   /**
    * Renders disappearing Arcana Persona footsteps behind the character:
@@ -1104,129 +600,6 @@ export class WeaponEffectsRenderer {
       } else {
         drawSeedBladeProjectile(g, p, sim, px, py, rPx, angle);
       }
-    }
-  }
-
-  /**
-   * Dash Strike Burst visual effect:
-   * Directional wind-slash crescents, 8-point starburst lances, and flying shards (no simple circle).
-   */
-  private static drawDashStrikeBurst(
-    g: PIXI.Graphics,
-    fx: SimVisualEffect,
-    progress: number,
-    fade: number
-  ): void {
-    const cx = fx.x * PPU;
-    const cy = fx.y * PPU;
-    const maxR = fx.radius * PPU;
-    const easeOut = 1 - Math.pow(1 - progress, 2.2);
-    const r = maxR * (0.35 + 0.75 * easeOut);
-
-    // 8-point starburst of sharp lances radiating outward
-    const spikes = 8;
-    for (let i = 0; i < spikes; i++) {
-      const a = fx.angle + (i * Math.PI * 2) / spikes + progress * 0.35;
-      const isMajor = i % 2 === 0;
-      const innerR = r * (0.18 + 0.35 * progress);
-      const outerR = r * (isMajor ? 1.12 : 0.78);
-      const halfSpread = isMajor ? 0.14 : 0.09;
-
-      const xIn = cx + Math.cos(a) * innerR;
-      const yIn = cy + Math.sin(a) * innerR;
-      const xTip = cx + Math.cos(a) * outerR;
-      const yTip = cy + Math.sin(a) * outerR;
-      const midR = (innerR + outerR) * 0.48;
-      const xL = cx + Math.cos(a - halfSpread) * midR;
-      const yL = cy + Math.sin(a - halfSpread) * midR;
-      const xR = cx + Math.cos(a + halfSpread) * midR;
-      const yR = cy + Math.sin(a + halfSpread) * midR;
-
-      g.moveTo(xIn, yIn)
-        .lineTo(xL, yL)
-        .lineTo(xTip, yTip)
-        .lineTo(xR, yR)
-        .closePath()
-        .fill({
-          color: isMajor ? fx.color : PALETTE.BUTTER_YELLOW,
-          alpha: (isMajor ? 0.88 : 0.75) * fade,
-        })
-        .stroke({
-          color: PALETTE.INK_OUTLINE,
-          width: 1.6 * fade,
-          alpha: 0.75 * fade,
-        });
-    }
-
-    // Directional wind-slash crescent blades along dash angle
-    for (let w = -1; w <= 1; w += 2) {
-      const arcAngle = fx.angle + w * 0.45;
-      const arcR = r * 0.86;
-      const ax0 = cx + Math.cos(arcAngle - 0.55) * (arcR * 0.75);
-      const ay0 = cy + Math.sin(arcAngle - 0.55) * (arcR * 0.75);
-      const axMid = cx + Math.cos(arcAngle) * (arcR * 1.15);
-      const ayMid = cy + Math.sin(arcAngle) * (arcR * 1.15);
-      const ax1 = cx + Math.cos(arcAngle + 0.55) * (arcR * 0.75);
-      const ay1 = cy + Math.sin(arcAngle + 0.55) * (arcR * 0.75);
-
-      g.moveTo(ax0, ay0)
-        .quadraticCurveTo(axMid, ayMid, ax1, ay1)
-        .stroke({
-          color: PALETTE.CREAM_WHITE,
-          width: 3.2 * fade,
-          alpha: 0.88 * fade,
-          cap: 'round',
-        });
-    }
-  }
-
-  /**
-   * Aegis Orb activation burst:
-   * Expanding hexagonal crystalline rune ward with 6 flying shield crests (no simple circle).
-   */
-  private static drawAegisActivationBurst(
-    g: PIXI.Graphics,
-    fx: SimVisualEffect,
-    progress: number,
-    fade: number
-  ): void {
-    const cx = fx.x * PPU;
-    const cy = fx.y * PPU;
-    const easeOut = 1 - Math.pow(1 - progress, 2.0);
-    const r = fx.radius * PPU * (0.42 + 0.65 * easeOut);
-    const rot = progress * 0.9;
-
-    // Outer & inner rotating hexagonal ward lines
-    for (let layer = 0; layer < 2; layer++) {
-      const polyR = r * (layer === 0 ? 1.0 : 0.64);
-      const layerRot = layer === 0 ? rot : -rot;
-      for (let i = 0; i < 6; i++) {
-        const a = layerRot + (i * Math.PI) / 3;
-        const px = cx + Math.cos(a) * polyR;
-        const py = cy + Math.sin(a) * polyR;
-        if (i === 0) g.moveTo(px, py);
-        else g.lineTo(px, py);
-      }
-      g.closePath().stroke({
-        color: layer === 0 ? PALETTE.SKY_BLUE : PALETTE.MINT_GREEN,
-        width: (layer === 0 ? 3.2 : 2.0) * fade,
-        alpha: 0.88 * fade,
-      });
-    }
-
-    // 6 crystalline shield crests at the hexagon vertices
-    for (let i = 0; i < 6; i++) {
-      const a = rot + (i * Math.PI) / 3;
-      const vx = cx + Math.cos(a) * r;
-      const vy = cy + Math.sin(a) * r;
-      const s = 5.5 * fade;
-      g.moveTo(vx, vy - s)
-        .lineTo(vx + s * 0.8, vy)
-        .lineTo(vx, vy + s)
-        .lineTo(vx - s * 0.8, vy)
-        .closePath()
-        .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.92 * fade })
-        .stroke({ color: PALETTE.SKY_BLUE, width: 1.8 * fade, alpha: 0.9 * fade });
     }
   }
 }

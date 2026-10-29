@@ -83,9 +83,11 @@ declare global {
         init: () => Promise<void>;
         getEnvironment: () => Promise<string>;
         game: {
+          loadingStart?: () => void;
           loadingStop: () => void;
           gameplayStart: () => void;
           gameplayStop: () => void;
+          happytime?: () => void;
         };
         ad: {
           requestAd: (
