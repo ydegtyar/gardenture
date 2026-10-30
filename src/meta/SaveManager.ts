@@ -34,6 +34,7 @@ export interface SaveDataV1 {
     trinkets: string[];
     trinketLevels: Record<string, number>;
     curses: string[];
+    curseLevels: Record<string, number>;
     maxDifficultyTierByBiome: Record<string, number>;
     personaAdPips: Record<string, number>;
   };
@@ -211,6 +212,7 @@ export function createDefaultSaveData(): SaveDataV1 {
       trinkets: ['aegis_leaf'],
       trinketLevels: { aegis_leaf: 1 },
       curses: ['swarm_brand'],
+      curseLevels: { swarm_brand: 1 },
       maxDifficultyTierByBiome: {
         garden: 1,
         dungeon: 1,
@@ -309,6 +311,19 @@ export function parseSavePayload(raw: string): SaveDataV1 | null {
         normalizedTrinketLevels[tid] = Math.max(1, Math.min(3, Math.floor(lv)));
       }
     }
+    const mergedCurses = Array.isArray(parsed.unlocks?.curses)
+      ? Array.from(new Set([...defaults.unlocks.curses, ...parsed.unlocks.curses]))
+      : defaults.unlocks.curses;
+    const rawCurseLevels = parsed.unlocks?.curseLevels ?? {};
+    const normalizedCurseLevels: Record<string, number> = { ...defaults.unlocks.curseLevels };
+    for (const cid of mergedCurses) {
+      normalizedCurseLevels[cid] = Math.max(1, Math.min(3, Math.floor(rawCurseLevels[cid] ?? 1)));
+    }
+    for (const [cid, lv] of Object.entries(rawCurseLevels)) {
+      if (typeof lv === 'number' && Number.isFinite(lv)) {
+        normalizedCurseLevels[cid] = Math.max(1, Math.min(3, Math.floor(lv)));
+      }
+    }
     return {
       ...defaults,
       ...parsed,
@@ -318,6 +333,8 @@ export function parseSavePayload(raw: string): SaveDataV1 | null {
         ...parsed.unlocks,
         trinkets: mergedTrinkets,
         trinketLevels: normalizedTrinketLevels,
+        curses: mergedCurses,
+        curseLevels: normalizedCurseLevels,
         maxDifficultyTierByBiome: {
           ...defaults.unlocks.maxDifficultyTierByBiome,
           ...(parsed.unlocks?.maxDifficultyTierByBiome ?? {}),
@@ -404,6 +421,24 @@ export function reconcileSaveData(
       );
     }
 
+    const mergedCurses = mergeUniqueStrings(primary.unlocks.curses, secondary.unlocks.curses);
+    const mergedCurseLevels: Record<string, number> = {
+      ...secondary.unlocks.curseLevels,
+      ...primary.unlocks.curseLevels,
+    };
+    for (const cid of mergedCurses) {
+      mergedCurseLevels[cid] = Math.max(
+        1,
+        Math.min(
+          3,
+          Math.max(
+            primary.unlocks.curseLevels?.[cid] ?? 1,
+            secondary.unlocks.curseLevels?.[cid] ?? 1
+          )
+        )
+      );
+    }
+
     const bestAllTime = Math.max(
       primary.bestScores.allTime,
       secondary.bestScores.allTime
@@ -436,7 +471,8 @@ export function reconcileSaveData(
         weapons: mergeUniqueStrings(primary.unlocks.weapons, secondary.unlocks.weapons),
         trinkets: mergedTrinkets,
         trinketLevels: mergedTrinketLevels,
-        curses: mergeUniqueStrings(primary.unlocks.curses, secondary.unlocks.curses),
+        curses: mergedCurses,
+        curseLevels: mergedCurseLevels,
         maxDifficultyTierByBiome: mergedTierByBiome,
         personaAdPips: mergedPips,
       },

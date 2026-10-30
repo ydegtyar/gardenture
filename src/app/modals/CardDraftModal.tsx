@@ -24,6 +24,7 @@ export function CardDraftModal() {
     hud,
     draftOffers,
     freeRerollAvailable,
+    freeRerollsRemaining,
     canAdReroll,
     adRerollsRemaining,
     coinRerollsRemaining,
@@ -475,8 +476,11 @@ export function CardDraftModal() {
                     </div>
                   </div>
                 </div>
-                <span className="bg-[#101F12] text-[#A8E6CF] text-[10px] font-mono-tabular font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
-                  1 Left
+                <span
+                  data-testid="draft-reroll-free-count"
+                  className="bg-[#101F12] text-[#A8E6CF] text-[10px] font-mono-tabular font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0"
+                >
+                  {freeRerollsRemaining} Left
                 </span>
               </button>
             ) : canAdReroll ? (

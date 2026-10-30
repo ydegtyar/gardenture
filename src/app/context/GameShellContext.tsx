@@ -11,6 +11,7 @@ import { FixedClock } from '../../core/time/clock';
 import { NO_ADS, PERSONA_NO_ADS_COST_SEEDS } from '../../config/ads';
 import {
   CARDS,
+  CURSES,
   PERSONAS,
   PROFESSIONS,
   STYLE_RANKS,
@@ -36,6 +37,8 @@ import {
 import { GameAudioMixer } from '../../platform/audio/GameAudioMixer';
 import { PixiGameRenderer } from '../../view/PixiRenderer';
 import type { RunSummarySnapshot } from '../Modals';
+import type { ActiveBuff } from '../components/ActiveBuffs';
+import { POWERUPS } from '../../game/data/powerups';
 import { IS_DEV } from '../debug/devGate';
 
 export type ShellState = 'title' | 'playing' | 'paused' | 'gameover';
@@ -70,6 +73,7 @@ export interface HudTelemetry {
   dashReadyRatio: number;
   isDashInvisible: boolean;
   heldPowerUps: PowerUpId[];
+  activeBuffs: ActiveBuff[];
   weapons: Array<{ id: string; level: number; evolved: boolean }>;
   ownedCards: Record<string, number>;
   activeAlert: string | null;
@@ -118,9 +122,11 @@ export interface GameShellContextValue {
   coinRerollsRemaining: number;
   canWatchRewardedAd: boolean;
   platformProvider: string;
+  isMenuTransitioning: boolean;
 
   // Core Actions
-  startNewOrResumedRun: (resumeExisting?: boolean) => void;
+  startNewOrResumedRun: (resumeExisting?: boolean, withMenuCrossfade?: boolean) => void;
+  completeMenuTransition: () => void;
   updateShellState: (next: ShellState) => void;
   toggleMute: () => void;
   pauseRun: () => void;
@@ -147,6 +153,7 @@ export interface GameShellContextValue {
   handleUnlockTrinket: (trinketId: string, cost: number) => void;
   handleUpgradeTrinket: (trinketId: string) => void;
   handleUnlockCurse: (curseId: string, cost: number) => void;
+  handleUpgradeCurse: (curseId: string) => void;
   handleWatchPersonaPipAd: (personaId: string) => Promise<void>;
   handleBuyPersonaWithSeeds: (personaId: string) => Promise<boolean>;
   handleWatchSanctuaryRewardAd: () => Promise<void>;
@@ -202,6 +209,8 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
   const [shellState, setShellState] = useState<ShellState>('title');
   const shellStateRef = useRef<ShellState>('title');
+  const [isMenuTransitioning, setIsMenuTransitioning] = useState(false);
+  const isMenuTransitioningRef = useRef(false);
 
   const [saveData, setSaveData] = useState<SaveDataV1>(() => createDefaultSaveData());
   const saveDataRef = useRef<SaveDataV1>(saveData);
@@ -266,6 +275,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     dashReadyRatio: 1,
     isDashInvisible: false,
     heldPowerUps: [],
+    activeBuffs: [],
     weapons: [{ id: 'garden_blade', level: 1, evolved: false }],
     ownedCards: {},
     activeAlert: null,
@@ -275,10 +285,23 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   const [rankAura, setRankAura] = useState<RankAuraState | null>(null);
   const rankAuraTimeoutRef = useRef<number | null>(null);
 
+  const completeMenuTransition = useCallback(() => {
+    isMenuTransitioningRef.current = false;
+    setIsMenuTransitioning(false);
+    clockRef.current.reset();
+  }, []);
+
   const updateShellState = useCallback((next: ShellState) => {
     shellStateRef.current = next;
     setShellState(next);
     document.body.dataset.state = next;
+    if (next === 'title') {
+      isMenuTransitioningRef.current = false;
+      setIsMenuTransitioning(false);
+      rendererRef.current?.suspendAndDetachCanvas();
+    } else {
+      rendererRef.current?.attachCanvas(canvasContainerRef.current);
+    }
     if (next === 'playing') {
       platform.notifyGameplayStart();
     } else {
@@ -317,6 +340,62 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
             ),
       isDashInvisible: sim.dashIframeTimer > 0 || sim.dashTimer > 0,
       heldPowerUps: [...sim.heldPowerUps],
+      activeBuffs: [
+        ...(sim.shieldTimer > 0 && sim.shieldHp > 0
+          ? [
+              {
+                id: 'aegis-orb' as const,
+                remainingSec: sim.shieldTimer,
+                totalSec: POWERUPS['aegis-orb'].durationSec,
+              },
+            ]
+          : []),
+        ...(sim.freezeAuraTimer > 0
+          ? [
+              {
+                id: 'frost-flask' as const,
+                remainingSec: sim.freezeAuraTimer,
+                totalSec: POWERUPS['frost-flask'].durationSec,
+              },
+            ]
+          : []),
+        ...(sim.fireBreathTimer > 0
+          ? [
+              {
+                id: 'ember-guard' as const,
+                remainingSec: sim.fireBreathTimer,
+                totalSec: POWERUPS['ember-guard'].durationSec,
+              },
+            ]
+          : []),
+        ...(sim.magnetBuffTimer > 0
+          ? [
+              {
+                id: 'clover-magnet' as const,
+                remainingSec: sim.magnetBuffTimer,
+                totalSec: POWERUPS['clover-magnet'].durationSec,
+              },
+            ]
+          : []),
+        ...(sim.timeSlowTimer > 0
+          ? [
+              {
+                id: 'sundial-watch' as const,
+                remainingSec: sim.timeSlowTimer,
+                totalSec: POWERUPS['sundial-watch'].durationSec,
+              },
+            ]
+          : []),
+        ...(sim.healBuffTimer > 0
+          ? [
+              {
+                id: 'heal-20hp' as const,
+                remainingSec: sim.healBuffTimer,
+                totalSec: POWERUPS['heal-20hp'].durationSec,
+              },
+            ]
+          : []),
+      ],
       weapons: sim.weapons.map((w) => ({ id: w.id, level: w.level, evolved: w.evolved })),
       ownedCards: { ...sim.cards },
       activeAlert: alertBanner !== undefined ? alertBanner : prev.activeAlert,
@@ -592,6 +671,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         equippedTrinkets: sd.loadout.trinketIds,
         trinketLevels: sd.unlocks.trinketLevels,
         activeCurses: sd.loadout.curseIds,
+        curseLevels: sd.unlocks.curseLevels,
         unlockedWeapons: sd.unlocks.weapons,
       });
       attachSimListeners(sim);
@@ -601,7 +681,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   );
 
   const startNewOrResumedRun = useCallback(
-    (resumeExisting = false) => {
+    (resumeExisting = false, withMenuCrossfade = false) => {
       if (document.activeElement instanceof HTMLElement) {
         document.activeElement.blur();
       }
@@ -641,12 +721,35 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         window.clearTimeout(rankAuraTimeoutRef.current);
       }
       setRankAura(null);
-      rendererRef.current?.setPreferences({
-        reducedMotion: sd.settings.reducedMotion,
-        showDamageNumbers: sd.settings.showDamageNumbers,
-        bloomIntensity: sd.settings.bloomIntensity,
-        biome: sd.loadout.biomeId,
-      });
+
+      isMenuTransitioningRef.current = withMenuCrossfade;
+      setIsMenuTransitioning(withMenuCrossfade);
+
+      if (rendererRef.current) {
+        rendererRef.current.attachCanvas(canvasContainerRef.current);
+        rendererRef.current.setPreferences({
+          reducedMotion: sd.settings.reducedMotion,
+          showDamageNumbers: sd.settings.showDamageNumbers,
+          bloomIntensity: sd.settings.bloomIntensity,
+          biome: sd.loadout.biomeId,
+        });
+        // Render one static frame underneath the crossfading menu while game logic stays paused
+        rendererRef.current.renderFrame({
+          sim,
+          alpha: 0,
+          dtSec: 0.016,
+          joystick: {
+            active: false,
+            anchorX: 0,
+            anchorY: 0,
+            knobX: 0,
+            knobY: 0,
+            maxRadiusPx: 56,
+          },
+          resumeCountdownRatio: 0,
+          isTitleMode: false,
+        });
+      }
 
       syncHudFromSim(sim, null);
       updateShellState('playing');
@@ -668,8 +771,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       const win = window as unknown as Record<string, unknown>;
       win.__BLOSSOM_SIM__ = initialSim;
+      win.__BLOSSOM_RENDERER__ = renderer;
       win.render_game_to_text = () => {
         const s = simRef.current;
+        const r = rendererRef.current;
         if (!s) return JSON.stringify({ state: shellStateRef.current });
         return JSON.stringify({
           state: shellStateRef.current,
@@ -686,11 +791,18 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           enemiesCount: s.enemies.length,
           projectilesCount: s.projectiles.length,
           powerUpDropsCount: s.pickups.filter((p) => p.kind === 'power_up').length,
+          cameraZoom: r ? Number(r.camera.zoom.toFixed(4)) : 1,
+          cameraThreat: r ? Number(r.camera.threat.toFixed(4)) : 0,
+          cameraInCombat: r ? r.camera.inCombat : false,
         });
       };
       win.advanceTime = (ms: number) => {
         const s = simRef.current;
         if (!s) return;
+        if (isMenuTransitioningRef.current) {
+          isMenuTransitioningRef.current = false;
+          setIsMenuTransitioning(false);
+        }
         const steps = Math.max(1, Math.round(ms / (1000 / 60)));
         for (let i = 0; i < steps; i++) {
           s.tick();
@@ -725,7 +837,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     const detachInput = inputRef.current.attach(container);
 
     void (async () => {
-      await renderer.init(container);
+      await renderer.init(container, saveDataRef.current.loadout.biomeId, false);
+      if (shellStateRef.current !== 'title') {
+        renderer.attachCanvas(container);
+      }
       facade.lifecycle.notifyFirstFrameReady();
 
       // Initialize Unified Platform Manager
@@ -822,7 +937,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       const state = shellStateRef.current;
 
       try {
-        if (sim) {
+        // Mutual exclusion (Rule 7): When Menu is visible (`state === 'title'`) or during
+        // the short menu->game crossfade (`isMenuTransitioningRef.current`), never run
+        // the game render loop or game simulation tick!
+        if (sim && state !== 'title' && !isMenuTransitioningRef.current) {
           if (state === 'playing' && !debugMenuOpenRef.current) {
             const moveVec = inputRef.current.getMoveVector();
             sim.setMoveIntent(moveVec.x, moveVec.y);
@@ -859,7 +977,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
                 maxRadiusPx: 56,
               },
               resumeCountdownRatio: 0,
-              isTitleMode: state === 'title',
+              isTitleMode: false,
             });
           }
         }
@@ -894,11 +1012,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     inputRef.current.setCallbacks({
       onDash: (angle) => {
-        if (shellStateRef.current === 'title' && sanctuaryTab === null) {
-          startNewOrResumedRun(false);
-          return;
-        }
-        if (shellStateRef.current === 'playing' && simRef.current) {
+        if (shellStateRef.current === 'playing' && !isMenuTransitioningRef.current && simRef.current) {
           simRef.current.requestDash(angle);
         }
       },
@@ -906,8 +1020,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         const state = shellStateRef.current;
         const sim = simRef.current;
 
-        if (state === 'title' && sanctuaryTab === null && code === 'Enter') {
-          startNewOrResumedRun(false);
+        if (state === 'title') {
           return;
         }
 
@@ -1044,7 +1157,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     const sim = simRef.current;
     if (!sim || sim.freeRerollUsed) return;
     setDraftOffers([...sim.rerollCardDraft('free')]);
-  }, []);
+    syncHudFromSim(sim);
+    saveDataRef.current.activeRun = sim.serializeCheckpoint();
+    void saveManagerRef.current.flushImmediate();
+  }, [syncHudFromSim]);
 
   const handleRerollAd = useCallback(async () => {
     const sim = simRef.current;
@@ -1188,6 +1304,25 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       if (simRef.current) {
         simRef.current.personaId = sd.loadout.personaId;
         simRef.current.professionId = sd.loadout.professionId;
+        if (simRef.current.elapsedTicks === 0) {
+          simRef.current.equippedTrinkets = [...sd.loadout.trinketIds];
+          simRef.current.trinketLevels = { ...sd.unlocks.trinketLevels };
+          simRef.current.activeCurses = [...sd.loadout.curseIds];
+          simRef.current.curseLevels = { ...sd.unlocks.curseLevels };
+          if (simRef.current.equippedTrinkets.includes('clover_charm')) {
+            const cloverLv = Math.max(
+              1,
+              Math.min(3, Math.floor(simRef.current.trinketLevels.clover_charm ?? 1))
+            );
+            simRef.current.maxFreeRerolls = cloverLv;
+            simRef.current.freeRerollsRemaining = cloverLv;
+            simRef.current.freeRerollUsed = false;
+          } else {
+            simRef.current.maxFreeRerolls = 0;
+            simRef.current.freeRerollsRemaining = 0;
+            simRef.current.freeRerollUsed = true;
+          }
+        }
       }
       void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
     },
@@ -1256,6 +1391,22 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           [trinketId]: 3,
         };
       }
+      if (simRef.current) {
+        simRef.current.trinketLevels = { ...sd.unlocks.trinketLevels };
+        if (
+          trinketId === 'clover_charm' &&
+          simRef.current.equippedTrinkets.includes('clover_charm')
+        ) {
+          const nextCloverLv = Math.max(
+            1,
+            Math.min(3, Math.floor(sd.unlocks.trinketLevels?.clover_charm ?? 1))
+          );
+          const delta = Math.max(0, nextCloverLv - simRef.current.maxFreeRerolls);
+          simRef.current.maxFreeRerolls = nextCloverLv;
+          simRef.current.freeRerollsRemaining += delta;
+          simRef.current.freeRerollUsed = simRef.current.freeRerollsRemaining <= 0;
+        }
+      }
       setSaveData({ ...sd });
       void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
     },
@@ -1269,6 +1420,36 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       sd.currencies.coins -= cost;
       if (!sd.unlocks.curses.includes(curseId)) {
         sd.unlocks.curses.push(curseId);
+      }
+      sd.unlocks.curseLevels = {
+        ...sd.unlocks.curseLevels,
+        [curseId]: Math.max(1, sd.unlocks.curseLevels?.[curseId] ?? 1),
+      };
+      setSaveData({ ...sd });
+      void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
+    },
+    [refreshYtDiagnostics]
+  );
+
+  const handleUpgradeCurse = useCallback(
+    (curseId: string) => {
+      const sd = saveDataRef.current;
+      if (!sd.unlocks.curses.includes(curseId)) return;
+      const cDef = CURSES.find((c) => c.id === curseId);
+      if (!cDef) return;
+      const currentLv = Math.max(1, Math.min(3, Math.floor(sd.unlocks.curseLevels?.[curseId] ?? 1)));
+      if (currentLv >= 3) return;
+
+      const coinCost = currentLv === 1 ? cDef.upgradeCostCoinsLv2 : cDef.upgradeCostCoinsLv3;
+      if (sd.currencies.coins < coinCost) return;
+      sd.currencies.coins -= coinCost;
+      const nextLv = currentLv + 1;
+      sd.unlocks.curseLevels = {
+        ...sd.unlocks.curseLevels,
+        [curseId]: nextLv,
+      };
+      if (simRef.current) {
+        simRef.current.curseLevels = { ...sd.unlocks.curseLevels };
       }
       setSaveData({ ...sd });
       void saveManagerRef.current.flushImmediate().then(() => refreshYtDiagnostics());
@@ -1656,9 +1837,18 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     );
   }, [refreshYtDiagnostics]);
 
-  const freeRerollAvailable = Boolean(simRef.current && !simRef.current.freeRerollUsed);
-  const freeRerollsRemaining = simRef.current ? simRef.current.freeRerollsRemaining : 0;
-  const maxFreeRerolls = simRef.current ? simRef.current.maxFreeRerolls : 0;
+  const freeRerollsRemaining = simRef.current
+    ? Math.max(
+        0,
+        simRef.current.freeRerollsRemaining ?? (simRef.current.freeRerollUsed ? 0 : 1)
+      )
+    : 0;
+  const maxFreeRerolls = simRef.current
+    ? Math.max(freeRerollsRemaining, simRef.current.maxFreeRerolls || 1)
+    : 0;
+  const freeRerollAvailable = Boolean(
+    simRef.current && !simRef.current.freeRerollUsed && freeRerollsRemaining > 0
+  );
   const adRerollsRemaining = simRef.current
     ? Math.max(0, Simulation.MAX_AD_REROLLS - simRef.current.adRerollsUsed)
     : Simulation.MAX_AD_REROLLS;
@@ -1700,7 +1890,9 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     coinRerollsRemaining,
     canWatchRewardedAd,
     platformProvider: platform.provider,
+    isMenuTransitioning,
     startNewOrResumedRun,
+    completeMenuTransition,
     updateShellState,
     toggleMute,
     pauseRun,
@@ -1723,6 +1915,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     handleUnlockTrinket,
     handleUpgradeTrinket,
     handleUnlockCurse,
+    handleUpgradeCurse,
     handleWatchPersonaPipAd,
     handleBuyPersonaWithSeeds,
     handleWatchSanctuaryRewardAd,

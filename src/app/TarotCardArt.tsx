@@ -865,16 +865,75 @@ function renderCardSymbol(targetId: string, g: GradientIds): React.ReactNode {
         </g>
       );
 
-    // 4.12 Fleet Step / 4.17 Double Dash: Phantom dash silhouettes & twin wind arrows
+    // 4.12 Fleet Step (XII · THE PHANTOM STEP): Three fading phantom step silhouettes & single swift trajectory arrow
     case 'fleet_step':
-    case 'double_dash':
       return (
-        <g stroke="#2D1E2F" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+        <g
+          data-testid="tarot-symbol-fleet_step"
+          stroke="#2D1E2F"
+          strokeWidth="2.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <circle cx="52" cy="76" r="16" fill={`url(#${g.violet})`} opacity="0.55" />
           <circle cx="84" cy="68" r="18.5" fill={`url(#${g.cyan})`} opacity="0.8" />
           <circle cx="118" cy="59" r="21" fill={`url(#${g.mint})`} />
           <path d="M 36,98 L 144,82" stroke={`url(#${g.gold})`} strokeWidth="4.5" />
           <polygon points="148,81 134,76 137,89" fill={`url(#${g.gold})`} />
+        </g>
+      );
+
+    // 4.17 Double Dash (XVII · THE DUAL ZEPHYR): Twin winged zephyr crests, dual synchronized dash chevrons & paired charge crystals
+    case 'double_dash':
+      return (
+        <g
+          data-testid="tarot-symbol-double_dash"
+          stroke="#2D1E2F"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {/* Twin swirling Zephyr slipstream ribbons */}
+          <path
+            d="M 32,62 C 58,36 94,40 132,32"
+            fill="none"
+            stroke={`url(#${g.cyan})`}
+            strokeWidth="3.4"
+            opacity="0.85"
+          />
+          <path
+            d="M 38,96 C 68,74 102,78 140,66"
+            fill="none"
+            stroke={`url(#${g.mint})`}
+            strokeWidth="3.4"
+            opacity="0.85"
+          />
+
+          {/* Left & Right Feathered Zephyr Wings */}
+          <path
+            d="M 40,56 C 42,32 66,24 84,36 C 72,44 68,54 78,62 C 58,64 46,62 40,56 Z"
+            fill={`url(#${g.cyan})`}
+          />
+          <path
+            d="M 52,88 C 54,66 78,58 96,70 C 84,78 80,88 90,96 C 70,98 58,94 52,88 Z"
+            fill={`url(#${g.emerald})`}
+          />
+
+          {/* Twin Synchronized Dash Chevron Arrows (×2 Charges) */}
+          <polygon
+            points="78,48 118,30 110,48 138,44 100,66 106,50"
+            fill={`url(#${g.gold})`}
+          />
+          <polygon
+            points="90,82 130,64 122,82 150,78 112,100 118,84"
+            fill={`url(#${g.parchment})`}
+          />
+
+          {/* Two Glowing Dash Charge Rhombus Crystals */}
+          <polygon points="56,36 63,45 56,54 49,45" fill={`url(#${g.gold})`} />
+          <polygon points="68,70 75,79 68,88 61,79" fill={`url(#${g.mint})`} />
+          <circle cx="56" cy="45" r="2.2" fill="#FFFDF0" stroke="none" />
+          <circle cx="68" cy="79" r="2.2" fill="#FFFDF0" stroke="none" />
         </g>
       );
 

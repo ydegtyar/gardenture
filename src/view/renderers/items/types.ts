@@ -7,6 +7,7 @@ export interface PickupRenderContext {
   sim: Simulation;
   px: number;
   py: number;
+  acquireSprite?: (tex: PIXI.Texture) => PIXI.Sprite;
 }
 
 export interface PickupRenderer {

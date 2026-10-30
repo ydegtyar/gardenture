@@ -57,7 +57,7 @@ export const CATALOG_SPRITE_PROMPTS: Readonly<Record<SpriteKey, string>> = {
   skin_seeker_hollow_levi:
     'Pop-culture mashup character skin for Seeker: Pure Vessel / The Knight (Hollow Knight) × Levi Ackerman (Attack on Titan). Curved porcelain-white Hollow Knight horned shell mask with crimson Vizard war-stripes, one abyssal void eye and one blazing cyan Ackerman eye, emerald Survey Corps Wings of Freedom cloak over tattered midnight Mothwing coat, dual Pure-Nail Ultrahard Steel blades, leaving disappearing Void-Shade & ODM steam steps.',
   skin_herbalist_frieren_strange:
-    'Pop-culture mashup character skin for Herbalist: Frieren (Beyond Journey’s End) × Doctor Strange × Edward Elric (Fullmetal Alchemist). Silver-white Frieren twin-tails and pointed elf ears, heterochromia teal-and-gold alchemist eyes, Doctor Strange crimson Cloak of Levitation with golden arcane collar, glowing emerald Eye of Agamotto amulet, gleaming silver Automail right arm holding a crescent eclipse staff, leaving disappearing Eldritch Transmutation runes.',
+    'Arcana character skin for Herbalist (Hiten Jade): Mist-Spring Dew Weaver of the Jade Sanctuary. Blossom-pink anime hair with braided side hair-loopies and azure dew beads, frost-trimmed cerulean vestments, carved tide-crest choker, small sacred emerald-jade rhombus seal between the eyes, and a thick, wispy diamond-green and ice-blue water vapor aura with diamond condensation facets coiling continuously around the character.',
   skin_stormcaller_gojo_killua:
     'Pop-culture mashup character skin for Stormcaller (Thander Rein): Elder Thunder-God × Crimson Storm Sovereign. Iconic wide conical woven bamboo/straw hat, flowing crimson-red tempest cloak with twin silver thunder chest discs, dark blue thunder-god armor and white sash, levitating flight stance, and blazing cyan-white lightning eyes that leave electric light trails on movement.',
   enemy_chaser_norm:
@@ -1198,74 +1198,211 @@ function paintSkinHerbalistFrierenStrange(
   ctx: CanvasRenderingContext2D,
   includeStaticLegs = true
 ): void {
-  // Herbalist Skin: Frieren (Beyond Journey's End) × Doctor Strange × Edward Elric (FMA)
+  // Herbalist Skin: Hiten Jade — Mist-Spring Dew Weaver of the Jade Sanctuary
+  // Blossom-pink anime hair, frost-trimmed cerulean dress-robe, both eyes blue,
+  // small sacred jade rhombus ONLY between eyes, and no spheres or static baked coils on the base sprite.
+
+  // 1. Back Layer of Blossom-Pink Anime Hair (flaring blossom-pink locks)
+  ctx.beginPath();
+  ctx.moveTo(78, 78);
+  ctx.quadraticCurveTo(54, 114, 66, 148);
+  ctx.quadraticCurveTo(88, 138, 98, 122);
+  ctx.lineTo(158, 122);
+  ctx.quadraticCurveTo(168, 138, 190, 148);
+  ctx.quadraticCurveTo(202, 114, 178, 78);
+  ctx.closePath();
+  fillAndStroke(ctx, '#EC4899', 6.5);
+
   if (includeStaticLegs) {
-    // Glowing Golden Eldritch Mandala Ring under feet
-    ctx.beginPath();
-    ctx.ellipse(128, 200, 52, 15, 0, 0, Math.PI * 2);
-    fillAndStroke(ctx, 'rgba(251, 191, 36, 0.35)', 5, '#FBBF24');
+    // Sanctuary Dark Navy Boots with snowy white frost cuffs (no ground circle)
     for (const dx of [-20, 20]) {
       ctx.beginPath();
-      ctx.roundRect(128 + dx - 11, 184, 22, 22, 9);
-      fillAndStroke(ctx, '#7F1D1D', 6);
+      ctx.roundRect(128 + dx - 12, 184, 24, 24, 9);
+      fillAndStroke(ctx, '#1E3A8A', 6);
+      ctx.beginPath();
+      ctx.roundRect(128 + dx - 13, 180, 26, 9, 4);
+      fillAndStroke(ctx, '#F8FAFC', 4.5);
     }
   }
 
-  // Doctor Strange's High-Collared Crimson Cloak of Levitation + Gold Arcane Trim
+  // 2. Frost-Trimmed Cerulean Dress-Robe (flared cerulean robe with snowy white collar/hem trim)
   ctx.beginPath();
-  ctx.moveTo(66, 190);
-  ctx.quadraticCurveTo(58, 118, 84, 72);
-  ctx.lineTo(172, 72);
-  ctx.quadraticCurveTo(198, 118, 190, 190);
+  ctx.moveTo(74, 190);
+  ctx.quadraticCurveTo(70, 142, 90, 110);
+  ctx.lineTo(166, 110);
+  ctx.quadraticCurveTo(186, 142, 182, 190);
+  ctx.quadraticCurveTo(128, 198, 74, 190);
   ctx.closePath();
-  fillAndStroke(ctx, '#DC2626', 7.5);
+  fillAndStroke(ctx, '#0284C7', 7.5);
 
-  // Frieren's Crisp White & Gold Mage Capelet over tunic
+  // Darker ocean-blue side pleats on dress-robe skirt
   ctx.beginPath();
-  ctx.roundRect(88, 114, 80, 70, 20);
-  fillAndStroke(ctx, '#F8FAFC', 7);
+  ctx.moveTo(82, 188);
+  ctx.quadraticCurveTo(82, 152, 96, 128);
+  ctx.lineTo(110, 128);
+  ctx.quadraticCurveTo(102, 158, 98, 191);
+  ctx.closePath();
+  fillAndStroke(ctx, '#0369A1', 5);
+
   ctx.beginPath();
-  ctx.roundRect(96, 114, 64, 34, 12);
-  fillAndStroke(ctx, '#FEF08A', 5.5);
+  ctx.moveTo(174, 188);
+  ctx.quadraticCurveTo(174, 152, 160, 128);
+  ctx.lineTo(146, 128);
+  ctx.quadraticCurveTo(154, 158, 158, 191);
+  ctx.closePath();
+  fillAndStroke(ctx, '#0369A1', 5);
 
-  // Glowing Emerald Eye of Agamotto Time-Stone Amulet on chest
-  drawCelCircle(ctx, 128, 134, 13, '#FBBF24', '#D97706', '#FFFDF0', 5);
-  drawCelCircle(ctx, 128, 134, 6.5, '#10B981', '#059669', '#A8E6CF', 3);
+  // Crisp White & Ice-Blue Sanctuary vertical center panel & hem trim
+  ctx.beginPath();
+  ctx.roundRect(117, 114, 22, 78, 8);
+  fillAndStroke(ctx, '#E0F2FE', 5);
 
-  // Left Hand: Rotating Golden Eldritch Mandala Spell Shield
-  drawCelCircle(ctx, 68, 148, 20, 'rgba(251, 191, 36, 0.45)', '#F59E0B', '#FEF08A', 5, '#FBBF24');
-  drawStarGlint(ctx, 68, 148, 11, '#FEF08A');
+  ctx.beginPath();
+  ctx.moveTo(75, 184);
+  ctx.quadraticCurveTo(128, 194, 181, 184);
+  ctx.lineTo(182, 191);
+  ctx.quadraticCurveTo(128, 200, 74, 191);
+  ctx.closePath();
+  fillAndStroke(ctx, '#F8FAFC', 5.5);
 
-  // Right Arm: Edward Elric Silver Automail Arm gripping Frieren's Crescent Staff
-  drawCelCircle(ctx, 184, 146, 15, '#CBD5E1', '#64748B', '#F8FAFC', 5.5);
-  if (includeStaticLegs) {
-    ctx.save();
-    ctx.translate(192, 136);
-    ctx.rotate(0.28);
+  // Sanctuary High White Frost-Lined Collar & Deep Navy Waist Sash
+  ctx.beginPath();
+  ctx.moveTo(92, 110);
+  ctx.quadraticCurveTo(128, 130, 164, 110);
+  ctx.lineTo(158, 124);
+  ctx.quadraticCurveTo(128, 140, 98, 124);
+  ctx.closePath();
+  fillAndStroke(ctx, '#F8FAFC', 5.5);
+
+  // Deep Navy Sash & Ice-Blue Ribbon Tie at Waist
+  ctx.beginPath();
+  ctx.roundRect(86, 146, 84, 15, 7);
+  fillAndStroke(ctx, '#1E3A8A', 5.5);
+  ctx.beginPath();
+  ctx.roundRect(116, 144, 24, 18, 6);
+  fillAndStroke(ctx, '#38BDF8', 4.5);
+
+  // Tide-Crest Choker Band (flat ribbon band, no sphere pendant)
+  ctx.beginPath();
+  ctx.roundRect(108, 108, 40, 8, 4);
+  fillAndStroke(ctx, '#0369A1', 4.5);
+
+  // Sleeves & Hands channeling Living Mist-Spring Dew
+  ctx.beginPath();
+  ctx.roundRect(62, 120, 26, 36, 12);
+  fillAndStroke(ctx, '#0284C7', 6);
+  ctx.beginPath();
+  ctx.roundRect(168, 120, 26, 36, 12);
+  fillAndStroke(ctx, '#0284C7', 6);
+  drawCelCircle(ctx, 73, 154, 12, '#FFE4D6', '#F3B692', '#FFFDF0', 5);
+  drawCelCircle(ctx, 183, 154, 12, '#FFE4D6', '#F3B692', '#FFFDF0', 5);
+
+  // 3. Blossom-Pink Anime Hair Crown & Anime Face
+  drawCelCircle(ctx, 128, 80, 41, '#F472B6', '#EC4899', '#FBCFE8', 7);
+
+  // Crimson Hairband Ribbon across the crown
+  ctx.beginPath();
+  ctx.arc(128, 78, 37, Math.PI * 1.15, Math.PI * 1.85);
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = '#E11D48';
+  ctx.stroke();
+
+  // Expressive Anime Face
+  drawCelCircle(ctx, 128, 91, 33, '#FFE4D6', '#F3B692', '#FFFDF0', 6.5);
+
+  // Soft Anime Cheek Blushes
+  ctx.beginPath();
+  ctx.ellipse(104, 101, 6.5, 3.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(152, 101, 6.5, 3.6, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(244, 114, 182, 0.48)';
+  ctx.fill();
+
+  // Framing Blossom-Pink Anime Side Bangs (open in the center to showcase the forehead rhombus)
+  ctx.beginPath();
+  ctx.moveTo(118, 52);
+  ctx.quadraticCurveTo(92, 62, 88, 96);
+  ctx.quadraticCurveTo(100, 78, 118, 64);
+  ctx.closePath();
+  fillAndStroke(ctx, '#F472B6', 5.5);
+
+  ctx.beginPath();
+  ctx.moveTo(138, 52);
+  ctx.quadraticCurveTo(164, 62, 168, 96);
+  ctx.quadraticCurveTo(156, 78, 138, 64);
+  ctx.closePath();
+  fillAndStroke(ctx, '#F472B6', 5.5);
+
+  // Braided Side Hair-Loopies (clean pink braids without blue spheres)
+  for (const dir of [-1, 1] as const) {
     ctx.beginPath();
-    ctx.roundRect(-5, -48, 10, 86, 5);
-    fillAndStroke(ctx, '#78350F', 5);
-    drawCelCircle(ctx, 0, -52, 16, '#FBBF24', '#D97706', '#FFFDF0', 5);
-    drawCelCircle(ctx, 0, -52, 9, '#EF4444', '#B91C1C', '#FCA5A5', 3.5);
-    ctx.restore();
+    ctx.moveTo(128 + dir * 32, 76);
+    ctx.bezierCurveTo(
+      128 + dir * 56,
+      86,
+      128 + dir * 54,
+      118,
+      128 + dir * 31,
+      114
+    );
+    ctx.lineWidth = 9.5;
+    ctx.strokeStyle = PLUM;
+    ctx.stroke();
+    ctx.lineWidth = 5.5;
+    ctx.strokeStyle = '#F472B6';
+    ctx.stroke();
   }
 
-  // Frieren's Iconic Long Silver-White Twin-Tails & Pointed Elf Ears
-  drawLeafShape(ctx, 84, 86, Math.PI * 0.72, 78, 22, '#F1F5F9', '#CBD5E1', 6.5);
-  drawLeafShape(ctx, 172, 86, Math.PI * 0.28, 78, 22, '#F1F5F9', '#CBD5E1', 6.5);
-  // Pointed Elf Ears
-  drawLeafShape(ctx, 94, 92, Math.PI * 0.95, 32, 11, '#FFD3B6', '#F3B692', 5);
-  drawLeafShape(ctx, 162, 92, Math.PI * 0.05, 32, 11, '#FFD3B6', '#F3B692', 5);
+  // Expressive Anime Eyes with Curved Eyelashes & Sparkle Catchlights
+  // Both Left & Right Eyes: Luminous Glacier-Ice Blue (#0284C7)
+  drawCuteEye(ctx, 112, 92, 8.2, '#0284C7', 0);
+  drawCuteEye(ctx, 144, 92, 8.2, '#0284C7', 0);
+  drawStarGlint(ctx, 110, 89, 5.5, '#FFFDF0');
+  drawStarGlint(ctx, 142, 89, 5.5, '#FFFDF0');
 
-  // Silver Hair & Face
-  drawCelCircle(ctx, 128, 84, 38, '#F1F5F9', '#CBD5E1', '#FFFFFF', 7);
-  drawCelCircle(ctx, 128, 92, 32, '#FFD3B6', '#F3B692', '#FFFDF0', 6);
+  // Crisp Anime Upper Eyelash Arcs
+  for (const [ex, dir] of [
+    [112, -1],
+    [144, 1],
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(ex, 91, 9.2, Math.PI * 1.12, Math.PI * 1.88);
+    ctx.lineWidth = 4.2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = PLUM;
+    ctx.stroke();
+    // Winged anime lash tip
+    ctx.beginPath();
+    ctx.moveTo(ex + dir * 8, 87);
+    ctx.lineTo(ex + dir * 12, 84);
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+  }
 
-  // Heterochromia Eyes: Left Frieren Mana-Teal (#2DD4BF), Right Fullmetal Gold (#FBBF24)
-  drawCuteEye(ctx, 114, 92, 7, '#0D9488', 0);
-  drawCuteEye(ctx, 142, 92, 7, '#D97706', 0);
-  // Third-Eye Golden Transmutation Sigil on Forehead
-  drawStarGlint(ctx, 128, 74, 8, '#FBBF24');
+  // Gentle Anime Smile (clean mouth, no rhombus on mouth)
+  ctx.beginPath();
+  ctx.arc(128, 102, 5.5, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.lineWidth = 3.2;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = PLUM;
+  ctx.stroke();
+
+  // 4. SMALL SACRED JADE RHOMBUS SEAL ONLY BETWEEN EYES
+  ctx.beginPath();
+  ctx.moveTo(128, 70);
+  ctx.lineTo(135, 79);
+  ctx.lineTo(128, 88);
+  ctx.lineTo(121, 79);
+  ctx.closePath();
+  fillAndStroke(ctx, '#10B981', 4, PLUM);
+
+  ctx.beginPath();
+  ctx.moveTo(128, 74);
+  ctx.lineTo(132, 79);
+  ctx.lineTo(128, 84);
+  ctx.lineTo(124, 79);
+  ctx.closePath();
+  ctx.fillStyle = '#A7F3D0';
+  ctx.fill();
 }
 
 function paintSkinStormcallerGojoKillua(

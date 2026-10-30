@@ -1,5 +1,8 @@
-import { PALETTE, POWER_UPS } from '../../../content/data/catalog';
+import { PALETTE } from '../../../content/data/catalog';
+import { getPowerUpDef } from '../../../game/data/powerups';
 import type { SimPickup } from '../../../sim/Simulation';
+import { getPowerUpTexture } from '../../PowerUpAtlas';
+import { PPU } from '../EnvironmentRenderer';
 import type { PickupRenderContext, PickupRenderer } from './types';
 
 export class PowerUpPickupRenderer implements PickupRenderer {
@@ -10,64 +13,38 @@ export class PowerUpPickupRenderer implements PickupRenderer {
   }
 
   public draw(ctx: PickupRenderContext): void {
-    const { g, pickup: p, sim, px, py } = ctx;
+    const { g, pickup: p, sim, px, acquireSprite } = ctx;
     const pId = p.powerUpId ?? 'shield';
-    const pDef = POWER_UPS[pId];
-    const col = pDef?.color ?? PALETTE.SKY_BLUE;
-    const pulse = 1 + 0.1 * Math.sin(sim.elapsedSeconds * 7 + p.id);
+    const def = getPowerUpDef(pId);
+    const col = def.tint;
+    // Gentle bobbing: Math.sin(t * 3) * 3
+    const py = p.y * PPU + Math.sin(sim.elapsedSeconds * 3 + p.id) * 3;
+    const pulse = 1 + 0.08 * Math.sin(sim.elapsedSeconds * 5 + p.id);
 
-    g.ellipse(px, py + 11, 11, 5).fill({ color: 0x0f131d, alpha: 0.38 });
-    g.circle(px, py, 14 * pulse).stroke({
+    // Ground shadow
+    g.ellipse(px, py + 15, 13, 5.5).fill({ color: 0x0f131d, alpha: 0.42 });
+
+    // Soft radial glow behind the icon (color: def.tint, alpha: 0.25)
+    g.circle(px, py, 22 * pulse).fill({ color: col, alpha: 0.25 });
+    g.circle(px, py, 18 * pulse).stroke({
       color: col,
       width: 2,
-      alpha: 0.55,
+      alpha: 0.68,
     });
+
+    const tex = getPowerUpTexture(def.id, 64);
+    if (tex && acquireSprite) {
+      const sprite = acquireSprite(tex);
+      sprite.anchor.set(0.5);
+      sprite.width = 36;
+      sprite.height = 36;
+      sprite.position.set(px, py);
+      return;
+    }
+
+    // Fallback vector badge if texture hasn't finished loading on frame 0
     g.circle(px, py, 11)
       .fill({ color: col })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-
-    if (pId === 'fire_breath') {
-      g.moveTo(px, py - 6.5)
-        .lineTo(px + 5, py + 2)
-        .lineTo(px + 1.5, py + 5.5)
-        .lineTo(px - 1.5, py + 5.5)
-        .lineTo(px - 5, py + 2)
-        .closePath()
-        .fill({ color: PALETTE.BUTTER_YELLOW })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-      g.circle(px, py + 1.5, 2.4).fill({ color: PALETTE.CREAM_WHITE });
-    } else if (pId === 'shield') {
-      g.moveTo(px - 4.5, py - 4.5)
-        .lineTo(px + 4.5, py - 4.5)
-        .lineTo(px + 4.5, py + 1)
-        .lineTo(px, py + 5.5)
-        .lineTo(px - 4.5, py + 1)
-        .closePath()
-        .fill({ color: PALETTE.CREAM_WHITE })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-    } else if (pId === 'freeze') {
-      g.moveTo(px, py - 6)
-        .lineTo(px + 4.5, py)
-        .lineTo(px, py + 6)
-        .lineTo(px - 4.5, py)
-        .closePath()
-        .fill({ color: PALETTE.CREAM_WHITE })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.5 });
-    } else if (pId === 'magnet') {
-      g.moveTo(px + 4.5, py - 0.5)
-        .arc(px, py - 0.5, 4.5, 0, Math.PI, false)
-        .stroke({
-          color: PALETTE.CREAM_WHITE,
-          width: 2.8,
-        });
-    } else {
-      g.moveTo(px - 4, py - 4.5)
-        .lineTo(px + 4, py - 4.5)
-        .lineTo(px - 4, py + 4.5)
-        .lineTo(px + 4, py + 4.5)
-        .closePath()
-        .fill({ color: PALETTE.CREAM_WHITE })
-        .stroke({ color: PALETTE.INK_OUTLINE, width: 1.4 });
-    }
   }
 }

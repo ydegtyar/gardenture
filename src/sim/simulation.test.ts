@@ -14,9 +14,11 @@ import {
 } from '../core/math/vec2';
 import { RNGStreams, hashStringToSeed } from '../core/rng/rng';
 import {
+  calculateCurseRewardMultiplier,
   calculateEnemyTimeScaling,
   calculateHitDamage,
   computeHeroStats,
+  getCurseLevelDef,
   stepStyleRank,
 } from './rules/formulas';
 import { generateCardDraftOffers } from './systems/cardDraft';
@@ -29,8 +31,9 @@ import {
   updateDailyRunStreak,
 } from '../meta/SaveManager';
 import { createPlatformFacade } from '../platform/Adapters';
-import { BALANCE_CONFIG, CARDS, PERSONAS, POWER_UPS } from '../content/data/catalog';
+import { BALANCE_CONFIG, CARDS, CURSES, PERSONAS, POWER_UPS } from '../content/data/catalog';
 import { isDevelopmentProcess, IS_DEV } from '../app/debug/devGate';
+import { computeHitenJadeAuraSample } from '../view/renderers/heros/HerbalistFrierenPersonaRenderer';
 
 test('Current Daily Streak consecutive-day tracking (updateDailyRunStreak) & milestone highlight rules', () => {
   // 1. First completed run ever -> 1 Day, streakIncremented = true
@@ -1263,11 +1266,11 @@ test('Reworked Arcana Persona skins are ad-exclusive, cover all 4 professions wi
     assert.equal(p.stepEffectKind, exp.stepEffectKind);
     assert.equal(p.adPipsRequired, 3, 'Each Arcana Persona skin must require watching 3 ads');
     assert.equal(p.unlockCostSeeds, 0, 'Arcana Persona skins must only be unlockable via ads');
-    if (exp.id === 'stormcaller_gojo_killua') {
+    if (exp.id === 'stormcaller_gojo_killua' || exp.id === 'herbalist_frieren_strange') {
       assert.equal(
         p.eyeLeftColor,
         p.eyeRightColor,
-        'Thander Rein should have matching eye colors'
+        `${p.name} should have matching blue eye colors`
       );
     } else {
       assert.notEqual(
@@ -1282,7 +1285,77 @@ test('Reworked Arcana Persona skins are ad-exclusive, cover all 4 professions wi
       `${exp.id} must start locked as a shadow silhouette in default save data`
     );
 
-    // Verify moving with the skin equipped spawns disappearing step effects (except Thander Rein who levitates without step trails)
+    if (exp.id === 'herbalist_frieren_strange') {
+      assert.equal(p.name, 'Hiten Jade', 'Herbalist persona should be named Hiten Jade');
+      assert.equal(p.eyeLeftColor, 0x0284c7, 'Hiten Jade left eye should be blue');
+      assert.equal(p.eyeRightColor, 0x0284c7, 'Hiten Jade right eye should be blue');
+      const hitenText = `${p.name} ${p.subtitle} ${p.popCultureMashup} ${p.permanentVfxLabel} ${p.permanentVfxDescription}`.toLowerCase();
+      for (const forbidden of [
+        'frieren',
+        'strange',
+        'katara',
+        'avatar',
+        'sakura',
+        'naruto',
+        'byakugou',
+        'water tribe',
+      ]) {
+        assert.equal(
+          hitenText.includes(forbidden),
+          false,
+          `Hiten Jade lore must not reference "${forbidden}"`
+        );
+      }
+      assert.equal(p.bodyColor, 0xf472b6, 'Hiten Jade should have blossom-pink hair color');
+      assert.equal(p.cloakColor, 0x0284c7, 'Hiten Jade should have cerulean vestments color');
+
+      // Verify high-grade animated orbitals, diamond condensation facets, and rising water vapor puffs
+      const sample0 = computeHitenJadeAuraSample(0, 0, 0);
+      const sample1 = computeHitenJadeAuraSample(0.45, 2.5, -1.0);
+      const sample2 = computeHitenJadeAuraSample(1.35, 0, 0);
+      assert.equal(sample0.facets.length, 8, 'Should animate 8 orbiting diamond condensation facets along the green & blue orbitals');
+      assert.equal(sample0.vaporPuffs.length, 10, 'Should animate 10 rising wispy water vapor puffs & steam tendrils');
+      assert.notEqual(sample0.iceSwayX, sample1.iceSwayX, 'Ice-blue orbital should undulate over time');
+      assert.notEqual(sample0.jadeSwayX, sample1.jadeSwayX, 'Diamond-green orbital should undulate over time');
+      assert.notEqual(sample0.flowPulseA, sample1.flowPulseA, 'Condensation surge wave should travel along orbitals');
+      assert.notEqual(sample1.facets[0]!.dx, sample2.facets[0]!.dx, 'Diamond condensation facets should orbit along the orbitals');
+      assert.notEqual(sample1.facets[0]!.scale, sample2.facets[0]!.scale, 'Diamond condensation facets should pulse in scale');
+      assert.notEqual(
+        sample0.facets[0]!.isFront,
+        sample2.facets[0]!.isFront,
+        'Orbiting diamond facets should revolve full-circle between front and back hemispheres'
+      );
+      assert.notEqual(
+        sample0.vaporPuffs[0]!.dy,
+        sample1.vaporPuffs[0]!.dy,
+        'Water vapor puffs must rise vertically over time'
+      );
+      assert.ok(
+        sample0.facets.some((f) => f.isFront) && sample0.facets.some((f) => !f.isFront),
+        'Helical diamond condensation facets should orbit both in front of and behind the character'
+      );
+      assert.ok(
+        sample0.vaporPuffs.some((vp) => vp.isFront) && sample0.vaporPuffs.some((vp) => !vp.isFront),
+        'Rising water vapor puffs should billow both in front of and behind the character'
+      );
+
+      // Verify Herbalist Healing Dash restores 4 HP
+      const simHerbalist = new Simulation({
+        seed: 7878,
+        professionId: 'herbalist',
+        personaId: 'herbalist_frieren_strange',
+      });
+      simHerbalist.currentHp = simHerbalist.maxHp - 20;
+      const hpBeforeDash = simHerbalist.currentHp;
+      assert.equal(simHerbalist.requestDash(0), true);
+      assert.equal(
+        simHerbalist.currentHp - hpBeforeDash,
+        4,
+        'Herbalist Healing Dash should restore 4 HP'
+      );
+    }
+
+    // Verify moving with the skin equipped spawns disappearing step effects (except Thander Rein and Frieren Strange who have no trailing step effects)
     const sim = new Simulation({
       seed: 4242,
       professionId: exp.professionId,
@@ -1293,11 +1366,11 @@ test('Reworked Arcana Persona skins are ad-exclusive, cover all 4 professions wi
       sim.tick();
     }
     const stepFx = sim.visualEffects.filter((fx) => fx.kind === exp.stepEffectKind);
-    if (exp.id === 'stormcaller_gojo_killua') {
+    if (exp.id === 'stormcaller_gojo_killua' || exp.id === 'herbalist_frieren_strange') {
       assert.equal(
         stepFx.length,
         0,
-        'Thander Rein should NOT leave trailing ground step effects'
+        `${exp.id} should NOT leave trailing ground step effects`
       );
     } else {
       assert.ok(
@@ -2174,6 +2247,275 @@ test('Unified Ads & Platform Manager: Lazy-loading, Capability queries, STUB pro
   assert.equal(gdMuted, false, 'Audio should unmute after rewarded ad finishes');
 });
 
+test('Seed Blades strikes random enemy within range, Aegis Aura fades & blinks before disappearing, and upgraded Clover Charm tracks remaining free rerolls', async () => {
+  const { computeAegisAuraBlinkAlpha } = await import('../view/renderers/heros/common');
 
+  // 1. Seed Blades strikes random enemies within range instead of always locking onto the closest enemy
+  const sim = new Simulation({
+    seed: 4242,
+    professionId: 'seeker',
+    startingWeaponId: 'seed_blades',
+    equippedTrinkets: ['clover_charm'],
+    trinketLevels: { clover_charm: 3 },
+  });
+  sim.enemies.length = 0;
 
+  // Spawn 4 enemies at different distances within Seed Blades range (5.2u * 1.15 = 5.98u)
+  const eClosest = sim.spawnEnemy('chaser', sim.heroX + 1.2, sim.heroY, false)!;
+  const eMid = sim.spawnEnemy('chaser', sim.heroX, sim.heroY + 2.8, false)!;
+  const eFar1 = sim.spawnEnemy('chaser', sim.heroX - 3.9, sim.heroY, false)!;
+  const eFar2 = sim.spawnEnemy('chaser', sim.heroX, sim.heroY - 4.8, false)!;
+  for (const e of [eClosest, eMid, eFar1, eFar2]) {
+    e.hp = 9999;
+    e.maxHp = 9999;
+    e.speed = 0;
+  }
+
+  const targetedIds = new Set<number>();
+  for (let i = 0; i < 24; i++) {
+    const picked = sim.acquireRandomTargetInRange(6.0);
+    assert.ok(picked, 'Should pick an enemy in range');
+    targetedIds.add(picked.id);
+  }
+  assert.ok(
+    targetedIds.size >= 3,
+    `Seed Blades random targeting should strike multiple different enemies in range rather than only the closest (got ${targetedIds.size} distinct targets)`
+  );
+
+  // Verify actual Seed Blades weapon attack locks onto non-closest enemies across swings
+  const swingAngles = new Set<string>();
+  const sbWeapon = sim.weapons.find((w) => w.id === 'seed_blades')!;
+  for (let s = 0; s < 15; s++) {
+    sbWeapon.phase = 'ready';
+    sbWeapon.cooldownTimer = 0;
+    sim.tick(); // transitions ready -> windup and locks onto a random enemy in range
+    swingAngles.add(sbWeapon.lockedAngle.toFixed(2));
+  }
+  assert.ok(
+    swingAngles.size >= 2,
+    'Seed Blades weapon attacks should lock onto random enemies at different angles instead of only the closest enemy'
+  );
+
+  // 2. Aegis Aura fade-blink before disappearing (both on timer expiration and on shield break)
+  assert.equal(
+    computeAegisAuraBlinkAlpha(12.0, 40, 0),
+    1.0,
+    'Aegis Aura should be at full 1.0 alpha when shieldTimer > 3.5s'
+  );
+  const warningSamples: number[] = [];
+  for (let t = 3.4; t >= 0.1; t -= 0.15) {
+    warningSamples.push(computeAegisAuraBlinkAlpha(t, 40, 0));
+  }
+  const minWarnAlpha = Math.min(...warningSamples);
+  const maxWarnAlpha = Math.max(...warningSamples);
+  assert.ok(
+    minWarnAlpha < 0.35 && maxWarnAlpha > 0.65,
+    `Aegis Aura should oscillate (blink) and fade during final 3.5s (min=${minWarnAlpha.toFixed(2)}, max=${maxWarnAlpha.toFixed(2)})`
+  );
+  assert.ok(
+    computeAegisAuraBlinkAlpha(0.15, 40, 0) < computeAegisAuraBlinkAlpha(3.4, 40, 0),
+    'Aegis Aura fade envelope should decrease as shieldTimer approaches 0'
+  );
+
+  // Breaking shield by damage sets shieldBreakFadeTimer = 0.45s so it fade-blinks before disappearing
+  sim.debugTriggerPowerUp('shield');
+  assert.equal(sim.shieldHp, 40);
+  sim.invulnTimer = 0;
+  sim.dashIframeTimer = 0;
+  sim.cardPickInvisTimer = 0;
+  (sim as any).damageHero(55);
+  assert.equal(sim.shieldHp, 0, 'Shield HP should be depleted by heavy hit');
+  assert.ok(
+    sim.shieldBreakFadeTimer > 0.4,
+    'Depleting shield HP should trigger shieldBreakFadeTimer so Aegis Aura fade-blinks before disappearing'
+  );
+  assert.ok(
+    computeAegisAuraBlinkAlpha(0, 0, sim.shieldBreakFadeTimer) > 0,
+    'Aegis Aura should remain partially visible while shieldBreakFadeTimer > 0'
+  );
+
+  // 3. Upgraded Gilded Clover Charm (Lv 3) starts with 3 free rerolls and decrements properly
+  assert.equal(sim.maxFreeRerolls, 3);
+  assert.equal(sim.freeRerollsRemaining, 3);
+  assert.equal(sim.freeRerollUsed, false);
+  sim.triggerLevelUpCardDraft();
+  sim.rerollCardDraft('free');
+  assert.equal(sim.freeRerollsRemaining, 2);
+  assert.equal(sim.freeRerollUsed, false);
+  sim.rerollCardDraft('free');
+  assert.equal(sim.freeRerollsRemaining, 1);
+  assert.equal(sim.freeRerollUsed, false);
+  sim.rerollCardDraft('free');
+  assert.equal(sim.freeRerollsRemaining, 0);
+  assert.equal(sim.freeRerollUsed, true);
+});
+
+test('Curse Sigils: 4 sigils catalog, 3-level upgrades, multi-sigil stacking reward multiplier, and Withered Root regenMultiplier', () => {
+  // 1. Verify all 4 sigils exist in CURSES with 3 levels and expected costs/art
+  assert.equal(CURSES.length, 4);
+  const ids = CURSES.map((c) => c.id);
+  assert.deepEqual(ids, ['swarm_brand', 'frenzied_flora', 'fragile_bark', 'withered_root']);
+
+  const withered = CURSES.find((c) => c.id === 'withered_root')!;
+  assert.equal(withered.name, 'Withered Root Sigil');
+  assert.equal(withered.costCoins, 250);
+  assert.equal(withered.upgradeCostCoinsLv2, 260);
+  assert.equal(withered.upgradeCostCoinsLv3, 420);
+  assert.equal(withered.art, '/assets/sigils/withered-root.png');
+  assert.equal(withered.levels[0].regenMultiplier, 0.5);
+  assert.equal(withered.levels[1].regenMultiplier, 0.35);
+  assert.equal(withered.levels[2].regenMultiplier, 0.25);
+
+  // 2. Multi-sigil stacking reward multiplier: 1 + sum(activeSigil.rewardBonus at current level)
+  assert.equal(calculateCurseRewardMultiplier([]), 1.0);
+  const allLv1Mult = calculateCurseRewardMultiplier(
+    ['swarm_brand', 'frenzied_flora', 'fragile_bark', 'withered_root'],
+    { swarm_brand: 1, frenzied_flora: 1, fragile_bark: 1, withered_root: 1 }
+  );
+  // 1 + 0.25 + 0.30 + 0.35 + 0.40 = 2.30
+  assert.ok(Math.abs(allLv1Mult - 2.3) < 1e-6, `Expected 2.30 at Lv 1, got ${allLv1Mult}`);
+
+  const allLv3Mult = calculateCurseRewardMultiplier(
+    ['swarm_brand', 'frenzied_flora', 'fragile_bark', 'withered_root'],
+    { swarm_brand: 3, frenzied_flora: 3, fragile_bark: 3, withered_root: 3 }
+  );
+  // 1 + 0.60 + 0.65 + 0.70 + 0.75 = 3.70
+  assert.ok(Math.abs(allLv3Mult - 3.7) < 1e-6, `Expected 3.70 at Lv 3, got ${allLv3Mult}`);
+
+  // 3. computeHeroStats scaling across Lv 1, Lv 2, Lv 3 for all 4 sigils
+  const baseStats = computeHeroStats('warden', {}, [], []);
+  assert.equal(baseStats.regenMultiplier, 1.0);
+  assert.equal(baseStats.enemySpeedMult, 1.0);
+  assert.equal(baseStats.enemyTelegraphSpeedMult, 1.0);
+  assert.equal(baseStats.enemySpawnBudgetMult, 1.0);
+
+  const stackedLv2 = computeHeroStats(
+    'warden',
+    {},
+    [],
+    ['swarm_brand', 'frenzied_flora', 'fragile_bark', 'withered_root'],
+    {},
+    { swarm_brand: 2, frenzied_flora: 2, fragile_bark: 2, withered_root: 2 }
+  );
+  assert.equal(stackedLv2.maxHp, 70, 'Brittle Bark Lv 2 (-30% Max HP) should reduce 100 Max HP to 70');
+  assert.ok(Math.abs(stackedLv2.enemySpeedMult - 1.3) < 1e-6);
+  assert.ok(Math.abs(stackedLv2.enemyTelegraphSpeedMult - 1.3) < 1e-6);
+  assert.ok(Math.abs(stackedLv2.enemySpawnBudgetMult - 1.35) < 1e-6);
+  assert.ok(Math.abs(stackedLv2.regenMultiplier - 0.35) < 1e-6);
+
+  const stackedLv3 = computeHeroStats(
+    'warden',
+    {},
+    [],
+    ['swarm_brand', 'frenzied_flora', 'fragile_bark', 'withered_root'],
+    {},
+    { swarm_brand: 3, frenzied_flora: 3, fragile_bark: 3, withered_root: 3 }
+  );
+  assert.equal(stackedLv3.maxHp, 65, 'Brittle Bark Lv 3 (-35% Max HP) should reduce 100 Max HP to 65');
+  assert.ok(Math.abs(stackedLv3.enemySpeedMult - 1.4) < 1e-6);
+  assert.ok(Math.abs(stackedLv3.enemyTelegraphSpeedMult - 1.4) < 1e-6);
+  assert.ok(Math.abs(stackedLv3.enemySpawnBudgetMult - 1.5) < 1e-6);
+  assert.ok(Math.abs(stackedLv3.regenMultiplier - 0.25) < 1e-6);
+
+  // 4. Simulation integration: Withered Root slows HP regen, Dash recharge, and Shield recharge
+  const simNormal = new Simulation({
+    seed: 1010,
+    professionId: 'warden',
+    equippedTrinkets: ['aegis_leaf'],
+    activeCurses: [],
+  });
+  const simWitheredLv3 = new Simulation({
+    seed: 1010,
+    professionId: 'warden',
+    equippedTrinkets: ['aegis_leaf'],
+    activeCurses: ['withered_root'],
+    curseLevels: { withered_root: 3 },
+  });
+  assert.equal(simNormal.stats.regenMultiplier, 1.0);
+  assert.equal(simWitheredLv3.stats.regenMultiplier, 0.25);
+
+  // Dash recharge comparison
+  simNormal.requestDash(0);
+  simWitheredLv3.requestDash(0);
+  for (let i = 0; i < 30; i++) {
+    simNormal.tick();
+    simWitheredLv3.tick();
+  }
+  assert.ok(
+    simWitheredLv3.dashCooldownTimer > simNormal.dashCooldownTimer,
+    `Withered Root should slow Dash cooldown recovery (${simWitheredLv3.dashCooldownTimer} vs ${simNormal.dashCooldownTimer})`
+  );
+
+  // Shield recharge comparison (partially depleted active shield recharges at 2.0 * regenMultiplier HP/sec)
+  simNormal.shieldTimer = 15;
+  simNormal.shieldMaxHp = 40;
+  simNormal.shieldHp = 10;
+  simWitheredLv3.shieldTimer = 15;
+  simWitheredLv3.shieldMaxHp = 40;
+  simWitheredLv3.shieldHp = 10;
+  simNormal.enemies.length = 0;
+  simWitheredLv3.enemies.length = 0;
+  for (let i = 0; i < 180; i++) {
+    simNormal.tick();
+    simWitheredLv3.tick();
+  }
+  assert.ok(
+    simNormal.shieldHp > simWitheredLv3.shieldHp,
+    `Withered Root Lv 3 (0.25x) should slow shield recharge progression (Withered shieldHp=${simWitheredLv3.shieldHp} vs Normal shieldHp=${simNormal.shieldHp})`
+  );
+
+  // 5. SaveManager persistence & reconciliation of curseLevels
+  const baseSave = createDefaultSaveData();
+  assert.equal(baseSave.unlocks.curseLevels.swarm_brand, 1);
+  const remoteSave = createDefaultSaveData();
+  remoteSave.unlocks.curses = ['swarm_brand', 'withered_root'];
+  remoteSave.unlocks.curseLevels = { swarm_brand: 3, withered_root: 2 };
+  const merged = reconcileSaveData(JSON.stringify(baseSave), JSON.stringify(remoteSave));
+  assert.equal(merged.state.unlocks.curseLevels.swarm_brand, 3);
+  assert.equal(merged.state.unlocks.curseLevels.withered_root, 2);
+});
+
+test('Item pickup and Perfect Dodge do not spawn floating text', () => {
+  const sim = new Simulation({ seed: 2027, professionId: 'warden' });
+  const floatingTexts: string[] = [];
+  let perfectDodgeEmitted = false;
+  let powerUpPickedCount = 0;
+
+  sim.events.on('FloatingText', (ev) => {
+    floatingTexts.push(ev.text);
+  });
+  sim.events.on('PerfectDodge', () => {
+    perfectDodgeEmitted = true;
+  });
+  sim.events.on('PowerUpPicked', () => {
+    powerUpPickedCount++;
+  });
+
+  // 1. Trigger a Perfect Dodge near a telegraphing enemy -> awards SP & emits PerfectDodge, but NO FloatingText
+  const enemy = sim.spawnEnemy('dasher', sim.heroX + 1.5, sim.heroY, false)!;
+  enemy.aiState = 'telegraph';
+  const dashed = sim.requestDash(0);
+  assert.equal(dashed, true);
+  assert.equal(perfectDodgeEmitted, true, 'PerfectDodge event should still fire');
+  assert.equal(
+    floatingTexts.some((t) => t.toUpperCase().includes('PERFECT DODGE')),
+    false,
+    'Perfect Dodge must not spawn PERFECT DODGE floating text'
+  );
+
+  // 2. Collect all power-up items & heal_potion -> stores in heldPowerUps & emits PowerUpPicked, but NO FloatingText
+  for (const id of ['shield', 'freeze', 'fire_breath', 'magnet', 'time_slow', 'heal_potion'] as const) {
+    sim.debugSpawnPowerUpDrop(id);
+    const pickup = sim.pickups[sim.pickups.length - 1]!;
+    pickup.x = sim.heroX;
+    pickup.y = sim.heroY;
+    sim.tick();
+  }
+  assert.equal(powerUpPickedCount, 6, 'All 6 item pickups should be collected');
+  assert.equal(
+    floatingTexts.length,
+    0,
+    `Picking up items must not spawn item title floating text, got: ${floatingTexts.join(', ')}`
+  );
+});
 

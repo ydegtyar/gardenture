@@ -26,6 +26,403 @@ export interface Props {
   sectionNumberLabel?: string;
 }
 
+export const HitenJadePortraitAuraBackSvg: React.FC = () => (
+  <svg
+    viewBox="0 0 256 256"
+    data-testid="hiten-jade-animated-aura-back-svg"
+    aria-hidden="true"
+    className="pointer-events-none absolute inset-0 z-0 w-full h-full p-1"
+  >
+    {/* Rising Back Water Vapor Mist Rings & Plumes */}
+    <g opacity="0.75">
+      <path
+        d="M 74 176 Q 128 156 182 174"
+        fill="none"
+        stroke="#7DD3FC"
+        strokeWidth="8"
+        strokeLinecap="round"
+      >
+        <animateTransform
+          attributeName="transform"
+          type="translate"
+          values="0,12; -5,-52; 4,-110"
+          dur="2.4s"
+          repeatCount="indefinite"
+        />
+        <animate
+          attributeName="opacity"
+          values="0;0.65;0"
+          dur="2.4s"
+          repeatCount="indefinite"
+        />
+      </path>
+      <path
+        d="M 78 182 Q 128 162 178 180"
+        fill="none"
+        stroke="#6EE7B7"
+        strokeWidth="8"
+        strokeLinecap="round"
+      >
+        <animateTransform
+          attributeName="transform"
+          type="translate"
+          values="0,16; 5,-48; -4,-108"
+          dur="2.4s"
+          begin="1.2s"
+          repeatCount="indefinite"
+        />
+        <animate
+          attributeName="opacity"
+          values="0;0.65;0"
+          dur="2.4s"
+          begin="1.2s"
+          repeatCount="indefinite"
+        />
+      </path>
+    </g>
+
+    {/* Back Animated Glacier-Blue Orbital Arc */}
+    <g>
+      <path
+        d="M 56 188 C 34 146 214 118 194 62"
+        fill="none"
+        stroke="rgba(56, 189, 248, 0.38)"
+        strokeWidth="24"
+        strokeLinecap="round"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 56 188 C 34 146 214 118 194 62;
+            M 48 176 C 24 130 224 134 202 74;
+            M 64 194 C 46 158 204 104 186 54;
+            M 56 188 C 34 146 214 118 194 62
+          "
+          dur="2.2s"
+          repeatCount="indefinite"
+        />
+      </path>
+      <path
+        d="M 56 188 C 34 146 214 118 194 62"
+        fill="none"
+        stroke="#7DD3FC"
+        strokeWidth="11"
+        strokeLinecap="round"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 56 188 C 34 146 214 118 194 62;
+            M 48 176 C 24 130 224 134 202 74;
+            M 64 194 C 46 158 204 104 186 54;
+            M 56 188 C 34 146 214 118 194 62
+          "
+          dur="2.2s"
+          repeatCount="indefinite"
+        />
+      </path>
+    </g>
+
+    {/* Back Animated Emerald-Jade Orbital Arc */}
+    <g>
+      <path
+        d="M 200 186 C 222 144 42 114 62 60"
+        fill="none"
+        stroke="rgba(16, 185, 129, 0.36)"
+        strokeWidth="22"
+        strokeLinecap="round"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 200 186 C 222 144 42 114 62 60;
+            M 208 174 C 232 128 32 130 54 72;
+            M 192 192 C 210 156 52 100 70 52;
+            M 200 186 C 222 144 42 114 62 60
+          "
+          dur="2.0s"
+          repeatCount="indefinite"
+        />
+      </path>
+      <path
+        d="M 200 186 C 222 144 42 114 62 60"
+        fill="none"
+        stroke="#34D399"
+        strokeWidth="10.5"
+        strokeLinecap="round"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 200 186 C 222 144 42 114 62 60;
+            M 208 174 C 232 128 32 130 54 72;
+            M 192 192 C 210 156 52 100 70 52;
+            M 200 186 C 222 144 42 114 62 60
+          "
+          dur="2.0s"
+          repeatCount="indefinite"
+        />
+      </path>
+    </g>
+  </svg>
+);
+
+export const HitenJadePortraitAuraFrontSvg: React.FC = () => (
+  <svg
+    viewBox="0 0 256 256"
+    data-testid="hiten-jade-animated-aura-svg"
+    aria-hidden="true"
+    className="pointer-events-none absolute inset-0 z-20 w-full h-full p-1"
+  >
+    {/* 1. Animated Front Glacier-Blue Orbital (Right-to-Left Crossing Orbital) */}
+    <g data-testid="hiten-jade-orbital-blue">
+      <path
+        d="M 48 174 C 88 198 176 176 206 134 C 220 114 204 88 184 76"
+        fill="none"
+        stroke="rgba(2, 132, 199, 0.36)"
+        strokeWidth="22"
+        strokeLinecap="round"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 48 174 C 88 198 176 176 206 134 C 220 114 204 88 184 76;
+            M 42 160 C 96 212 184 160 214 122 C 226 102 196 76 176 66;
+            M 54 184 C 80 182 168 190 198 146 C 212 126 210 98 190 86;
+            M 48 174 C 88 198 176 176 206 134 C 220 114 204 88 184 76
+          "
+          dur="2.1s"
+          repeatCount="indefinite"
+        />
+      </path>
+      <path
+        d="M 48 174 C 88 198 176 176 206 134 C 220 114 204 88 184 76"
+        fill="none"
+        stroke="#38BDF8"
+        strokeWidth="11"
+        strokeLinecap="round"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 48 174 C 88 198 176 176 206 134 C 220 114 204 88 184 76;
+            M 42 160 C 96 212 184 160 214 122 C 226 102 196 76 176 66;
+            M 54 184 C 80 182 168 190 198 146 C 212 126 210 98 190 86;
+            M 48 174 C 88 198 176 176 206 134 C 220 114 204 88 184 76
+          "
+          dur="2.1s"
+          repeatCount="indefinite"
+        />
+      </path>
+      <path
+        d="M 48 174 C 88 198 176 176 206 134 C 220 114 204 88 184 76"
+        fill="none"
+        stroke="#E0F2FE"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeDasharray="44 56"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 48 174 C 88 198 176 176 206 134 C 220 114 204 88 184 76;
+            M 42 160 C 96 212 184 160 214 122 C 226 102 196 76 176 66;
+            M 54 184 C 80 182 168 190 198 146 C 212 126 210 98 190 86;
+            M 48 174 C 88 198 176 176 206 134 C 220 114 204 88 184 76
+          "
+          dur="2.1s"
+          repeatCount="indefinite"
+        />
+        <animate
+          attributeName="stroke-dashoffset"
+          from="100"
+          to="0"
+          dur="1.25s"
+          repeatCount="indefinite"
+        />
+      </path>
+    </g>
+
+    {/* 2. Animated Front Emerald-Jade Orbital (Left-to-Right Crossing Orbital) */}
+    <g data-testid="hiten-jade-orbital-green">
+      <path
+        d="M 208 170 C 168 194 80 166 50 128 C 36 108 52 82 72 70"
+        fill="none"
+        stroke="rgba(5, 150, 105, 0.36)"
+        strokeWidth="22"
+        strokeLinecap="round"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 208 170 C 168 194 80 166 50 128 C 36 108 52 82 72 70;
+            M 214 156 C 160 208 72 150 42 116 C 30 96 60 70 80 60;
+            M 202 180 C 176 178 88 180 58 140 C 44 120 46 92 66 80;
+            M 208 170 C 168 194 80 166 50 128 C 36 108 52 82 72 70
+          "
+          dur="1.95s"
+          repeatCount="indefinite"
+        />
+      </path>
+      <path
+        d="M 208 170 C 168 194 80 166 50 128 C 36 108 52 82 72 70"
+        fill="none"
+        stroke="#10B981"
+        strokeWidth="11"
+        strokeLinecap="round"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 208 170 C 168 194 80 166 50 128 C 36 108 52 82 72 70;
+            M 214 156 C 160 208 72 150 42 116 C 30 96 60 70 80 60;
+            M 202 180 C 176 178 88 180 58 140 C 44 120 46 92 66 80;
+            M 208 170 C 168 194 80 166 50 128 C 36 108 52 82 72 70
+          "
+          dur="1.95s"
+          repeatCount="indefinite"
+        />
+      </path>
+      <path
+        d="M 208 170 C 168 194 80 166 50 128 C 36 108 52 82 72 70"
+        fill="none"
+        stroke="#A7F3D0"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeDasharray="44 56"
+      >
+        <animate
+          attributeName="d"
+          values="
+            M 208 170 C 168 194 80 166 50 128 C 36 108 52 82 72 70;
+            M 214 156 C 160 208 72 150 42 116 C 30 96 60 70 80 60;
+            M 202 180 C 176 178 88 180 58 140 C 44 120 46 92 66 80;
+            M 208 170 C 168 194 80 166 50 128 C 36 108 52 82 72 70
+          "
+          dur="1.95s"
+          repeatCount="indefinite"
+        />
+        <animate
+          attributeName="stroke-dashoffset"
+          from="0"
+          to="100"
+          dur="1.25s"
+          repeatCount="indefinite"
+        />
+      </path>
+    </g>
+
+    {/* 3. Rising & Coiling Water Vapor Puffs & Steam Tendrils */}
+    <g data-testid="hiten-jade-vapor-wisps">
+      {[
+        { cx: 52, cy: 162, col: '#A7F3D0', glow: '#10B981', dur: '1.9s', begin: '0s', dx: -8 },
+        { cx: 204, cy: 164, col: '#E0F2FE', glow: '#38BDF8', dur: '2.1s', begin: '0.4s', dx: 8 },
+        { cx: 82, cy: 178, col: '#E0F2FE', glow: '#38BDF8', dur: '1.8s', begin: '0.8s', dx: -6 },
+        { cx: 174, cy: 176, col: '#A7F3D0', glow: '#10B981', dur: '2.0s', begin: '1.1s', dx: 6 },
+        { cx: 44, cy: 122, col: '#A7F3D0', glow: '#10B981', dur: '1.7s', begin: '0.3s', dx: 7 },
+        { cx: 212, cy: 126, col: '#E0F2FE', glow: '#38BDF8', dur: '1.85s', begin: '0.9s', dx: -7 },
+      ].map((wisp, idx) => (
+        <g key={idx}>
+          <animateTransform
+            attributeName="transform"
+            type="translate"
+            values={`0,8; ${wisp.dx},-24; ${-wisp.dx * 0.6},-58`}
+            dur={wisp.dur}
+            begin={wisp.begin}
+            repeatCount="indefinite"
+          />
+          <animate
+            attributeName="opacity"
+            values="0;0.88;0"
+            dur={wisp.dur}
+            begin={wisp.begin}
+            repeatCount="indefinite"
+          />
+          <ellipse cx={wisp.cx} cy={wisp.cy} rx="11" ry="6.5" fill={wisp.glow} opacity="0.42" />
+          <path
+            d={`M ${wisp.cx - 4} ${wisp.cy + 6} Q ${wisp.cx + wisp.dx} ${wisp.cy - 6} ${wisp.cx - 2} ${wisp.cy - 18}`}
+            fill="none"
+            stroke={wisp.col}
+            strokeWidth="4.2"
+            strokeLinecap="round"
+          />
+        </g>
+      ))}
+    </g>
+
+    {/* 4. Orbiting & Bobbing Diamond Condensation Facets along the Orbitals */}
+    <g>
+      <g>
+        <animateTransform
+          attributeName="transform"
+          type="translate"
+          values="0,0; 14,10; -6,-14; 0,0"
+          dur="2.0s"
+          repeatCount="indefinite"
+        />
+        <polygon
+          points="50,117 58,128 50,139 42,128"
+          fill="#10B981"
+          stroke="#2D1E2F"
+          strokeWidth="3.2"
+        />
+        <polygon points="50,122 54,128 50,134 46,128" fill="#A7F3D0" />
+      </g>
+
+      <g>
+        <animateTransform
+          attributeName="transform"
+          type="translate"
+          values="0,0; -14,10; 6,-14; 0,0"
+          dur="2.1s"
+          repeatCount="indefinite"
+        />
+        <polygon
+          points="206,123 214,134 206,145 198,134"
+          fill="#38BDF8"
+          stroke="#2D1E2F"
+          strokeWidth="3.2"
+        />
+        <polygon points="206,128 210,134 206,140 202,134" fill="#E0F2FE" />
+      </g>
+
+      <g>
+        <animateTransform
+          attributeName="transform"
+          type="translate"
+          values="0,0; 18,-8; -8,6; 0,0"
+          dur="1.9s"
+          repeatCount="indefinite"
+        />
+        <polygon
+          points="74,165 82,176 74,187 66,176"
+          fill="#38BDF8"
+          stroke="#2D1E2F"
+          strokeWidth="3.2"
+        />
+        <polygon points="74,170 78,176 74,182 70,176" fill="#E0F2FE" />
+      </g>
+
+      <g>
+        <animateTransform
+          attributeName="transform"
+          type="translate"
+          values="0,0; -18,-8; 8,6; 0,0"
+          dur="1.95s"
+          repeatCount="indefinite"
+        />
+        <polygon
+          points="182,161 190,172 182,183 174,172"
+          fill="#10B981"
+          stroke="#2D1E2F"
+          strokeWidth="3.2"
+        />
+        <polygon points="182,166 186,172 182,178 178,172" fill="#A7F3D0" />
+      </g>
+    </g>
+  </svg>
+);
+
 export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => {
   const {
     saveData,
@@ -108,6 +505,9 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
                     unlocked
                   )}`}
                 >
+                  {unlocked && persona.id === 'herbalist_frieren_strange' && (
+                    <HitenJadePortraitAuraBackSvg />
+                  )}
                   {portraitUrl && (
                     <img
                       src={portraitUrl}
@@ -123,10 +523,13 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
                       }
                       data-silhouette={unlocked ? 'false' : 'true'}
                       referrerPolicy="no-referrer"
-                      className={`w-full h-full object-contain transition-all duration-300 ${getPortraitImgClassName(
+                      className={`relative z-10 w-full h-full object-contain transition-all duration-300 ${getPortraitImgClassName(
                         unlocked
                       )}`}
                     />
+                  )}
+                  {unlocked && persona.id === 'herbalist_frieren_strange' && (
+                    <HitenJadePortraitAuraFrontSvg />
                   )}
                 </div>
 
@@ -138,7 +541,11 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
                     {unlocked && (
                       <span
                         className="flex items-center gap-1 text-[10px] text-[#FFFDF0]/75"
-                        title="Heterochromia Eyes"
+                        title={
+                          persona.eyeLeftColor === persona.eyeRightColor
+                            ? 'Mystic Eyes'
+                            : 'Heterochromia Eyes'
+                        }
                       >
                         <span
                           className="w-2.5 h-2.5 rounded-full border border-[#140E16]"

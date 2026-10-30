@@ -119,14 +119,16 @@ export abstract class BaseHeroProfessionRenderer implements HeroProfessionRender
     }
 
     // Shield Power-Up (Aegis Orb) active crystalline rune ward & orbiting shield crests
-    if (sim.shieldHp > 0) {
+    if (sim.shieldHp > 0 || sim.shieldBreakFadeTimer > 0) {
       drawAegisShieldAura(
         gUnder,
         gOver,
         hx,
         hy + flyHeightOffset,
         animTime,
-        sim.shieldHp
+        sim.shieldHp,
+        sim.shieldTimer,
+        sim.shieldBreakFadeTimer
       );
     }
 
@@ -258,8 +260,11 @@ export abstract class BaseHeroProfessionRenderer implements HeroProfessionRender
 
     // Permanent Arcana Skin visual effects dispatched via PersonaRenderer Strategy
     if (customPersona && !isDyingSequence) {
-      // Heterochromia eye glints (for non-levitating personas)
-      if (!isLevitatingThunderGod) {
+      // Heterochromia eye glints (for non-levitating personas that use eye glint dots; Hiten Jade has no pulsing spheres on sprite)
+      if (
+        !isLevitatingThunderGod &&
+        customPersona.id !== 'herbalist_frieren_strange'
+      ) {
         const eyeY = cy - 4.5;
         const leftEyeX = hx - 4.2 * flipX;
         const rightEyeX = hx + 4.2 * flipX;

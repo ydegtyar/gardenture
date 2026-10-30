@@ -584,3 +584,45 @@
 .btn-herbarium-danger.justify-center {
   justify-content: center;
 }
+
+/* Menu Crest Glowing Star & Soft 3D Title Typography */
+@keyframes menu-star-halo-pulse {
+  0%, 100% {
+    opacity: 0.85;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes menu-star-core-breathe {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px rgba(255, 244, 158, 0.85)) drop-shadow(0 0 24px rgba(250, 204, 21, 0.55));
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    filter: drop-shadow(0 0 16px rgba(255, 252, 204, 1)) drop-shadow(0 0 34px rgba(167, 243, 208, 0.65));
+    transform: scale(1.045) rotate(2deg);
+  }
+}
+
+.animate-menu-star-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: menu-star-halo-pulse 2.6s ease-in-out infinite;
+}
+
+.animate-menu-star-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: menu-star-core-breathe 2.6s ease-in-out infinite;
+}
+
+.font-gardenture-3d {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 900;
+  font-variation-settings: 'SOFT' 100, 'WONK' 0, 'opsz' 36;
+}
+

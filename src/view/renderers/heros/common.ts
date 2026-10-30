@@ -139,9 +139,47 @@ export function drawHeroAngelWings(
   g.setTransform(new PIXI.Matrix());
 }
 
+export const AEGIS_BLINK_WARNING_SEC = 3.5;
+
+/**
+ * Pure helper computing the Aegis Shield Aura opacity multiplier:
+ * - Full opacity (1.0) while shieldHp > 0 and shieldTimer > 3.5s
+ * - Accelerating fade + blink oscillation during the final 3.5s before timer expiration
+ * - Rapid 0.45s fade + blink when shieldHp is broken by enemy damage
+ */
+export function computeAegisAuraBlinkAlpha(
+  shieldTimer: number,
+  shieldHp: number,
+  shieldBreakFadeTimer = 0
+): number {
+  if (shieldHp > 0) {
+    if (shieldTimer > AEGIS_BLINK_WARNING_SEC) {
+      return 1.0;
+    }
+    if (shieldTimer > 0) {
+      const progress = clamp(shieldTimer / AEGIS_BLINK_WARNING_SEC, 0, 1);
+      const elapsedInWarning = AEGIS_BLINK_WARNING_SEC - shieldTimer;
+      const blinkFreq = 10 + (1 - progress) * 14;
+      const blinkWave = 0.5 + 0.5 * Math.cos(elapsedInWarning * blinkFreq);
+      const fadeEnvelope = 0.25 + 0.75 * progress;
+      return clamp((0.12 + 0.88 * blinkWave) * fadeEnvelope, 0.05, 1.0);
+    }
+    return 1.0;
+  }
+
+  if (shieldBreakFadeTimer > 0) {
+    const breakProgress = clamp(shieldBreakFadeTimer / 0.45, 0, 1);
+    const breakBlink = 0.5 + 0.5 * Math.cos((0.45 - shieldBreakFadeTimer) * 38);
+    return clamp((0.15 + 0.85 * breakBlink) * breakProgress, 0.04, 1.0);
+  }
+
+  return 0;
+}
+
 /**
  * Active Aegis Orb aura: rotating hexagonal botanical rune ward underfoot +
  * 3 orbiting crystalline shield crests with shimmering cyan-mint energy ribbons.
+ * Fades and blinks during its final 3.5s (or briefly on break) before disappearing.
  */
 export function drawAegisShieldAura(
   gUnder: PIXI.Graphics,
@@ -149,8 +187,17 @@ export function drawAegisShieldAura(
   hx: number,
   hy: number,
   elapsedSeconds: number,
-  shieldHp: number
+  shieldHp: number,
+  shieldTimer = 20.0,
+  shieldBreakFadeTimer = 0
 ): void {
+  const blinkAlpha = computeAegisAuraBlinkAlpha(
+    shieldTimer,
+    shieldHp,
+    shieldBreakFadeTimer
+  );
+  if (blinkAlpha <= 0.01) return;
+
   const rot = elapsedSeconds * 1.8;
   const wardR = 27 + Math.sin(elapsedSeconds * 6) * 1.5;
 
@@ -164,8 +211,8 @@ export function drawAegisShieldAura(
   }
   gUnder
     .closePath()
-    .fill({ color: PALETTE.SKY_BLUE, alpha: 0.14 })
-    .stroke({ color: PALETTE.SKY_BLUE, width: 2.2, alpha: 0.78 });
+    .fill({ color: PALETTE.SKY_BLUE, alpha: 0.14 * blinkAlpha })
+    .stroke({ color: PALETTE.SKY_BLUE, width: 2.2, alpha: 0.78 * blinkAlpha });
 
   // Inner counter-rotating star-hex rune lines
   for (let i = 0; i < 6; i++) {
@@ -178,7 +225,7 @@ export function drawAegisShieldAura(
   gUnder.closePath().stroke({
     color: PALETTE.MINT_GREEN,
     width: 1.5,
-    alpha: 0.68,
+    alpha: 0.68 * blinkAlpha,
   });
 
   // 3 orbiting miniature Aegis shield crests around the hero
@@ -196,7 +243,12 @@ export function drawAegisShieldAura(
     targetG
       .moveTo(tx, ty)
       .lineTo(cx, cy)
-      .stroke({ color: PALETTE.SKY_BLUE, width: 2.6, alpha: 0.65, cap: 'round' });
+      .stroke({
+        color: PALETTE.SKY_BLUE,
+        width: 2.6,
+        alpha: 0.65 * blinkAlpha,
+        cap: 'round',
+      });
 
     // Kite-shaped Aegis crest
     targetG
@@ -207,8 +259,11 @@ export function drawAegisShieldAura(
       .lineTo(cx - 3.2, cy + 3.5)
       .lineTo(cx - 4.5, cy - 2)
       .closePath()
-      .fill({ color: shieldHp > 20 ? PALETTE.SKY_BLUE : PALETTE.MINT_GREEN, alpha: 0.95 })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
+      .fill({
+        color: shieldHp > 20 ? PALETTE.SKY_BLUE : PALETTE.MINT_GREEN,
+        alpha: 0.95 * blinkAlpha,
+      })
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8, alpha: blinkAlpha });
 
     targetG
       .moveTo(cx, cy - 3.5)
@@ -216,6 +271,6 @@ export function drawAegisShieldAura(
       .lineTo(cx, cy + 3.5)
       .lineTo(cx - 2.2, cy)
       .closePath()
-      .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.9 });
+      .fill({ color: PALETTE.CREAM_WHITE, alpha: 0.9 * blinkAlpha });
   }
 }

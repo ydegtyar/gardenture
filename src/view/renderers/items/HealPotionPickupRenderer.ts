@@ -1,5 +1,8 @@
 import { PALETTE } from '../../../content/data/catalog';
+import { getPowerUpDef } from '../../../game/data/powerups';
 import type { SimPickup } from '../../../sim/Simulation';
+import { getPowerUpTexture } from '../../PowerUpAtlas';
+import { PPU } from '../EnvironmentRenderer';
 import type { PickupRenderContext, PickupRenderer } from './types';
 
 export class HealPotionPickupRenderer implements PickupRenderer {
@@ -10,39 +13,38 @@ export class HealPotionPickupRenderer implements PickupRenderer {
   }
 
   public draw(ctx: PickupRenderContext): void {
-    const { g, pickup: p, sim, px, py } = ctx;
-    const pulse = 1 + 0.08 * Math.sin(sim.elapsedSeconds * 6.5 + p.id);
-    g.ellipse(px, py + 10, 9.5, 4.2).fill({ color: 0x0f131d, alpha: 0.35 });
+    const { g, pickup: p, sim, px, acquireSprite } = ctx;
+    const def = getPowerUpDef('heal-20hp');
+    const col = def.tint;
+    // Gentle bobbing: Math.sin(t * 3) * 3
+    const py = p.y * PPU + Math.sin(sim.elapsedSeconds * 3 + p.id) * 3;
+    const pulse = 1 + 0.08 * Math.sin(sim.elapsedSeconds * 5 + p.id);
 
-    // Soft emerald-rose aura petals behind flask
-    for (let i = 0; i < 4; i++) {
-      const a = sim.elapsedSeconds * 1.8 + (i * Math.PI) / 2;
-      const ox = px + Math.cos(a) * 9.5 * pulse;
-      const oy = py + Math.sin(a) * 9.5 * pulse;
-      g.ellipse(ox, oy, 3.2, 1.8).fill({
-        color: i % 2 === 0 ? PALETTE.MINT_GREEN : PALETTE.BLUSH_ROSE,
-        alpha: 0.72,
-      });
+    // Ground shadow
+    g.ellipse(px, py + 14, 12, 5).fill({ color: 0x0f131d, alpha: 0.38 });
+
+    // Soft radial glow behind the icon (color: def.tint, alpha: 0.25)
+    g.circle(px, py, 20 * pulse).fill({ color: col, alpha: 0.25 });
+    g.circle(px, py, 16 * pulse).stroke({
+      color: col,
+      width: 1.8,
+      alpha: 0.62,
+    });
+
+    const tex = getPowerUpTexture('heal-20hp', 64);
+    if (tex && acquireSprite) {
+      const sprite = acquireSprite(tex);
+      sprite.anchor.set(0.5);
+      sprite.width = 34;
+      sprite.height = 34;
+      sprite.position.set(px, py);
+      return;
     }
 
-    // Golden flask neck & leaf stopper
-    g.roundRect(px - 3.5, py - 11.5, 7, 4.5, 1.5)
-      .fill({ color: PALETTE.GOLD_STAR })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.8 });
-    g.moveTo(px, py - 11)
-      .lineTo(px + 5.5, py - 14.5)
-      .lineTo(px + 2, py - 9.5)
-      .closePath()
-      .fill({ color: PALETTE.MINT_GREEN })
-      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.4 });
-
-    // Rounded heart-blossom potion body
+    // Fallback vector badge if texture hasn't finished loading on frame 0
     g.circle(px, py, 9.5)
-      .fill({ color: 0x10b981 })
+      .fill({ color: col })
       .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-    g.circle(px - 2.5, py - 2.5, 3.2).fill({ color: 0xa7f3d0, alpha: 0.65 });
-
-    // Crisp white healing cross (+20 HP)
     g.rect(px - 1.8, py - 5.2, 3.6, 10.4).fill({ color: PALETTE.CREAM_WHITE });
     g.rect(px - 5.2, py - 1.8, 10.4, 3.6).fill({ color: PALETTE.CREAM_WHITE });
   }

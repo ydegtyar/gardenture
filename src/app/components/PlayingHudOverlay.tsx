@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { POWER_UPS, STYLE_RANKS } from '../../content/data/catalog';
+import { getPowerUpDef } from '../../game/data/powerups';
 import { Simulation } from '../../sim/Simulation';
 import {
   HeartSocketIcon,
@@ -8,6 +9,7 @@ import {
   PowerUpAbilityIcon,
   RestartSvgIcon,
 } from '../SvgIcons';
+import { ActiveBuffs } from './ActiveBuffs';
 import { useGameShell } from '../context/GameShellContext';
 import { LazyHudDebugButton } from '../debug/LazyDebugComponents';
 import { cn } from '../../utils/cn';
@@ -99,25 +101,27 @@ export function PlayingHudOverlay() {
                 />
               )}
 
-              {/* Thermometer Heart Reservoir Bulb at Start */}
+              {/* Thermometer Heart Reservoir Bulb at Start (Container remains static; only the inner heart icon pulses) */}
               <div
                 data-testid="hud-thermometer-bulb"
-                className={cn(
-                  'relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 border-2 border-[#2D1E2F] shadow-[0_2px_8px_rgba(0,0,0,0.65)] transition-all duration-200',
-                  heartPulse === 'damage'
-                    ? 'scale-125 bg-gradient-to-br from-[#FB7185] via-[#F43F5E] to-[#881337] shadow-[0_0_12px_#F43F5E]'
-                    : heartPulse === 'heal'
-                      ? 'scale-125 bg-gradient-to-br from-[#88D49E] via-[#52B788] to-[#14532D] shadow-[0_0_12px_#88D49E]'
-                      : hpRatio <= 0.3
-                        ? 'bg-gradient-to-br from-[#FB7185] via-[#F43F5E] to-[#881337] animate-pulse'
-                        : 'bg-gradient-to-br from-[#FFAAA6] via-[#F43F5E] to-[#9F1239]'
-                )}
+                className="relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 border-2 border-[#2D1E2F] shadow-[0_2px_8px_rgba(0,0,0,0.65)] bg-gradient-to-br from-[#FFAAA6] via-[#F43F5E] to-[#9F1239]"
               >
                 {/* Glass bulb specular highlight */}
                 <div
                   className="absolute top-1 left-1.5 w-2.5 h-1.5 rounded-full bg-[#FFFDF0]/45 -rotate-12 pointer-events-none" />
                 <HeartSocketIcon
                   state={hpRatio > 0.5 ? 'full' : hpRatio > 0.25 ? 'damaged' : 'empty'}
+                  pulse={heartPulse}
+                  className={cn(
+                    'w-5 h-5 shrink-0 origin-center transition-transform duration-200',
+                    heartPulse === 'damage'
+                      ? 'scale-125 drop-shadow-[0_0_6px_#FFFDF0]'
+                      : heartPulse === 'heal'
+                        ? 'scale-125 drop-shadow-[0_0_6px_#88D49E]'
+                        : hpRatio <= 0.3
+                          ? 'animate-pulse'
+                          : 'scale-100'
+                  )}
                 />
               </div>
 
@@ -195,6 +199,9 @@ export function PlayingHudOverlay() {
                 );
               })}
             </div>
+
+            {/* Active Power-Up Buff Strip (stacked directly below HP/Dash bars) */}
+            <ActiveBuffs buffs={hud.activeBuffs} />
           </div>
 
           {/* Cluster 2 (Top-Center): Style Rank Letter + Score Near Rank Letter & Decaying SP Bar (No Box Background) */}
@@ -298,6 +305,7 @@ export function PlayingHudOverlay() {
               {[0, 1].map((slotIdx) => {
                 const pId = hud.heldPowerUps[slotIdx];
                 const pDef = pId ? POWER_UPS[pId] : null;
+                const canonicalDef = pId ? getPowerUpDef(pId) : null;
                 const keyBind = slotIdx === 0 ? 'Q' : 'E';
                 return (
                   <button
@@ -312,10 +320,18 @@ export function PlayingHudOverlay() {
                       e.currentTarget.blur();
                       usePowerUpSlot(slotIdx);
                     }}
+                    style={
+                      canonicalDef
+                        ? {
+                            borderColor: canonicalDef.accent,
+                            boxShadow: `0 0 12px ${canonicalDef.accent}45`,
+                          }
+                        : undefined
+                    }
                     className={cn(
                       'relative flex flex-col items-center justify-center rounded-xl border-2 transition-all active:scale-95 whitespace-nowrap shrink-0 p-2 sm:p-2.5 min-w-[70px] sm:min-w-[84px] cursor-pointer',
                       pDef
-                        ? 'bg-gradient-to-b from-[#251E12] to-[#161307] border-[#8F691C] text-[#EDE6D0] shadow-md hover:border-[#E8B64A] hover:shadow-[0_0_10px_rgba(232,182,74,0.3)]'
+                        ? 'bg-gradient-to-b from-[#251A2C] to-[#16101B] text-[#EDE6D0] shadow-md hover:brightness-110'
                         : 'bg-[#0E1A17]/60 border-[#3D392A]/40 text-[#EDE6D0]/30 cursor-not-allowed'
                     )}
                   >
@@ -325,15 +341,20 @@ export function PlayingHudOverlay() {
                     </span>
                     <div className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center mb-1">
                       {pDef ? (
-                        <PowerUpAbilityIcon powerUpId={pDef.id}
-                                            className="w-8 h-8 sm:w-10 sm:h-10" />
+                        <PowerUpAbilityIcon
+                          powerUpId={pDef.id}
+                          size={64}
+                          className="w-9 h-9 sm:w-11 sm:h-11"
+                        />
                       ) : (
                         <div
                           className="w-5 h-5 rounded-full border border-dashed border-[#FFFDF0]/20" />
                       )}
                     </div>
                     <span
-                      className="text-[10px] sm:text-xs font-bold truncate max-w-[68px] sm:max-w-[80px]">
+                      className="text-[10px] sm:text-xs font-bold truncate max-w-[68px] sm:max-w-[80px]"
+                      style={canonicalDef ? { color: canonicalDef.accent } : undefined}
+                    >
                       {pDef ? pDef.name : 'Empty'}
                     </span>
                   </button>

@@ -13,6 +13,7 @@ import {
   getSharedSpriteAtlasTextures,
   type SpriteKey,
 } from './SpriteAtlas';
+import { preloadPowerUpAtlas } from './PowerUpAtlas';
 import {
   CHUNK_PX,
   CHUNK_SIZE_U,
@@ -22,6 +23,26 @@ import {
 import { HeroRenderer } from './renderers/HeroRenderer';
 import { EnemyRenderer } from './renderers/EnemyRenderer';
 import { WeaponEffectsRenderer } from './renderers/WeaponEffectsRenderer';
+import {
+  DynamicCamera,
+  ZOOM_MAX,
+  type CameraUpdateInput,
+  type WorldBoundsPx,
+} from './DynamicCamera';
+
+export {
+  DynamicCamera,
+  ZOOM_MIN_COMBAT,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  COMBAT_ENTER_DIST,
+  COMBAT_EXIT_DIST,
+  ZOOM_IN_SPEED,
+  ZOOM_OUT_SPEED,
+  FOLLOW_SPEED,
+  LOOK_AHEAD,
+  ZOOM_OUT_DELAY,
+} from './DynamicCamera';
 
 interface PooledParticle {
   active: boolean;
@@ -64,6 +85,7 @@ export class PixiGameRenderer {
   private decalGraphic = new PIXI.Graphics();
   private telegraphGraphic = new PIXI.Graphics();
   private pickupGraphic = new PIXI.Graphics();
+  private pickupSpriteContainer = new PIXI.Container();
 
   // Enemy layers: Under-graphics (shadows + animated legs) -> Bestiary Sprites -> Overlays (cheeks/mouth, debuffs, HP)
   private enemyUnderGraphic = new PIXI.Graphics();
@@ -82,28 +104,52 @@ export class PixiGameRenderer {
   private screenOverlayGraphic = new PIXI.Graphics();
   private joystickGraphic = new PIXI.Graphics();
 
-  // Shared Bestiary SpriteAtlas textures & Enemy Sprite Pool
+  // Shared Bestiary SpriteAtlas textures & Enemy/Pickup Sprite Pools
   private atlasTextures = new Map<SpriteKey, PIXI.Texture>();
   private readonly enemySpritePool: PIXI.Sprite[] = [];
+  private readonly pickupSpritePool: PIXI.Sprite[] = [];
 
-  // Camera & Preferences state
-  private camX = 0;
-  private camY = 0;
-  private shakeTimer = 0;
-  private shakeAmplitudePx = 0;
+  // Smooth threat-aware Dynamic Camera & Preferences state
+  public readonly camera = new DynamicCamera();
+  private readonly cameraWorldBounds: WorldBoundsPx = {
+    minX: -1824,
+    maxX: 1824,
+    minY: -1824,
+    maxY: 1824,
+  };
+  private readonly cameraUpdateInput: CameraUpdateInput = {
+    heroX: 0,
+    heroY: 0,
+    heroVx: 0,
+    heroVy: 0,
+    ppu: PPU,
+    enemies: [],
+    screenW: 1280,
+    screenH: 800,
+    dt: 0.016,
+    worldBounds: this.cameraWorldBounds,
+  };
+  private lastSimInstance: Simulation | null = null;
   private displayFacingAngle = 0;
   private biomeId: BiomeId = 'garden';
   private reducedMotion = false;
   private showDamageNumbers = true;
 
-  // Ground chunk cache (3x3 infinite tiling around camera)
+  // Ground chunk cache (infinite tiling around camera, updated only when chunk coords change)
   private groundChunks = new Map<string, PIXI.Graphics>();
+  private lastChunkCenterX = Number.NaN;
+  private lastChunkCenterY = Number.NaN;
+  private lastChunkRadius = 0;
 
   // Pre-allocated Object Pools
   private readonly particlePool: PooledParticle[] = [];
   private readonly floatingTextPool: PooledFloatingText[] = [];
 
-  public async init(hostElement: HTMLElement, biomeId: BiomeId = 'garden'): Promise<void> {
+  public async init(
+    hostElement: HTMLElement,
+    biomeId: BiomeId = 'garden',
+    attachImmediately = false
+  ): Promise<void> {
     this.biomeId = biomeId;
     const app = new PIXI.Application();
     await app.init({
@@ -119,7 +165,9 @@ export class PixiGameRenderer {
       antialias: true,
       resolution: Math.min(window.devicePixelRatio || 1, 2),
       autoDensity: true,
+      autoStart: false,
     });
+    app.ticker.stop();
 
     if (this.isDestroyed) {
       app.destroy(true);
@@ -128,9 +176,36 @@ export class PixiGameRenderer {
 
     this.app = app;
     this.isInitialized = true;
-    hostElement.innerHTML = '';
-    hostElement.appendChild(app.canvas);
+    app.canvas.dataset.testid = 'game-pixi-canvas';
+    this.setupSceneGraph(app);
+    if (attachImmediately) {
+      hostElement.innerHTML = '';
+      hostElement.appendChild(app.canvas);
+    }
+  }
 
+  public attachCanvas(hostElement: HTMLElement | null): void {
+    if (!this.app || !this.isInitialized || !hostElement) return;
+    if (!hostElement.contains(this.app.canvas)) {
+      hostElement.innerHTML = '';
+      hostElement.appendChild(this.app.canvas);
+    }
+    const w = Math.max(320, hostElement.clientWidth || window.innerWidth || 1280);
+    const h = Math.max(240, hostElement.clientHeight || window.innerHeight || 800);
+    if (this.app.screen.width !== w || this.app.screen.height !== h) {
+      this.app.renderer.resize(w, h);
+    }
+  }
+
+  public suspendAndDetachCanvas(): void {
+    if (!this.app) return;
+    this.app.ticker.stop();
+    if (this.app.canvas && this.app.canvas.parentNode) {
+      this.app.canvas.parentNode.removeChild(this.app.canvas);
+    }
+  }
+
+  private setupSceneGraph(app: PIXI.Application): void {
     // Load Bestiary SpriteAtlas textures
     this.atlasTextures = getSharedSpriteAtlasTextures();
     const defaultHeroTex = this.atlasTextures.get('hero_warden');
@@ -139,12 +214,15 @@ export class PixiGameRenderer {
     }
     this.heroSprite.anchor.set(0.5, 0.56);
 
+    void preloadPowerUpAtlas();
+
     // Assemble Z-ordered scene graph
     this.worldContainer.addChild(
       this.groundChunkContainer,
       this.decalGraphic,
       this.telegraphGraphic,
       this.pickupGraphic,
+      this.pickupSpriteContainer,
       this.enemyUnderGraphic,
       this.enemySpriteContainer,
       this.enemyOverlayGraphic,
@@ -219,6 +297,9 @@ export class PixiGameRenderer {
       g.destroy();
     }
     this.groundChunks.clear();
+    this.lastChunkCenterX = Number.NaN;
+    this.lastChunkCenterY = Number.NaN;
+    this.lastChunkRadius = 0;
     if (this.app) {
       this.app.renderer.background.color =
         biomeId === 'dungeon'
@@ -235,14 +316,14 @@ export class PixiGameRenderer {
     if (this.reducedMotion) return;
     const amp = clamp(amount * 18, 2, 14);
     this.triggerScreenShake(amp, 0.14);
+    if (amount >= 0.15) {
+      this.camera.addZoomPunch(clamp(amount * 0.12, 0.015, 0.055));
+    }
   }
 
   public triggerScreenShake(amplitudePx: number, durationSec = 0.14): void {
     if (this.reducedMotion) return;
-    if (amplitudePx >= this.shakeAmplitudePx || this.shakeTimer <= 0) {
-      this.shakeAmplitudePx = amplitudePx;
-      this.shakeTimer = durationSec;
-    }
+    this.camera.triggerShake(amplitudePx, durationSec);
   }
 
   public spawnParticleBurst(
@@ -385,31 +466,46 @@ export class PixiGameRenderer {
       Math.min(1, dtSec * 18)
     );
 
-    // 2. Smooth Camera Follow + Screen Shake
-    const targetCamX = interpHeroX * PPU + sim.heroVx * 8;
-    const targetCamY = interpHeroY * PPU + sim.heroVy * 8;
-    const camFollowFactor = 1 - Math.exp(-10 * dtSec);
-    this.camX = lerp(this.camX, targetCamX, camFollowFactor);
-    this.camY = lerp(this.camY, targetCamY, camFollowFactor);
-
-    let shakeOffsetX = 0;
-    let shakeOffsetY = 0;
-    if (this.shakeTimer > 0) {
-      this.shakeTimer = Math.max(0, this.shakeTimer - dtSec);
-      const decay = this.shakeTimer / 0.14;
-      shakeOffsetX = (Math.random() - 0.5) * 2 * this.shakeAmplitudePx * decay;
-      shakeOffsetY = (Math.random() - 0.5) * 2 * this.shakeAmplitudePx * decay;
+    if (this.lastSimInstance !== sim) {
+      this.lastSimInstance = sim;
+      const startZoom = screenW < 500 ? ZOOM_MAX * 0.92 : ZOOM_MAX;
+      this.camera.reset(interpHeroX * PPU, interpHeroY * PPU, startZoom);
     }
 
-    const zoom = screenW < 500 ? 0.88 : 1.0;
-    this.worldContainer.scale.set(zoom);
-    this.worldContainer.position.set(
-      screenW / 2 - this.camX * zoom + shakeOffsetX,
-      screenH / 2 - this.camY * zoom + shakeOffsetY
+    // 2. Smooth Threat-Aware Dynamic Camera (Follow, Dead-Zone, Look-Ahead, Hysteresis Zoom, World Bounds)
+    const arenaCenterPxX = sim.arenaCenterX * PPU;
+    const arenaCenterPxY = sim.arenaCenterY * PPU;
+    const heroDistFromCenterPx = Math.max(
+      Math.abs(interpHeroX * PPU - arenaCenterPxX),
+      Math.abs(interpHeroY * PPU - arenaCenterPxY)
     );
+    const halfWorldPx = Math.max(1824, heroDistFromCenterPx + 640);
+    this.cameraWorldBounds.minX = arenaCenterPxX - halfWorldPx;
+    this.cameraWorldBounds.maxX = arenaCenterPxX + halfWorldPx;
+    this.cameraWorldBounds.minY = arenaCenterPxY - halfWorldPx;
+    this.cameraWorldBounds.maxY = arenaCenterPxY + halfWorldPx;
 
-    // 3. Update 3x3 Infinite Ground Chunks around Camera
-    this.updateGroundChunks(interpHeroX, interpHeroY);
+    const camIn = this.cameraUpdateInput;
+    camIn.heroX = interpHeroX;
+    camIn.heroY = interpHeroY;
+    camIn.heroVx = sim.heroVx;
+    camIn.heroVy = sim.heroVy;
+    camIn.ppu = PPU;
+    camIn.enemies = sim.enemies;
+    camIn.screenW = screenW;
+    camIn.screenH = screenH;
+    camIn.dt = dtSec;
+    this.camera.update(camIn);
+
+    this.worldContainer.scale.set(this.camera.zoom);
+    this.worldContainer.position.set(this.camera.stageX, this.camera.stageY);
+
+    // 3. Update Infinite Ground Chunks around Camera (zero per-frame allocation when chunk center unchanged)
+    this.updateGroundChunks(
+      this.camera.x / PPU,
+      this.camera.y / PPU,
+      this.camera.zoom
+    );
 
     // 4. Delegate Feature Rendering to Modular Renderers
     this.decalGraphic.clear();
@@ -424,7 +520,12 @@ export class PixiGameRenderer {
       sim.elapsedSeconds
     );
     WeaponEffectsRenderer.drawGroundHazards(this.decalGraphic, sim);
-    WeaponEffectsRenderer.drawPickups(this.pickupGraphic, sim);
+    WeaponEffectsRenderer.drawPickups(
+      this.pickupGraphic,
+      sim,
+      this.pickupSpriteContainer,
+      this.pickupSpritePool
+    );
     EnemyRenderer.drawEnemies(
       this.enemyUnderGraphic,
       this.enemySpriteContainer,
@@ -458,19 +559,38 @@ export class PixiGameRenderer {
 
     // 6. Screen Overlays (Low-HP vignette, Death/Victory fade, Touch Joystick)
     this.drawScreenOverlays(sim, screenW, screenH, joystickState);
+
+    // 7. Explicitly flush the WebGL frame (since app.ticker is stopped for manual loop control)
+    this.app.render();
   }
 
-  private updateGroundChunks(heroX: number, heroY: number): void {
-    const centerChunkX = Math.floor(heroX / CHUNK_SIZE_U);
-    const centerChunkY = Math.floor(heroY / CHUNK_SIZE_U);
-    const neededKeys = new Set<string>();
+  private updateGroundChunks(
+    camWorldX: number,
+    camWorldY: number,
+    zoom: number
+  ): void {
+    const centerChunkX = Math.floor(camWorldX / CHUNK_SIZE_U);
+    const centerChunkY = Math.floor(camWorldY / CHUNK_SIZE_U);
+    const chunkRadius = zoom < 0.95 ? 3 : 2;
 
-    for (let dy = -2; dy <= 2; dy++) {
-      for (let dx = -2; dx <= 2; dx++) {
+    if (
+      centerChunkX === this.lastChunkCenterX &&
+      centerChunkY === this.lastChunkCenterY &&
+      chunkRadius === this.lastChunkRadius &&
+      this.groundChunks.size > 0
+    ) {
+      return;
+    }
+
+    this.lastChunkCenterX = centerChunkX;
+    this.lastChunkCenterY = centerChunkY;
+    this.lastChunkRadius = chunkRadius;
+
+    for (let dy = -chunkRadius; dy <= chunkRadius; dy++) {
+      for (let dx = -chunkRadius; dx <= chunkRadius; dx++) {
         const cx = centerChunkX + dx;
         const cy = centerChunkY + dy;
         const key = `${cx},${cy}`;
-        neededKeys.add(key);
 
         if (!this.groundChunks.has(key)) {
           const g = new PIXI.Graphics();
@@ -483,7 +603,13 @@ export class PixiGameRenderer {
     }
 
     for (const [key, g] of this.groundChunks.entries()) {
-      if (!neededKeys.has(key)) {
+      const sep = key.indexOf(',');
+      const cx = Number(key.slice(0, sep));
+      const cy = Number(key.slice(sep + 1));
+      if (
+        Math.abs(cx - centerChunkX) > chunkRadius ||
+        Math.abs(cy - centerChunkY) > chunkRadius
+      ) {
         this.groundChunkContainer.removeChild(g);
         g.destroy();
         this.groundChunks.delete(key);
@@ -620,7 +746,10 @@ export class PixiGameRenderer {
   public destroy(): void {
     this.isDestroyed = true;
     if (this.app) {
-      this.app.destroy(true);
+      this.app.destroy(
+        { removeView: true, releaseGlobalResources: false },
+        { children: true }
+      );
       this.app = null;
     }
     this.isInitialized = false;

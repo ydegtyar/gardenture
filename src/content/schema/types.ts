@@ -191,12 +191,29 @@ export interface TrinketDef {
   levelDescriptions: readonly [string, string, string];
 }
 
+export interface CurseLevelDef {
+  level: 1 | 2 | 3;
+  description: string;
+  nextPreviewText: string;
+  rewardBonus: number;
+  upgradeCost?: number;
+  spawnBudgetMultAdd?: number;
+  enemySpeedMultAdd?: number;
+  telegraphSpeedMultAdd?: number;
+  maxHpMult?: number;
+  regenMultiplier?: number;
+}
+
 export interface CurseDef {
   id: string;
   name: string;
   description: string;
+  art: string;
   rewardMultAdd: number;
   costCoins: number;
+  upgradeCostCoinsLv2: number;
+  upgradeCostCoinsLv3: number;
+  levels: readonly [CurseLevelDef, CurseLevelDef, CurseLevelDef];
 }
 
 export type BiomeId = 'garden' | 'dungeon' | 'sakura_grove' | 'sunlit_oasis';

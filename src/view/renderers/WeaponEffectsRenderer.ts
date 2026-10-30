@@ -75,10 +75,30 @@ export class WeaponEffectsRenderer {
 
   public static drawPickups(
     pickupGraphic: PIXI.Graphics,
-    sim: Simulation
+    sim: Simulation,
+    pickupSpriteContainer?: PIXI.Container,
+    pickupSpritePool?: PIXI.Sprite[]
   ): void {
     const g = pickupGraphic;
     const bob = Math.sin(sim.elapsedSeconds * 5) * 2.5;
+    let usedSprites = 0;
+
+    const acquireSprite =
+      pickupSpriteContainer && pickupSpritePool
+        ? (tex: PIXI.Texture): PIXI.Sprite => {
+            let spr = pickupSpritePool[usedSprites];
+            if (!spr) {
+              spr = new PIXI.Sprite(tex);
+              pickupSpritePool.push(spr);
+              pickupSpriteContainer.addChild(spr);
+            } else {
+              spr.texture = tex;
+            }
+            spr.visible = true;
+            usedSprites++;
+            return spr;
+          }
+        : undefined;
 
     for (const p of sim.pickups) {
       const px = p.x * PPU;
@@ -87,7 +107,13 @@ export class WeaponEffectsRenderer {
       // Strategy pattern: dispatch via pickupRegistry without if/else ladders
       const renderer = pickupRegistry.findForPickup(p);
       if (renderer) {
-        renderer.draw({ g, pickup: p, sim, px, py });
+        renderer.draw({ g, pickup: p, sim, px, py, acquireSprite });
+      }
+    }
+
+    if (pickupSpritePool) {
+      for (let i = usedSprites; i < pickupSpritePool.length; i++) {
+        pickupSpritePool[i]!.visible = false;
       }
     }
   }

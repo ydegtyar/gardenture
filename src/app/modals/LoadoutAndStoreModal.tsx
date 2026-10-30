@@ -10,6 +10,7 @@ import {
   CARDS,
   CURSES,
   PERSONAS,
+  POWER_UPS,
   PROFESSIONS,
   THEME_PACKS,
   TRINKETS,
@@ -23,6 +24,18 @@ import {
   resolveHeroSpriteKey,
   type SpriteKey,
 } from '../../view/SpriteAtlas';
+import {
+  POWERUPS,
+  POWERUP_LIST,
+  getPowerUpDef,
+  powerUpIcon,
+  powerUpIconPng,
+  type PowerUpId as CanonicalPowerUpId,
+} from '../../game/data/powerups';
+import {
+  getMonsterDrops,
+  getMonstersDroppingPowerUp,
+} from '../../game/data/monsters';
 import { CoinIcon, SeedGemIcon } from '../SvgIcons';
 import { getTarotMetadata, TarotIllustrationSvg } from '../TarotCardArt';
 import { useGameShell } from '../context/GameShellContext';
@@ -34,7 +47,18 @@ import {
   LazyStoreDebugTreasuryPanel,
 } from '../debug/LazyDebugComponents';
 import { IS_DEV } from '../debug/devGate';
-import { HeroPersonasSection } from './HeroPersonasSection';
+import {
+  HeroPersonasSection,
+  HitenJadePortraitAuraBackSvg,
+  HitenJadePortraitAuraFrontSvg,
+} from './HeroPersonasSection';
+import {
+  SectionHeader,
+  SigilCard,
+  TrinketStoreCard,
+} from '../components/StoreItemCard';
+import { TrinketRelicArt } from '../components/TrinketRelicArt';
+import { calculateCurseRewardMultiplier } from '../../sim/rules/formulas';
 import { YouTubeSdkPanel } from './YouTubeSdkPanel';
 import { cn } from '../../utils/cn';
 
@@ -52,6 +76,7 @@ export function LoadoutAndStoreModal() {
     handleUnlockTrinket,
     handleUpgradeTrinket,
     handleUnlockCurse,
+    handleUpgradeCurse,
     handleWatchCoinsAd,
     canWatchRewardedAd,
     isAdLoading,
@@ -68,6 +93,7 @@ export function LoadoutAndStoreModal() {
   const onUnlockTrinket = handleUnlockTrinket;
   const onUpgradeTrinket = handleUpgradeTrinket;
   const onUnlockCurse = handleUnlockCurse;
+  const onUpgradeCurse = handleUpgradeCurse;
   const onWatchCoinsAd = handleWatchCoinsAd;
   const onSpawnBestiaryEnemy = IS_DEV ? handleDebugSpawnBestiaryEnemy : undefined;
   const onClaimQuest = handleClaimQuest;
@@ -76,7 +102,48 @@ export function LoadoutAndStoreModal() {
 
   const [tab, setTab] = useState<'loadout' | 'store' | 'quests' | 'bestiary'>(initialTab);
   const [activeDebugEnemyKey, setActiveDebugEnemyKey] = useState<string | null>(null);
+  const [bestiaryItemFilter, setBestiaryItemFilter] = useState<
+    'all' | 'weapons' | 'powerups' | 'trinkets' | 'sigils'
+  >('all');
+  const [previewUndiscoveredDrops, setPreviewUndiscoveredDrops] = useState(false);
+  const [highlightedPowerUpId, setHighlightedPowerUpId] =
+    useState<CanonicalPowerUpId | null>(null);
   const { loadout, unlocks, currencies, retention } = saveData;
+  const activeSigilIds = new Set(loadout.curseIds);
+  const totalCurseRewardMult = calculateCurseRewardMultiplier(
+    loadout.curseIds,
+    unlocks.curseLevels
+  );
+
+  // Discovered power-ups set (all discovered by default; toggleable to preview silhouette state)
+  const discoveredPowerUps = new Set<CanonicalPowerUpId>(
+    previewUndiscoveredDrops
+      ? ['aegis-orb', 'heal-20hp']
+      : POWERUP_LIST.map((p) => p.id)
+  );
+
+  const handleJumpToPowerUpCodex = (powerUpId: CanonicalPowerUpId) => {
+    if (bestiaryItemFilter !== 'all' && bestiaryItemFilter !== 'powerups') {
+      setBestiaryItemFilter('all');
+    }
+    setHighlightedPowerUpId(powerUpId);
+    window.setTimeout(() => {
+      const el = document.querySelector(
+        `[data-testid="bestiary-item-powerup-${powerUpId}"]`
+      );
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 40);
+  };
+
+  const handleJumpToMonsterCodex = (monsterKey: SpriteKey) => {
+    setActiveDebugEnemyKey(monsterKey);
+    window.setTimeout(() => {
+      const el = document.querySelector(
+        `[data-testid="bestiary-card-${monsterKey}"]`
+      );
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 40);
+  };
 
   return (
     <div
@@ -85,7 +152,7 @@ export function LoadoutAndStoreModal() {
       aria-modal="true"
       aria-labelledby="sanctuary-modal-title"
     >
-      <div className="w-full max-w-3xl max-h-[88vh] flex flex-col rounded-2xl bg-[#2B1F2D] border-4 border-[#2D1E2F] text-[#FFFDF0] shadow-2xl overflow-hidden">
+      <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-[#2B1F2D] border-4 border-[#2D1E2F] text-[#FFFDF0] shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-[#1E1520] border-b border-[#FFFDF0]/10">
           <div className="flex items-center gap-3">
@@ -190,12 +257,20 @@ export function LoadoutAndStoreModal() {
                       >
                         <div className="flex items-start gap-3">
                           {spriteUrl && (
-                            <img
-                              src={spriteUrl}
-                              alt={`${prof.name} sprite`}
-                              referrerPolicy="no-referrer"
-                              className="w-16 h-16 rounded-xl bg-[#2B1F2D] border-2 border-[#2D1E2F] shrink-0 object-contain p-1"
-                            />
+                            <div className="relative w-16 h-16 rounded-xl bg-[#2B1F2D] border-2 border-[#2D1E2F] shrink-0 flex items-center justify-center overflow-hidden p-1">
+                              {activeProfPersona?.id === 'herbalist_frieren_strange' && (
+                                <HitenJadePortraitAuraBackSvg />
+                              )}
+                              <img
+                                src={spriteUrl}
+                                alt={`${prof.name} sprite`}
+                                referrerPolicy="no-referrer"
+                                className="relative z-10 w-full h-full object-contain"
+                              />
+                              {activeProfPersona?.id === 'herbalist_frieren_strange' && (
+                                <HitenJadePortraitAuraFrontSvg />
+                              )}
+                            </div>
                           )}
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-1 mb-1">
@@ -324,151 +399,82 @@ export function LoadoutAndStoreModal() {
               <LazyStoreDebugTreasuryPanel onAddDebugGold={onAddDebugGold} />
 
               <div>
-                <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF] mb-2.5">
-                  TRINKETS (EQUIP UP TO 3 PASSIVE RELICS)
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <SectionHeader
+                  variant="trinket"
+                  title="TRINKETS (EQUIP UP TO 3 PASSIVE RELICS)"
+                  counterText={`${loadout.trinketIds.length} / 3 Equipped`}
+                  counterTestId="trinkets-equipped-counter"
+                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
                   {TRINKETS.map((trinket) => {
                     const unlocked = unlocks.trinkets.includes(trinket.id);
                     const equipped = loadout.trinketIds.includes(trinket.id);
                     const currentLv = Math.max(
                       1,
                       Math.min(3, Math.floor(unlocks.trinketLevels?.[trinket.id] ?? 1))
-                    );
-                    const levelDesc = unlocked
-                      ? trinket.levelDescriptions?.[currentLv - 1] ?? trinket.description
-                      : trinket.description;
-                    const canAffordLv2 = currencies.coins >= trinket.upgradeCostCoinsLv2;
-                    const canAffordLv3 = currencies.gems >= trinket.upgradeCostSeedsLv3;
+                    ) as 1 | 2 | 3;
 
                     return (
-                      <div
+                      <TrinketStoreCard
                         key={trinket.id}
-                        className="p-3.5 rounded-xl bg-[#1E1520] border border-[#FFFDF0]/15 flex flex-col justify-between"
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-sm text-[#FDFFB6]">{trinket.name}</span>
-                            {unlocked && (
-                              <span
-                                data-testid={`trinket-level-${trinket.id}`}
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                                  currentLv === 3
-                                    ? 'bg-[#FDFFB6]/20 text-[#FDFFB6] border border-[#FDFFB6]/40'
-                                    : 'bg-[#A8E6CF]/20 text-[#A8E6CF] border border-[#A8E6CF]/30'
-                                }`}
-                              >
-                                {currentLv === 3 ? 'Lv 3 (MAX)' : `Lv ${currentLv}`}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-[#FFFDF0]/80 mt-1">{levelDesc}</p>
-                        </div>
-                        <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
-                          {unlocked && currentLv < 3 ? (
-                            <button
-                              type="button"
-                              data-testid={`upgrade-trinket-${trinket.id}`}
-                              disabled={currentLv === 1 ? !canAffordLv2 : !canAffordLv3}
-                              onClick={() => onUpgradeTrinket?.(trinket.id)}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                                currentLv === 1
-                                  ? 'bg-[#E8B64A]/20 hover:bg-[#E8B64A]/30 text-[#E8B64A] border border-[#E8B64A]/40 disabled:opacity-40'
-                                  : 'bg-[#88D49E]/20 hover:bg-[#88D49E]/30 text-[#88D49E] border border-[#88D49E]/40 disabled:opacity-40'
-                              }`}
-                            >
-                              {currentLv === 1
-                                ? `Upgrade to Lv 2 (${trinket.upgradeCostCoinsLv2} Coins)`
-                                : `Upgrade to Lv 3 (${trinket.upgradeCostSeedsLv3} Seeds)`}
-                            </button>
-                          ) : (
-                            <div />
-                          )}
-                          <div className="ml-auto">
-                            {unlocked ? (
-                              <button
-                                type="button"
-                                data-testid={`equip-trinket-${trinket.id}`}
-                                onClick={() => {
-                                  const next = equipped
-                                    ? loadout.trinketIds.filter((id) => id !== trinket.id)
-                                    : [...loadout.trinketIds, trinket.id].slice(-3);
-                                  onSelectLoadout({ trinketIds: next });
-                                }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                                  equipped
-                                    ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
-                                    : 'btn-herbarium-secondary-compact'
-                                }`}
-                              >
-                                {equipped ? 'Equipped' : 'Equip'}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                data-testid={`buy-trinket-${trinket.id}`}
-                                disabled={currencies.coins < trinket.costCoins}
-                                onClick={() => onUnlockTrinket(trinket.id, trinket.costCoins)}
-                                className="btn-herbarium-secondary-compact px-3 py-1.5 text-xs text-[#E8B64A] disabled:opacity-40"
-                              >
-                                Buy ({trinket.costCoins} Coins)
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                        trinket={trinket}
+                        unlocked={unlocked}
+                        equipped={equipped}
+                        currentLv={currentLv}
+                        coins={currencies.coins}
+                        gems={currencies.gems}
+                        onUnlock={onUnlockTrinket}
+                        onUpgrade={onUpgradeTrinket}
+                        onToggleEquip={(trinketId) => {
+                          const next = equipped
+                            ? loadout.trinketIds.filter((id) => id !== trinketId)
+                            : [...loadout.trinketIds, trinketId].slice(-3);
+                          onSelectLoadout({ trinketIds: next });
+                        }}
+                      />
                     );
                   })}
                 </div>
               </div>
 
               <div>
-                <h3 className="text-xs font-bold tracking-wider text-[#FFAAA6] mb-2.5">
-                  CURSE SIGILS (DIFFICULTY & REWARD MULTIPLIERS)
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {CURSES.map((curse) => {
-                    const unlocked = unlocks.curses.includes(curse.id);
-                    const active = loadout.curseIds.includes(curse.id);
+                <SectionHeader
+                  variant="curse"
+                  title="CURSE SIGILS (DIFFICULTY & REWARD MULTIPLIERS)"
+                  secondaryChipText={`Total Reward x${totalCurseRewardMult.toFixed(2)}`}
+                  secondaryChipTestId="sigils-total-reward"
+                  counterText={`${activeSigilIds.size} / ${CURSES.length} ACTIVE`}
+                  counterTestId="sigils-active-counter"
+                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+                  {CURSES.map((sigil) => {
+                    const unlocked = unlocks.curses.includes(sigil.id);
+                    const active = activeSigilIds.has(sigil.id);
+                    const currentLv = Math.max(
+                      1,
+                      Math.min(3, Math.floor(unlocks.curseLevels?.[sigil.id] ?? 1))
+                    ) as 1 | 2 | 3;
+
                     return (
-                      <div
-                        key={curse.id}
-                        className="p-3.5 rounded-xl bg-[#1E1520] border border-[#FFAAA6]/30 flex flex-col justify-between"
-                      >
-                        <div>
-                          <div className="font-bold text-sm text-[#FFAAA6]">{curse.name}</div>
-                          <p className="text-xs text-[#FFFDF0]/80 mt-1">{curse.description}</p>
-                        </div>
-                        <div className="mt-3 flex justify-end">
-                          {unlocked ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const next = active
-                                  ? loadout.curseIds.filter((id) => id !== curse.id)
-                                  : [...loadout.curseIds, curse.id];
-                                onSelectLoadout({ curseIds: next });
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                                active
-                                  ? 'bg-[#8E2B3A] text-[#EDE6D0] shadow-sm'
-                                  : 'btn-herbarium-secondary-compact'
-                              }`}
-                            >
-                              {active ? 'Active Curse' : 'Activate'}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={currencies.coins < curse.costCoins}
-                              onClick={() => onUnlockCurse(curse.id, curse.costCoins)}
-                              className="btn-herbarium-secondary-compact px-3 py-1.5 text-xs text-[#E8B64A] disabled:opacity-40"
-                            >
-                              Unlock ({curse.costCoins} Coins)
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                      <SigilCard
+                        key={sigil.id}
+                        sigil={sigil}
+                        unlocked={unlocked}
+                        active={active}
+                        currentLv={currentLv}
+                        coins={currencies.coins}
+                        onUnlock={onUnlockCurse}
+                        onUpgrade={onUpgradeCurse}
+                        onToggleActive={(sigilId) => {
+                          const nextSet = new Set(loadout.curseIds);
+                          if (nextSet.has(sigilId)) {
+                            nextSet.delete(sigilId);
+                          } else {
+                            nextSet.add(sigilId);
+                          }
+                          onSelectLoadout({ curseIds: Array.from(nextSet) });
+                        }}
+                      />
                     );
                   })}
                 </div>
@@ -518,9 +524,26 @@ export function LoadoutAndStoreModal() {
           {tab === 'bestiary' && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF] mb-1">
-                  01. CHARACTER & ENEMY SPRITE CODEX (WITH ARENA DEBUG SPAWNER)
-                </h3>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF]">
+                    01. CHARACTER & ENEMY SPRITE CODEX (WITH ARENA DEBUG SPAWNER)
+                  </h3>
+                  <button
+                    type="button"
+                    data-testid="bestiary-toggle-undiscovered-drops"
+                    onClick={() => setPreviewUndiscoveredDrops((prev) => !prev)}
+                    className={cn(
+                      'px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wide border transition-colors cursor-pointer',
+                      previewUndiscoveredDrops
+                        ? 'bg-[#2B1F2D] text-[#FDFFB6] border-[#FDFFB6]/50'
+                        : 'bg-[#1E1520] text-[#FFFDF0]/75 border-[#FFFDF0]/15 hover:text-[#FFFDF0]'
+                    )}
+                  >
+                    {previewUndiscoveredDrops
+                      ? 'Drops Preview: Undiscovered Silhouettes'
+                      : 'Drops Preview: All Discovered'}
+                  </button>
+                </div>
                 <p className="text-xs text-[#FFFDF0]/75 mb-3">
                   Use the Debug controls near any enemy to spawn them on the arena with the hero with Infinite HP, as a Swarm, or as a Single target that respawns after death.
                 </p>
@@ -590,6 +613,15 @@ export function LoadoutAndStoreModal() {
                           </div>
                         </div>
 
+                        {isEnemyEntry && (
+                          <DropsSection
+                            monsterKey={key}
+                            dropIds={getMonsterDrops(key)}
+                            discovered={discoveredPowerUps}
+                            onSelectPowerUp={handleJumpToPowerUpCodex}
+                          />
+                        )}
+
                         {isEnemyEntry && onSpawnBestiaryEnemy && (
                           <LazyBestiaryEnemyDebugSpawner
                             enemyKey={key}
@@ -603,9 +635,378 @@ export function LoadoutAndStoreModal() {
                 </div>
               </div>
 
+              <div
+                data-testid="bestiary-available-items-section"
+                className="pt-4 border-t border-[#FFFDF0]/15"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <h3 className="text-xs font-bold tracking-wider text-[#A8E6CF]">
+                    02. AVAILABLE ITEMS CODEX (WEAPONS, ARENA POWER-UPS, RELIC TRINKETS & CURSE SIGILS)
+                  </h3>
+                  <span
+                    data-testid="bestiary-available-items-count"
+                    className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#1E1520] text-[#FDFFB6] border border-[#FDFFB6]/30"
+                  >
+                    {Object.keys(WEAPONS).length +
+                      Object.keys(POWER_UPS).length +
+                      TRINKETS.length +
+                      CURSES.length}{' '}
+                    Items Cataloged
+                  </span>
+                </div>
+                <p className="text-xs text-[#FFFDF0]/75 mb-3">
+                  Complete sanctuary & arena item compendium: inspect weapon evolutions, tactical arena power-ups, passive relic trinkets, and curse sigils.
+                </p>
+
+                {/* Category Filter Bar */}
+                <div
+                  data-testid="bestiary-item-filters"
+                  className="flex flex-wrap gap-1.5 mb-4"
+                >
+                  {(
+                    [
+                      ['all', `All Items (${Object.keys(WEAPONS).length + Object.keys(POWER_UPS).length + TRINKETS.length + CURSES.length})`],
+                      ['weapons', `Weapons & Evolutions (${Object.keys(WEAPONS).length})`],
+                      ['powerups', `Arena Power-Ups (${Object.keys(POWER_UPS).length})`],
+                      ['trinkets', `Relic Trinkets (${TRINKETS.length})`],
+                      ['sigils', `Curse Sigils (${CURSES.length})`],
+                    ] as const
+                  ).map(([filterKey, filterLabel]) => (
+                    <button
+                      key={filterKey}
+                      type="button"
+                      data-testid={`bestiary-item-filter-${filterKey}`}
+                      onClick={() => setBestiaryItemFilter(filterKey)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-[11px] font-bold tracking-wide transition-colors border',
+                        bestiaryItemFilter === filterKey
+                          ? 'bg-[#2B3A2E] text-[#FDFFB6] border-[#A8E6CF]/60 shadow-sm'
+                          : 'bg-[#1E1520] text-[#FFFDF0]/70 border-[#FFFDF0]/15 hover:text-[#FFFDF0] hover:border-[#FFFDF0]/30'
+                      )}
+                    >
+                      {filterLabel}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-5">
+                  {/* 2A. Weapons & Evolved Weapons */}
+                  {(bestiaryItemFilter === 'all' || bestiaryItemFilter === 'weapons') && (
+                    <div data-testid="bestiary-items-weapons">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#FDFFB6]">
+                          Arsenal Weapons & Lv 8 Evolutions ({Object.keys(WEAPONS).length})
+                        </h4>
+                        <span className="text-[10px] text-[#FFFDF0]/60">
+                          Max Lv 8 + Catalyst Blessing = Evolved Form
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {Object.values(WEAPONS).map((weapon) => {
+                          const meta = getTarotMetadata(weapon.id);
+                          const catalystCard = CARDS.find(
+                            (c) => c.id === weapon.evolvedFromPassiveId
+                          );
+                          const hexColor = `#${weapon.color.toString(16).padStart(6, '0')}`;
+                          return (
+                            <div
+                              key={weapon.id}
+                              data-testid={`bestiary-item-weapon-${weapon.id}`}
+                              className="p-3 rounded-xl bg-[#1E1520] border border-[#FFFDF0]/15 flex items-start gap-3"
+                            >
+                              <div className="w-16 shrink-0 rounded-lg bg-[#FFFDF0] p-1 border border-[#C4B5A6] shadow-sm">
+                                <TarotIllustrationSvg
+                                  targetId={weapon.id}
+                                  rarity="rare"
+                                  iconColor={hexColor}
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1 space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div>
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#A8E6CF] block">
+                                      {meta.arcanaTitle} · {weapon.shape.toUpperCase()}
+                                    </span>
+                                    <div className="text-xs font-bold text-[#FDFFB6]">
+                                      {weapon.name}
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#2B1F2D] text-[#FFFDF0]/85 border border-[#FFFDF0]/10 whitespace-nowrap">
+                                    DMG {weapon.baseDamage} · {weapon.baseCooldown}s CD
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-[#FFFDF0]/75 leading-snug">
+                                  {weapon.description}
+                                </p>
+                                <div className="p-2 rounded-lg bg-[#2B1F2D]/90 border border-[#FDFFB6]/25">
+                                  <div className="flex items-center justify-between gap-1 text-[10px] font-bold text-[#FDFFB6]">
+                                    <span>★ Evolved: {weapon.evolvedName}</span>
+                                    {catalystCard && (
+                                      <span className="text-[#A8E6CF] text-[9px]">
+                                        Requires: {catalystCard.name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-[#FFFDF0]/75 leading-snug mt-0.5">
+                                    {weapon.evolvedDescription}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2B. Tactical Arena Power-Up Drops */}
+                  {(bestiaryItemFilter === 'all' || bestiaryItemFilter === 'powerups') && (
+                    <div data-testid="bestiary-items-powerups">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#A8E6CF]">
+                          Tactical Arena Power-Up Drops ({Object.keys(POWER_UPS).length})
+                        </h4>
+                        <span className="text-[10px] text-[#FFFDF0]/60">
+                          Dropped by Special Monsters & Elites in-run
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {Object.values(POWER_UPS).map((powerUp) => {
+                          const def = getPowerUpDef(powerUp.id);
+                          const droppedByMonsters = getMonstersDroppingPowerUp(def.id);
+                          const isHighlighted = highlightedPowerUpId === def.id;
+                          return (
+                            <div
+                              key={powerUp.id}
+                              data-testid={`bestiary-item-powerup-${def.id}`}
+                              data-sim-powerup-id={powerUp.id}
+                              style={{
+                                borderColor: isHighlighted ? def.accent : `${def.accent}66`,
+                                boxShadow: isHighlighted
+                                  ? `0 0 18px ${def.accent}55`
+                                  : `0 0 12px ${def.accent}1f`,
+                              }}
+                              className="p-3 rounded-xl bg-[#1E1520] border-2 flex flex-col justify-between gap-2.5 transition-all"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div
+                                  className="w-16 h-16 rounded-xl bg-[#241a2b] border-2 flex items-center justify-center shrink-0 shadow-inner p-1"
+                                  style={{
+                                    borderColor: def.accent,
+                                    boxShadow: `0 0 10px ${def.accent}44`,
+                                  }}
+                                >
+                                  <img
+                                    src={powerUpIcon(def.id, 256)}
+                                    srcSet={`${powerUpIcon(def.id, 128)} 1x, ${powerUpIcon(def.id, 256)} 2x`}
+                                    onError={(e) => {
+                                      const img = e.currentTarget;
+                                      const fallback = powerUpIconPng(def.id, 256);
+                                      if (!img.src.endsWith(fallback)) {
+                                        img.srcset = '';
+                                        img.src = fallback;
+                                      }
+                                    }}
+                                    width={56}
+                                    height={56}
+                                    alt={def.name}
+                                    className="w-14 h-14 object-contain select-none"
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-1.5 mb-1">
+                                    <div
+                                      className="text-xs font-bold truncate"
+                                      style={{ color: def.accent }}
+                                    >
+                                      {def.name}
+                                    </div>
+                                    <span
+                                      className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#2B1F2D] text-[#FFFDF0]/90 border whitespace-nowrap"
+                                      style={{ borderColor: `${def.accent}55` }}
+                                    >
+                                      {def.durationSec}s
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-[#FFFDF0]/80 leading-snug">
+                                    {def.description}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Reverse-lookup "Dropped by" monsters */}
+                              {droppedByMonsters.length > 0 && (
+                                <div className="pt-2 border-t border-[#FFFDF0]/10">
+                                  <div className="text-[9px] font-bold uppercase tracking-wider text-[#FFFDF0]/55 mb-1">
+                                    Dropped by:
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {droppedByMonsters.map((m) => (
+                                      <button
+                                        key={m.id}
+                                        type="button"
+                                        title={m.name}
+                                        data-testid={`powerup-dropped-by-${def.id}-${m.id}`}
+                                        onClick={() => handleJumpToMonsterCodex(m.id)}
+                                        className="px-2 py-0.5 rounded-md bg-[#2B1F2D] hover:bg-[#38283B] text-[10px] font-semibold text-[#EDE6D0] border border-[#FFFDF0]/15 transition-colors cursor-pointer"
+                                      >
+                                        {m.shortName}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2C. Passive Relic Trinkets */}
+                  {(bestiaryItemFilter === 'all' || bestiaryItemFilter === 'trinkets') && (
+                    <div data-testid="bestiary-items-trinkets">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#F3D286]">
+                          Sanctuary Relic Trinkets ({TRINKETS.length})
+                        </h4>
+                        <span className="text-[10px] text-[#FFFDF0]/60">
+                          Upgradable Lv 1–3 Passive Relics (Equip up to 3)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {TRINKETS.map((trinket) => {
+                          const unlocked = unlocks.trinkets.includes(trinket.id);
+                          const currentLv = (unlocks.trinketLevels?.[trinket.id] ?? 1) as 1 | 2 | 3;
+                          return (
+                            <div
+                              key={trinket.id}
+                              data-testid={`bestiary-item-trinket-${trinket.id}`}
+                              className="p-3 rounded-xl bg-[#1E1520] border border-[#D4A853]/35 flex items-start gap-3"
+                            >
+                              <div className="w-16 h-16 rounded-xl bg-[#261D1A] border border-[#D4A853]/40 flex items-center justify-center shrink-0 p-1.5">
+                                <TrinketRelicArt
+                                  trinketId={trinket.id}
+                                  level={unlocked ? currentLv : 3}
+                                  className="w-full h-full"
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-xs font-bold text-[#F3D286] truncate">
+                                    {trinket.name}
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      'text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap border',
+                                      unlocked
+                                        ? 'bg-[#2B3A2E] text-[#A8E6CF] border-[#A8E6CF]/40'
+                                        : 'bg-[#2B1F2D] text-[#FFFDF0]/60 border-[#FFFDF0]/15'
+                                    )}
+                                  >
+                                    {unlocked ? `Owned · Lv ${currentLv}` : `${trinket.costCoins} Coins`}
+                                  </span>
+                                </div>
+                                <div className="space-y-0.5 text-[10px] text-[#FFFDF0]/75 leading-snug">
+                                  {trinket.levelDescriptions.map((desc, idx) => (
+                                    <div
+                                      key={idx}
+                                      className={cn(
+                                        unlocked && currentLv === idx + 1
+                                          ? 'text-[#FDFFB6] font-semibold'
+                                          : 'text-[#FFFDF0]/70'
+                                      )}
+                                    >
+                                      {desc}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2D. Curse Sigils */}
+                  {(bestiaryItemFilter === 'all' || bestiaryItemFilter === 'sigils') && (
+                    <div data-testid="bestiary-items-sigils">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#FF9AA8]">
+                          Curse Sigils · Difficulty & Reward Multipliers ({CURSES.length})
+                        </h4>
+                        <span className="text-[10px] text-[#FFFDF0]/60">
+                          Stackable Pact Relics · Upgradable Lv 1–3
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {CURSES.map((sigil) => {
+                          const unlocked = unlocks.curses.includes(sigil.id);
+                          const currentLv = (unlocks.curseLevels?.[sigil.id] ?? 1) as 1 | 2 | 3;
+                          const isActive = activeSigilIds.has(sigil.id);
+                          return (
+                            <div
+                              key={sigil.id}
+                              data-testid={`bestiary-item-sigil-${sigil.id}`}
+                              className="p-3 rounded-xl bg-[#1A0709] border border-[#7A1424]/70 flex items-start gap-3"
+                            >
+                              <div className="w-16 h-16 rounded-xl bg-[#120406] border border-[#B3202F]/50 flex items-center justify-center shrink-0 p-1.5">
+                                <img
+                                  src={sigil.art}
+                                  alt={sigil.name}
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-xs font-bold text-[#FF9AA8] truncate">
+                                    {sigil.name}
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      'text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap border',
+                                      isActive
+                                        ? 'bg-[#450D17] text-[#FFD7DD] border-[#E1384B]'
+                                        : unlocked
+                                        ? 'bg-[#2A0B10] text-[#FF9AA8] border-[#7A1424]'
+                                        : 'bg-[#1E1520] text-[#FFFDF0]/60 border-[#FFFDF0]/15'
+                                    )}
+                                  >
+                                    {isActive
+                                      ? `Active · Lv ${currentLv}`
+                                      : unlocked
+                                      ? `Owned · Lv ${currentLv}`
+                                      : `${sigil.costCoins} Coins`}
+                                  </span>
+                                </div>
+                                <div className="space-y-0.5 text-[10px] leading-snug">
+                                  {sigil.levels.map((tier) => (
+                                    <div
+                                      key={tier.level}
+                                      className={cn(
+                                        unlocked && currentLv === tier.level
+                                          ? 'text-[#FFD7DD] font-semibold'
+                                          : 'text-[#D6C2C5]/75'
+                                      )}
+                                    >
+                                      {tier.description}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-4 border-t border-[#FFFDF0]/15">
                 <h3 className="text-xs font-bold tracking-wider text-[#FDFFB6] mb-1">
-                  02. BOTANICAL TAROT DECK (30 ARCANA BLESSINGS & 6 WEAPONS)
+                  03. BOTANICAL TAROT DECK (30 ARCANA BLESSINGS)
                 </h3>
                 <p className="text-xs text-[#FFFDF0]/75 mb-3">
                   Each blessing card is illustrated as an antique botanical Tarot card depicting its core power.
@@ -674,3 +1075,91 @@ export function LoadoutAndStoreModal() {
     </div>
   );
 }
+
+function DropsSection({
+  monsterKey,
+  dropIds,
+  discovered,
+  onSelectPowerUp,
+}: {
+  monsterKey: SpriteKey;
+  dropIds: CanonicalPowerUpId[];
+  discovered: Set<CanonicalPowerUpId>;
+  onSelectPowerUp?: (id: CanonicalPowerUpId) => void;
+}) {
+  if (!dropIds.length) return null;
+  return (
+    <section
+      data-testid={`bestiary-monster-drops-${monsterKey}`}
+      className="pt-2 border-t border-[#FFFDF0]/10"
+    >
+      <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#A8E6CF] mb-1.5">
+        Power-Up Drops
+      </h4>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {dropIds.map((id) => {
+          const p = POWERUPS[id];
+          const ok = discovered.has(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              data-testid={`bestiary-monster-drop-${monsterKey}-${id}`}
+              onClick={() => onSelectPowerUp?.(id)}
+              title={
+                ok
+                  ? `${p.name} (${p.durationSec}s) — ${p.description}`
+                  : 'Undiscovered'
+              }
+              style={{
+                minWidth: 78,
+                height: 62,
+                padding: '5px 8px',
+                borderRadius: 10,
+                background: '#1a1220',
+                border: '1.5px solid',
+                borderColor: ok ? p.accent : '#3a2d42',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <img
+                src={powerUpIcon(id, 128)}
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  const fallback = powerUpIconPng(id, 128);
+                  if (!img.src.endsWith(fallback)) {
+                    img.src = fallback;
+                  }
+                }}
+                width={36}
+                height={36}
+                alt={ok ? p.name : 'Undiscovered drop'}
+                style={{
+                  filter: ok ? 'none' : 'brightness(0) opacity(0.5)',
+                  objectFit: 'contain',
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 9.5,
+                  lineHeight: 1.1,
+                  marginTop: 3,
+                  color: ok ? '#EDE6D0' : '#8A7B96',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {ok ? p.name : '???'}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+

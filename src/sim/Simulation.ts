@@ -40,6 +40,7 @@ import type {
 import { SpatialHashGrid } from './world/spatialHash';
 import {
   type ComputedHeroStats,
+  calculateCurseRewardMultiplier,
   calculateEnemySpeedScaling,
   calculateEnemyTimeScaling,
   calculateHitDamage,
@@ -248,6 +249,7 @@ export interface MidRunCheckpointV1 {
   readonly equippedTrinkets: string[];
   readonly trinketLevels?: Record<string, number>;
   readonly activeCurses: string[];
+  readonly curseLevels?: Record<string, number>;
   readonly rankIndex: number;
   readonly stylePoints: number;
   readonly currentStreak: number;
@@ -280,6 +282,7 @@ export interface SimConfig {
   equippedTrinkets?: string[];
   trinketLevels?: Record<string, number>;
   activeCurses?: string[];
+  curseLevels?: Record<string, number>;
   unlockedWeapons?: string[];
 }
 
@@ -315,10 +318,15 @@ export class Simulation {
   public invulnTimer = 0;
   public hitFlashTimer = 0;
   public shieldHp = 0;
+  public shieldMaxHp = 40;
+  public shieldRechargeAccumulator = 0;
   public shieldTimer = 0;
+  public shieldBreakFadeTimer = 0;
   public fireBreathTimer = 0;
   public timeSlowTimer = 0;
   public freezeAuraTimer = 0; // Active Frost Flask duration during which no new enemies spawn
+  public magnetBuffTimer = 0; // Active 0.5s Clover Magnet HUD visual confirmation timer
+  public healBuffTimer = 0; // Active 1.05s Heal +20HP HUD visual confirmation timer
   public secondWindUsed = false;
   public deathSequenceTimer = 0; // > 0 when playing hero grave collapse animation before defeat screen
   public victorySequenceTimer = 0; // > 0 when playing victory sequence (boss death + white angel wings ascension)
@@ -359,6 +367,7 @@ export class Simulation {
   public equippedTrinkets: string[] = [];
   public trinketLevels: Record<string, number> = {};
   public activeCurses: string[] = [];
+  public curseLevels: Record<string, number> = {};
   public unlockedWeapons: string[] = [];
   public stats: ComputedHeroStats;
 
@@ -457,6 +466,7 @@ export class Simulation {
     this.equippedTrinkets = [...(config.equippedTrinkets ?? [])];
     this.trinketLevels = { ...(config.trinketLevels ?? {}) };
     this.activeCurses = [...(config.activeCurses ?? [])];
+    this.curseLevels = { ...(config.curseLevels ?? {}) };
     this.unlockedWeapons = config.unlockedWeapons ?? Object.keys(WEAPONS);
 
     this.stats = computeHeroStats(
@@ -464,7 +474,8 @@ export class Simulation {
       this.cards,
       this.equippedTrinkets,
       this.activeCurses,
-      this.trinketLevels
+      this.trinketLevels,
+      this.curseLevels
     );
     this.maxHp = this.stats.maxHp;
     this.currentHp = this.maxHp;
@@ -613,13 +624,6 @@ export class Simulation {
         y: this.heroY,
         stylePointsAdded: addedSp,
       });
-      this.events.emit('FloatingText', {
-        x: this.heroX,
-        y: this.heroY - 0.6,
-        text: `PERFECT DODGE +${addedSp}`,
-        color: PALETTE.GOLD_STAR,
-        scale: 0.72,
-      });
     }
 
     // Profession Dash start effects
@@ -637,8 +641,8 @@ export class Simulation {
         color: PALETTE.MINT_GREEN,
       });
     } else if (this.professionId === 'herbalist') {
-      // Herbalist: heal pulse restores 8 HP and clears slow
-      this.healHero(8);
+      // Herbalist: heal pulse restores 4 HP and clears slow
+      this.healHero(4);
       this.damageEnemiesInCircle(
         this.heroX,
         this.heroY,
@@ -739,7 +743,8 @@ export class Simulation {
       this.cards,
       this.equippedTrinkets,
       this.activeCurses,
-      this.trinketLevels
+      this.trinketLevels,
+      this.curseLevels
     );
     this.maxHp = this.stats.maxHp;
     if (this.maxHp > prevMaxHp) {
@@ -962,7 +967,8 @@ export class Simulation {
       this.cards,
       this.equippedTrinkets,
       this.activeCurses,
-      this.trinketLevels
+      this.trinketLevels,
+      this.curseLevels
     );
     this.maxHp = this.stats.maxHp;
     if (this.maxHp > prevMaxHp) {
@@ -1093,6 +1099,7 @@ export class Simulation {
     this.pendingCardOffers = [];
     this.shieldHp = 0;
     this.shieldTimer = 0;
+    this.shieldBreakFadeTimer = 0;
     this.invulnTimer = 0;
     this.dashIframeTimer = 0;
     this.cardPickInvisTimer = 0;
@@ -1140,6 +1147,8 @@ export class Simulation {
     this.awaitingReviveDecision = false;
     this.pendingCardOffers = [];
     this.shieldHp = 0;
+    this.shieldTimer = 0;
+    this.shieldBreakFadeTimer = 0;
     this.currentHp = 0;
     this.heroPrevX = this.heroX;
     this.heroPrevY = this.heroY;
@@ -1322,8 +1331,13 @@ export class Simulation {
       this.shieldTimer = Math.max(0, this.shieldTimer - dt);
       if (this.shieldTimer <= 0) this.shieldHp = 0;
     }
+    if (this.shieldBreakFadeTimer > 0) {
+      this.shieldBreakFadeTimer = Math.max(0, this.shieldBreakFadeTimer - dt);
+    }
     if (this.timeSlowTimer > 0) this.timeSlowTimer = Math.max(0, this.timeSlowTimer - dt);
     if (this.freezeAuraTimer > 0) this.freezeAuraTimer = Math.max(0, this.freezeAuraTimer - dt);
+    if (this.magnetBuffTimer > 0) this.magnetBuffTimer = Math.max(0, this.magnetBuffTimer - dt);
+    if (this.healBuffTimer > 0) this.healBuffTimer = Math.max(0, this.healBuffTimer - dt);
 
     // Ember Guard ("fire_breath") usable item active flame barrier & blazing cone
     if (this.fireBreathTimer > 0) {
@@ -1396,7 +1410,7 @@ export class Simulation {
       }
     }
 
-    // Continuous HP regeneration (continues ticking at full HP when Regrowth is evolved so Overgrowth Surge damages all enemies)
+    // Continuous HP regeneration (scaled by stats.regenMultiplier via stats.regenPerSec; continues ticking at full HP when Regrowth is evolved so Overgrowth Surge damages all enemies)
     if (this.stats.regenPerSec > 0 && (this.currentHp < this.maxHp || this.isRegrowthEvolved())) {
       this.regenAccumulator += this.stats.regenPerSec * dt;
       if (this.regenAccumulator >= 1) {
@@ -1406,9 +1420,14 @@ export class Simulation {
       }
     }
 
-    // Dash cooldown & buffered dash
+    // Active Shield passive recharge (scaled by stats.regenMultiplier)
+    if (this.shieldTimer > 0 && this.shieldHp > 0 && this.shieldHp < this.shieldMaxHp) {
+      this.tickShieldRecharge(dt, 2.0);
+    }
+
+    // Dash cooldown & buffered dash (scaled by stats.regenMultiplier)
     if (this.dashCharges < this.maxDashCharges) {
-      this.dashCooldownTimer -= dt;
+      this.dashCooldownTimer -= dt * this.stats.regenMultiplier;
       if (this.dashCooldownTimer <= 0) {
         this.dashCharges++;
         if (this.dashCharges < this.maxDashCharges) {
@@ -1665,7 +1684,8 @@ export class Simulation {
     const activePersona =
       this.personaId &&
       this.personaId !== 'adventurer_default' &&
-      this.personaId !== 'stormcaller_gojo_killua'
+      this.personaId !== 'stormcaller_gojo_killua' &&
+      this.personaId !== 'herbalist_frieren_strange'
         ? PERSONAS.find((p) => p.id === this.personaId)
         : undefined;
     if (activePersona) {
@@ -1682,10 +1702,26 @@ export class Simulation {
     }
   }
 
+  public tickShieldRecharge(dt: number, baseRatePerSec = 4.0): number {
+    if (this.shieldHp >= this.shieldMaxHp) return 0;
+    this.shieldRechargeAccumulator += baseRatePerSec * this.stats.regenMultiplier * dt;
+    if (this.shieldRechargeAccumulator >= 1) {
+      const whole = Math.floor(this.shieldRechargeAccumulator);
+      this.shieldRechargeAccumulator -= whole;
+      const before = this.shieldHp;
+      this.shieldHp = Math.min(this.shieldMaxHp, this.shieldHp + whole);
+      return this.shieldHp - before;
+    }
+    return 0;
+  }
+
   private activatePowerUp(powerUpId: PowerUpId): void {
     if (powerUpId === 'shield') {
       this.shieldHp = 40;
+      this.shieldMaxHp = 40;
+      this.shieldRechargeAccumulator = 0;
       this.shieldTimer = 20.0;
+      this.shieldBreakFadeTimer = 0;
       this.visualEffects.push({
         id: this.nextEntityId++,
         kind: 'aegis_burst',
@@ -1745,6 +1781,7 @@ export class Simulation {
         maxTimer: 0.28,
       });
     } else if (powerUpId === 'magnet') {
+      this.magnetBuffTimer = 0.5;
       for (const p of this.pickups) {
         if (
           p.kind === 'xp_gem' ||
@@ -1760,6 +1797,7 @@ export class Simulation {
     } else if (powerUpId === 'time_slow') {
       this.timeSlowTimer = 4.0;
     } else if (powerUpId === 'heal_potion') {
+      this.healBuffTimer = 1.05;
       // Heal 4 times by +5 HP each with a small delay (first +5 HP immediately, then 3 pulses every 0.25s)
       this.healHero(5);
       this.healPotionPulsesRemaining += 3;
@@ -1966,7 +2004,7 @@ export class Simulation {
             activeTelegraphs++;
           }
         } else if (e.aiState === 'telegraph') {
-          e.aiTimer -= dt;
+          e.aiTimer -= dt * this.stats.enemyTelegraphSpeedMult;
           const mode = e.bossAttackMode ?? 'sunflower_charge';
           if (mode === 'sunflower_leaf_spiral') {
             // Telegraph behavior: spins petals rapidly in place
@@ -2085,7 +2123,7 @@ export class Simulation {
           e.y += Math.sin(e.telegraphAngle) * channelFollowSpeed * dt;
           e.telegraphTargetX = e.x + Math.cos(e.telegraphAngle) * 3.2;
           e.telegraphTargetY = e.y + Math.sin(e.telegraphAngle) * 3.2;
-          e.aiTimer -= dt;
+          e.aiTimer -= dt * this.stats.enemyTelegraphSpeedMult;
           if (e.aiTimer <= 0) {
             e.aiState = 'charge';
             e.aiTimer = BALANCE_CONFIG.CHARGER_CHARGE_DURATION_SEC;
@@ -2197,7 +2235,7 @@ export class Simulation {
             activeTelegraphs++;
           }
         } else if (e.aiState === 'telegraph') {
-          e.aiTimer -= dt;
+          e.aiTimer -= dt * this.stats.enemyTelegraphSpeedMult;
           const mode = e.bossAttackMode ?? 'boss_p1_root_slam';
           if (mode === 'boss_p2_petal_spiral' || mode === 'boss_p3_crimson_cross') {
             e.facingAngle += 6.5 * dt;
@@ -2471,7 +2509,7 @@ export class Simulation {
           }
           e.telegraphTargetX = e.x;
           e.telegraphTargetY = e.y;
-          e.aiTimer -= dt;
+          e.aiTimer -= dt * this.stats.enemyTelegraphSpeedMult;
           if (e.aiTimer <= 0) {
             const slamRadius = e.isMiniBoss ? 2.15 : 1.85;
             if (
@@ -2839,7 +2877,10 @@ export class Simulation {
                   piercingSlashRange * BALANCE_CONFIG.PIERCING_SLASH_ATTACK_BUFFER_RATIO
                 )
               : effectiveReach + 1.0;
-          const target = this.acquireTarget(acquireRange);
+          const target =
+            w.id === 'seed_blades'
+              ? this.acquireRandomTargetInRange(acquireRange)
+              : this.acquireTarget(acquireRange);
           if (target) {
             w.phase = 'windup';
             w.phaseTimer = w.id === 'thorn_spear' ? 0.14 : 0.06;
@@ -3121,9 +3162,28 @@ export class Simulation {
           ? [...def.tags, 'seed_venom']
           : def.tags;
 
+      const pickedTargetIds = new Set<number>();
       for (let i = 0; i < count; i++) {
-        const spread = count === 1 ? 0 : (i - (count - 1) / 2) * 0.16;
-        const a = attackAngle + spread;
+        let a: number;
+        if (w.id === 'seed_blades' && i > 0) {
+          const randTarget =
+            this.acquireRandomTargetInRange(reach + 1.0, pickedTargetIds) ??
+            this.acquireRandomTargetInRange(reach + 1.0);
+          if (randTarget) {
+            pickedTargetIds.add(randTarget.id);
+            const targetAngle =
+              Math.atan2(randTarget.y - this.heroY, randTarget.x - this.heroX) + echoAngleOffset;
+            const angleDiff = Math.abs(angleDifference(targetAngle, attackAngle));
+            const fallbackSpread = (i - (count - 1) / 2) * 0.16;
+            a = angleDiff < 0.01 ? targetAngle + fallbackSpread : targetAngle;
+          } else {
+            const spread = count === 1 ? 0 : (i - (count - 1) / 2) * 0.16;
+            a = attackAngle + spread;
+          }
+        } else {
+          const spread = count === 1 ? 0 : (i - (count - 1) / 2) * 0.16;
+          a = attackAngle + spread;
+        }
         this.projectiles.push({
           id: this.nextEntityId++,
           isEnemy: false,
@@ -3250,6 +3310,39 @@ export class Simulation {
       }
     }
     return best;
+  }
+
+  /**
+   * Random Target Selection within range (used by Seed Blades):
+   * Picks a random living hostile enemy within acquireRange (or a breakable object if no hostiles are in range).
+   */
+  public acquireRandomTargetInRange(
+    acquireRange: number,
+    excludeIds?: Set<number>
+  ): SimEnemy | null {
+    const maxDistSq = acquireRange * acquireRange;
+    const hostileCandidates: SimEnemy[] = [];
+    const fallbackCandidates: SimEnemy[] = [];
+
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.koTimer > 0) continue;
+      if (excludeIds && excludeIds.has(e.id)) continue;
+      const dSq = distSq(this.heroX, this.heroY, e.x, e.y);
+      if (dSq > maxDistSq) continue;
+      if (e.isArenaFlower || e.isHeroGrave) {
+        fallbackCandidates.push(e);
+      } else {
+        hostileCandidates.push(e);
+      }
+    }
+
+    if (hostileCandidates.length > 0) {
+      return this.rng.combat.pick(hostileCandidates);
+    }
+    if (fallbackCandidates.length > 0) {
+      return this.rng.combat.pick(fallbackCandidates);
+    }
+    return null;
   }
 
   private findNearestEnemy(
@@ -4055,6 +4148,20 @@ export class Simulation {
         this.heldPowerUps.shift(); // Replace oldest if holding 2
       }
       this.heldPowerUps.push(healId);
+      this.visualEffects.push({
+        id: this.nextEntityId++,
+        kind: 'circle_blast',
+        x: this.heroX,
+        y: this.heroY,
+        targetX: this.heroX,
+        targetY: this.heroY,
+        angle: 0,
+        radius: 1.5,
+        arcRad: Math.PI * 2,
+        color: 0x2ecc8f,
+        timer: 0.32,
+        maxTimer: 0.32,
+      });
       this.events.emit('PowerUpPicked', {
         powerUpId: healId,
         slotIndex: this.heldPowerUps.length - 1,
@@ -4064,6 +4171,29 @@ export class Simulation {
         this.heldPowerUps.shift(); // Replace oldest if holding 2 (Spec Section 12)
       }
       this.heldPowerUps.push(p.powerUpId);
+      const tintMap: Record<PowerUpId, number> = {
+        shield: 0x4fd1b5,
+        freeze: 0x6fa8ff,
+        fire_breath: 0xff8a3d,
+        magnet: 0xff5c8a,
+        time_slow: 0xb9a6ff,
+        heal_potion: 0x2ecc8f,
+      };
+      const tint = tintMap[p.powerUpId];
+      this.visualEffects.push({
+        id: this.nextEntityId++,
+        kind: 'circle_blast',
+        x: this.heroX,
+        y: this.heroY,
+        targetX: this.heroX,
+        targetY: this.heroY,
+        angle: 0,
+        radius: 1.5,
+        arcRad: Math.PI * 2,
+        color: tint,
+        timer: 0.32,
+        maxTimer: 0.32,
+      });
       this.events.emit('PowerUpPicked', {
         powerUpId: p.powerUpId,
         slotIndex: this.heldPowerUps.length - 1,
@@ -4293,6 +4423,10 @@ export class Simulation {
     if (this.shieldHp > 0) {
       const absorbed = Math.min(this.shieldHp, dmg);
       this.shieldHp -= absorbed;
+      if (this.shieldHp <= 0) {
+        this.shieldTimer = 0;
+        this.shieldBreakFadeTimer = 0.45;
+      }
       dmg -= absorbed;
       if (dmg <= 0) {
         this.events.emit('HeroHit', {
@@ -4477,7 +4611,7 @@ export class Simulation {
     let budgetMod = 1.0;
     if (this.currentHp / this.maxHp < 0.35) budgetMod = 0.85;
     else if (this.currentStreak >= 10) budgetMod = 1.15;
-    if (this.activeCurses.includes('swarm_brand')) budgetMod *= 1.25;
+    budgetMod *= this.stats.enemySpawnBudgetMult;
     if (this.finalBossSpawned) budgetMod *= 0.4;
 
     this.directorBankedBudget = Math.min(
@@ -5054,11 +5188,10 @@ export class Simulation {
     }
     const avgCurrencyMult = totalTicks > 0 ? weightedMultSum / totalTicks : 1.0;
 
-    let curseRewardMult = 1.0;
-    for (const cId of this.activeCurses) {
-      const cDef = CURSES.find((c) => c.id === cId);
-      if (cDef) curseRewardMult += cDef.rewardMultAdd;
-    }
+    const curseRewardMult = calculateCurseRewardMultiplier(
+      this.activeCurses,
+      this.curseLevels
+    );
 
     const coinsEarned =
       calculateRunCoins({
@@ -5118,6 +5251,7 @@ export class Simulation {
       equippedTrinkets: [...this.equippedTrinkets],
       trinketLevels: { ...this.trinketLevels },
       activeCurses: [...this.activeCurses],
+      curseLevels: { ...this.curseLevels },
       rankIndex: this.rankIndex,
       stylePoints: this.stylePoints,
       currentStreak: this.currentStreak,
@@ -5157,6 +5291,7 @@ export class Simulation {
       equippedTrinkets: cp.equippedTrinkets,
       trinketLevels: cp.trinketLevels,
       activeCurses: cp.activeCurses,
+      curseLevels: cp.curseLevels,
       unlockedWeapons,
     });
 
@@ -5191,7 +5326,8 @@ export class Simulation {
       sim.cards,
       sim.equippedTrinkets,
       sim.activeCurses,
-      sim.trinketLevels
+      sim.trinketLevels,
+      sim.curseLevels
     );
     sim.maxHp = cp.maxHp;
     sim.currentHp = cp.currentHp;

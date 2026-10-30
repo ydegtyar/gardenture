@@ -4,12 +4,13 @@
  */
 
 import { clamp } from '../../core/math/vec2';
-import { CARDS, PROFESSIONS, STYLE_RANKS } from '../../content/data/catalog';
-import type { ProfessionId } from '../../content/schema/types';
+import { CARDS, CURSES, PROFESSIONS, STYLE_RANKS } from '../../content/data/catalog';
+import type { CurseLevelDef, ProfessionId } from '../../content/schema/types';
 
 export interface ComputedHeroStats {
   maxHp: number;
   regenPerSec: number;
+  regenMultiplier: number;
   armor: number;
   moveSpeed: number;
   damageMult: number;
@@ -23,9 +24,49 @@ export interface ComputedHeroStats {
   dashCooldown: number;
   xpGainMult: number;
   enemySpeedMult: number;
+  enemyTelegraphSpeedMult: number;
+  enemySpawnBudgetMult: number;
   damageTakenMult: number;
   extraDashCharges: number;
   dodgeChance: number;
+}
+
+/**
+ * Resolves the active CurseLevelDef (clamped to 1..3) for a given curse ID and level map.
+ */
+export function getCurseLevelDef(
+  curseId: string,
+  curseLevels: Readonly<Record<string, number>> = {}
+): CurseLevelDef | undefined {
+  const cDef = CURSES.find((c) => c.id === curseId);
+  if (!cDef) return undefined;
+  const rawLv = curseLevels[curseId] ?? 1;
+  const lv = Math.max(1, Math.min(3, Math.floor(rawLv))) as 1 | 2 | 3;
+  return cDef.levels[lv - 1] ?? cDef.levels[0];
+}
+
+/**
+ * Computes combined Curse Sigil reward multiplier:
+ * 1 + sum of active sigils' reward bonuses at their current upgrade level.
+ */
+export function calculateCurseRewardMultiplier(
+  activeCurses: readonly string[],
+  curseLevels: Readonly<Record<string, number>> = {}
+): number {
+  let bonusSum = 0;
+  const seen = new Set<string>();
+  for (const curseId of activeCurses) {
+    if (seen.has(curseId)) continue;
+    seen.add(curseId);
+    const levelDef = getCurseLevelDef(curseId, curseLevels);
+    if (levelDef) {
+      bonusSum += levelDef.rewardBonus;
+    } else {
+      const cDef = CURSES.find((c) => c.id === curseId);
+      if (cDef) bonusSum += cDef.rewardMultAdd;
+    }
+  }
+  return Number((1 + bonusSum).toFixed(4));
 }
 
 /**
@@ -37,7 +78,8 @@ export function computeHeroStats(
   ownedCards: Record<string, number>,
   equippedTrinkets: readonly string[],
   activeCurses: readonly string[],
-  trinketLevels: Readonly<Record<string, number>> = {}
+  trinketLevels: Readonly<Record<string, number>> = {},
+  curseLevels: Readonly<Record<string, number>> = {}
 ): ComputedHeroStats {
   const prof = PROFESSIONS[professionId] ?? PROFESSIONS.warden!;
   const base = prof.baseStats;
@@ -57,9 +99,12 @@ export function computeHeroStats(
   let dashCooldownDelta = 0;
   let xpGainAdd = 0;
   let enemySpeedAdd = 0;
+  let telegraphSpeedAdd = 0;
+  let spawnBudgetAdd = 0;
   let damageTakenMult = 1.0;
   let extraDashCharges = 0;
   let dodgeChanceAdd = 0;
+  let regenMultiplier = 1.0;
 
   for (const card of CARDS) {
     const level = ownedCards[card.id] ?? 0;
@@ -119,20 +164,38 @@ export function computeHeroStats(
     }
   }
 
-  // Apply Curses
+  // Apply Curses (scaled by upgrade level 1..3; all active sigils stack)
   let curseHpMult = 1.0;
-  if (activeCurses.includes('frenzied_flora')) {
-    enemySpeedAdd += 0.2;
-  }
-  if (activeCurses.includes('fragile_bark')) {
-    curseHpMult = 0.75;
+  const seenCurses = new Set<string>();
+  for (const curseId of activeCurses) {
+    if (seenCurses.has(curseId)) continue;
+    seenCurses.add(curseId);
+    const levelDef = getCurseLevelDef(curseId, curseLevels);
+    if (!levelDef) continue;
+    if (levelDef.spawnBudgetMultAdd !== undefined) {
+      spawnBudgetAdd += levelDef.spawnBudgetMultAdd;
+    }
+    if (levelDef.enemySpeedMultAdd !== undefined) {
+      enemySpeedAdd += levelDef.enemySpeedMultAdd;
+    }
+    if (levelDef.telegraphSpeedMultAdd !== undefined) {
+      telegraphSpeedAdd += levelDef.telegraphSpeedMultAdd;
+    }
+    if (levelDef.maxHpMult !== undefined) {
+      curseHpMult *= levelDef.maxHpMult;
+    }
+    if (levelDef.regenMultiplier !== undefined) {
+      regenMultiplier *= levelDef.regenMultiplier;
+    }
   }
 
   const maxHp = Math.max(25, Math.round((base.maxHp + maxHpFlat) * curseHpMult));
+  const rawRegenPerSec = Math.max(0, base.regenPerSec + regenAdd);
 
   return {
     maxHp,
-    regenPerSec: Math.max(0, base.regenPerSec + regenAdd),
+    regenPerSec: Number((rawRegenPerSec * regenMultiplier).toFixed(4)),
+    regenMultiplier: Number(regenMultiplier.toFixed(4)),
     armor: Math.max(0, base.armor + armorFlat),
     moveSpeed: clamp(base.moveSpeed * (1 + moveSpeedAdd), 2.0, 6.5),
     damageMult: Math.max(0.2, base.damageMult * (1 + damageAdd)),
@@ -146,6 +209,8 @@ export function computeHeroStats(
     dashCooldown: clamp(base.dashCooldown + dashCooldownDelta, 0.8, 4.0),
     xpGainMult: Math.max(0.5, 1 + xpGainAdd),
     enemySpeedMult: Math.max(0.5, 1 + enemySpeedAdd),
+    enemyTelegraphSpeedMult: Math.max(0.5, 1 + telegraphSpeedAdd),
+    enemySpawnBudgetMult: Math.max(0.5, 1 + spawnBudgetAdd),
     damageTakenMult,
     extraDashCharges,
     dodgeChance: clamp(dodgeChanceAdd, 0, 0.65),
