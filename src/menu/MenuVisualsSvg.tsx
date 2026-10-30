@@ -86,6 +86,19 @@ export const MenuCrystalIconSvg: React.FC<{ className?: string }> = ({
   </svg>
 );
 
+export const MenuStarIconSvg: React.FC<{ className?: string }> = ({
+  className = 'w-3.5 h-3.5',
+}) => (
+  <svg
+    viewBox="0 0 24 24"
+    className={className}
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+  </svg>
+);
+
 /**
  * Faceted ice-blue crystal cluster perched on the top-right corner of the Start Run button.
  */
@@ -202,8 +215,9 @@ export const MenuTitleCrestSvg: React.FC<{ className?: string }> = ({
   className = 'w-full max-w-[540px]',
 }) => (
   <svg
-    viewBox="0 0 1272 376"
-    className={className}
+    viewBox="0 -44 1272 436"
+    className={`${className} overflow-visible`}
+    style={{ overflow: 'visible' }}
     role="img"
     aria-label="Gardenture: Mystic Garden Adventure!"
   >
@@ -274,7 +288,7 @@ export const MenuTitleCrestSvg: React.FC<{ className?: string }> = ({
       </filter>
 
       {/* Drop shadow for the Arched Ribbon Banner */}
-      <filter id="menu-ribbon-shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <filter id="menu-ribbon-shadow" x="-20%" y="-20%" width="140%" height="180%">
         <feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#08030C" floodOpacity="0.78" />
       </filter>
 
@@ -397,23 +411,6 @@ export const MenuTitleCrestSvg: React.FC<{ className?: string }> = ({
       </text>
     </g>
 
-    {/* Overlapping Top-Left Ivy Leaf Tip (tucks the top-left of 'A' under the leaf just like the reference) */}
-    <g transform="translate(292, 118)">
-      <path
-        d="M-24 -16 C-18 4, -8 18, 2 24 C12 16, 22 2, 24 -16 C10 -22, -10 -22, -24 -16 Z"
-        fill="#3B924C"
-        stroke="#17241A"
-        strokeWidth="4.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M-2 -14 L1 18 M-2 -2 L-13 6 M0 -4 L12 4"
-        stroke="#8CE879"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-        fill="none"
-      />
-    </g>
 
     {/* 3. Arched Coral-Pink Ribbon Container & Arched "Mystic Garden Adventure!" Text */}
     <g filter="url(#menu-ribbon-shadow)">
