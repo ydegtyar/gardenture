@@ -2894,7 +2894,7 @@ test('Arbalete level-up progression increases damage and range on each level', (
   sim.debugSetWeaponLevel('thorn_spear', 1, false);
 
   const targetFar = sim.spawnEnemy('brute', 5.45, 0, false)!;
-  targetFar.aiState = 'frozen';
+  targetFar.aiState = 'hold';
   sim.spatialGrid.insert(targetFar.id, targetFar.x, targetFar.y, targetFar.radius);
   const targetFarHpBefore = targetFar.hp;
 
