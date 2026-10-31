@@ -23,6 +23,8 @@ export const TarotIllustrationSvg: React.FC<TarotIllustrationProps> = ({
   accentColor,
   iconColor,
   className = 'w-full h-auto aspect-[180/132] block select-none',
+  size,
+  style,
 }) => {
   const cardDef = CARDS.find((c) => c.id === targetId);
   const iconKey = cardDef?.iconKey ?? targetId;
@@ -33,7 +35,7 @@ export const TarotIllustrationSvg: React.FC<TarotIllustrationProps> = ({
   if (CustomIcon) {
     return (
       <CustomIcon
-        size={132}
+        size={size ?? 132}
         className={className}
         glowColor={iconColor ?? cardDef?.iconColor ?? '#3DDC97'}
         title={cardDef?.name ?? 'Magnet Moss'}
@@ -82,6 +84,9 @@ export const TarotIllustrationSvg: React.FC<TarotIllustrationProps> = ({
   return (
     <svg
       viewBox="0 0 180 132"
+      width={size}
+      height={size ? Math.round((size * 132) / 180) : undefined}
+      style={style}
       className={className}
       aria-hidden="true"
     >

@@ -1,12 +1,66 @@
 import * as PIXI from 'pixi.js';
 import { PALETTE } from '../../../content/data/catalog';
 import { PPU } from '../EnvironmentRenderer';
-import type { SimEnemy } from '../../../sim/Simulation';
+import type { SimEnemy, SimProjectile } from '../../../sim/Simulation';
 import type {
   EnemyBehaviorRenderer,
   EnemyRenderContext,
   EnemyTransformModifiers,
 } from './types';
+
+/**
+ * Renders the striped golden/brown Sunflower Seed projectile fired by Bloom Giant.
+ */
+export function drawSunflowerSeedProjectile(
+  g: PIXI.Graphics,
+  _p: SimProjectile,
+  px: number,
+  py: number,
+  rPx: number,
+  angle: number
+): void {
+  const m = new PIXI.Matrix();
+  m.rotate(angle);
+  m.translate(px, py);
+  g.setTransform(m);
+  g.moveTo(rPx * 1.45, 0)
+    .lineTo(-rPx * 0.6, -rPx * 0.85)
+    .lineTo(-rPx * 1.15, 0)
+    .lineTo(-rPx * 0.6, rPx * 0.85)
+    .closePath()
+    .fill({ color: 0x78350f })
+    .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+  g.moveTo(rPx * 0.9, 0)
+    .lineTo(-rPx * 0.7, 0)
+    .stroke({ color: PALETTE.BUTTER_YELLOW, width: 2.2, cap: 'round' });
+  g.setTransform(new PIXI.Matrix());
+}
+
+/**
+ * Renders the spinning razor Sunflower Leaf projectile fired by Bloom Giant.
+ */
+export function drawSunflowerLeafProjectile(
+  g: PIXI.Graphics,
+  _p: SimProjectile,
+  px: number,
+  py: number,
+  rPx: number,
+  angle: number,
+  elapsedSeconds: number
+): void {
+  const spinAngle = angle + elapsedSeconds * 12;
+  const m = new PIXI.Matrix();
+  m.rotate(spinAngle);
+  m.translate(px, py);
+  g.setTransform(m);
+  g.ellipse(0, 0, rPx * 1.45, rPx * 0.72)
+    .fill({ color: PALETTE.MINT_GREEN })
+    .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+  g.moveTo(-rPx * 1.1, 0)
+    .lineTo(rPx * 1.1, 0)
+    .stroke({ color: PALETTE.BUTTER_YELLOW, width: 1.8 });
+  g.setTransform(new PIXI.Matrix());
+}
 
 export class GoldenSunflowerBossRenderer implements EnemyBehaviorRenderer {
   public readonly id = 'bloom_giant';

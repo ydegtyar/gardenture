@@ -2,7 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getTarotMetadata, CARD_ICON_COMPONENTS, LeafBladeIcon } from './TarotCardArt';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import {
+  getTarotMetadata,
+  CARD_ICON_COMPONENTS,
+  LeafBladeIcon,
+  getCardSymbol,
+  EchoSwingSymbol,
+  PiercingSlashSymbol,
+  EchoSwingIcon,
+  PiercingSlashIcon,
+  TarotIllustrationSvg,
+} from './TarotCardArt';
 import { WEAPONS } from '../content/data/catalog';
 import { buildLeafBladeSpriteSvg, buildLeafBladeTarotCardSvg } from '../../scripts/generate-leaf-blade-assets.mjs';
 
@@ -59,4 +71,43 @@ test('SVG Generator: Valid vector definitions for Leaf Blade', () => {
   assert.ok(cardSvg.includes('MELEE'), 'Must include MELEE tag');
   assert.ok(cardSvg.includes('BLADE OF THE GROVE'), 'Must include arcana title');
   assert.ok(cardSvg.includes('#2a1f33'), 'Must include plum-navy outline');
+});
+
+test('TarotCardArt: Echo Swing and Piercing Slash arts, metadata, and symbols', () => {
+  // Metadata completeness
+  const metaEcho = getTarotMetadata('echo_swing');
+  assert.equal(metaEcho.numeral, 'XIII');
+  assert.equal(metaEcho.arcanaTitle, 'THE TWIN ECHO');
+
+  const metaPierce = getTarotMetadata('piercing_slash');
+  assert.equal(metaPierce.numeral, 'XXI');
+  assert.equal(metaPierce.arcanaTitle, 'THE SUNDERED WARD');
+
+  // Dedicated symbol resolution
+  assert.equal(getCardSymbol('echo_swing'), EchoSwingSymbol);
+  assert.equal(getCardSymbol('piercing_slash'), PiercingSlashSymbol);
+
+  // Tarot illustration rendering with anime dark outlines & preserved test IDs
+  const echoMarkup = renderToStaticMarkup(
+    React.createElement(TarotIllustrationSvg, { targetId: 'echo_swing', rarity: 'rare' })
+  );
+  assert.ok(echoMarkup.includes('data-testid="tarot-symbol-echo_swing"'));
+  assert.ok(echoMarkup.includes('stroke="#2D1E2F"'));
+  assert.ok(echoMarkup.includes('#93C5FD')); // Rare halo color
+
+  const pierceMarkup = renderToStaticMarkup(
+    React.createElement(TarotIllustrationSvg, { targetId: 'piercing_slash', rarity: 'uncommon' })
+  );
+  assert.ok(pierceMarkup.includes('data-testid="tarot-symbol-piercing_slash"'));
+  assert.ok(pierceMarkup.includes('stroke="#2D1E2F"'));
+  assert.ok(pierceMarkup.includes('#6EE7B7')); // Uncommon halo color
+
+  // Standalone Icon wrappers exported through TarotCardArt
+  const echoIconMarkup = renderToStaticMarkup(React.createElement(EchoSwingIcon, { size: 96 }));
+  assert.ok(echoIconMarkup.includes('data-testid="tarot-symbol-echo_swing"'));
+  assert.ok(echoIconMarkup.includes('width="96"'));
+
+  const pierceIconMarkup = renderToStaticMarkup(React.createElement(PiercingSlashIcon, { size: 120 }));
+  assert.ok(pierceIconMarkup.includes('data-testid="tarot-symbol-piercing_slash"'));
+  assert.ok(pierceIconMarkup.includes('width="120"'));
 });

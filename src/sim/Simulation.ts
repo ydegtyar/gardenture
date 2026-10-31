@@ -130,8 +130,11 @@ export interface SimProjectile {
   id: number;
   isEnemy: boolean;
   sourceEnemyId?: number;
+  sourceEnemyArchetype?: EnemyArchetypeId;
+  sourceEnemySpecialId?: SpecialMonsterId;
   projectileKind?:
     | 'default'
+    | 'spitter_spore'
     | 'sunflower_seed'
     | 'sunflower_leaf'
     | 'arbalete_bolt'
@@ -208,6 +211,7 @@ export interface SimVisualEffect {
     | 'second_wind_blast'
     | 'crit_starfall'
     | 'brute_slam_flash'
+    | 'projectile_slice'
     | PersonaStepEffectKind;
   x: number;
   y: number;
@@ -219,6 +223,7 @@ export interface SimVisualEffect {
   color: number;
   timer: number;
   maxTimer: number;
+  bladeLevel?: number;
   isEcho?: boolean;
   isBloom?: boolean;
 }
@@ -300,7 +305,9 @@ export class Simulation {
   public readonly events = new TypedEventBus();
   public readonly rng: RNGStreams;
   public readonly spatialGrid = new SpatialHashGrid(2.0);
+  public readonly enemyById = new Map<number, SimEnemy>();
   private readonly queryScratch: number[] = [];
+  private readonly neighborScratch: number[] = [];
 
   public isDailySeed: boolean;
   public dailyDateKey: string | null;
@@ -1364,12 +1371,7 @@ export class Simulation {
     if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
 
     // 2. Rebuild 2.0u Spatial Hash Grid
-    this.spatialGrid.clear();
-    for (const e of this.enemies) {
-      if (e.koTimer <= 0 && e.hp > 0) {
-        this.spatialGrid.insert(e.id, e.x, e.y, e.radius);
-      }
-    }
+    this.rebuildSpatialGrid();
 
     // 3. Update Weapons & Ground Hazards
     this.updateWeapons(TICK_S);
@@ -1893,9 +1895,58 @@ export class Simulation {
     });
   }
 
+  public rebuildSpatialGrid(): void {
+    this.spatialGrid.clear();
+    this.enemyById.clear();
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i]!;
+      if (e.koTimer <= 0 && e.hp > 0) {
+        this.spatialGrid.insert(e.id, e.x, e.y, e.radius);
+        this.enemyById.set(e.id, e);
+      }
+    }
+  }
+
   private updateEnemiesMovementAndAI(dt: number): void {
     const timeSlowFactor = this.timeSlowTimer > 0 ? 0.2 : 1.0;
     const speedScale = calculateEnemySpeedScaling(this.elapsedSeconds) * this.stats.enemySpeedMult;
+
+    // Synchronize spatial grid with current alive enemy positions
+    this.rebuildSpatialGrid();
+
+    // Evaluate active combat enemy count for dynamic crowd dispersal (> 20 enemies)
+    let activeCombatEnemyCount = 0;
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i]!;
+      if (e.hp > 0 && e.koTimer <= 0 && !e.isArenaFlower && !e.isHeroGrave) {
+        activeCombatEnemyCount++;
+      }
+    }
+    const crowdIntensity = clamp(
+      (activeCombatEnemyCount - BALANCE_CONFIG.CROWD_ENEMY_COUNT_THRESHOLD) / 20,
+      0,
+      1
+    );
+    const sepRadiusMult = lerp(
+      BALANCE_CONFIG.CROWD_SEPARATION_RADIUS_MULT_NORMAL,
+      BALANCE_CONFIG.CROWD_SEPARATION_RADIUS_MULT_CROWD,
+      crowdIntensity
+    );
+    const sepWeight = lerp(
+      BALANCE_CONFIG.CROWD_SEPARATION_WEIGHT_NORMAL,
+      BALANCE_CONFIG.CROWD_SEPARATION_WEIGHT_CROWD,
+      crowdIntensity
+    );
+    const flankWeight = lerp(
+      BALANCE_CONFIG.CROWD_FLANK_WEIGHT_NORMAL,
+      BALANCE_CONFIG.CROWD_FLANK_WEIGHT_CROWD,
+      crowdIntensity
+    );
+    const relaxationPush = lerp(
+      BALANCE_CONFIG.CROWD_RELAXATION_PUSH_NORMAL,
+      BALANCE_CONFIG.CROWD_RELAXATION_PUSH_CROWD,
+      crowdIntensity
+    );
 
     // Limit concurrent active enemy telegraphs (crowd token pool <= 5) so waves remain readable
     let activeTelegraphs = 0;
@@ -2034,6 +2085,92 @@ export class Simulation {
       // While Hero is in dash invisibility frames, enemies cannot update their tracking angle to the hero
       const heroInvisible = this.isHeroDashInvisible();
       const angleToHero = heroInvisible ? e.facingAngle : Math.atan2(dyHero, dxHero);
+
+      let seekX = 0;
+      let seekY = 0;
+      let tanX = 0;
+      let tanY = 0;
+      if (dHero > 0.001) {
+        seekX = dxHero / dHero;
+        seekY = dyHero / dHero;
+        tanX = -seekY;
+        tanY = seekX;
+      } else {
+        seekX = Math.cos(e.facingAngle);
+        seekY = Math.sin(e.facingAngle);
+        tanX = -seekY;
+        tanY = seekX;
+      }
+
+      // Query nearby allies within crowd separation radius
+      let sepForceX = 0;
+      let sepForceY = 0;
+      let lateralBias = 0;
+      let nearbyAllyCount = 0;
+
+      const searchRadius = Math.max(2.0, e.radius * 3.5);
+      this.spatialGrid.queryCircle(e.x, e.y, searchRadius, this.neighborScratch);
+
+      for (let n = 0; n < this.neighborScratch.length; n++) {
+        const nbrId = this.neighborScratch[n]!;
+        if (nbrId === e.id) continue;
+        const nbr = this.enemyById.get(nbrId);
+        if (!nbr || nbr.hp <= 0 || nbr.koTimer > 0) continue;
+
+        const ndx = e.x - nbr.x;
+        const ndy = e.y - nbr.y;
+        const distSq = ndx * ndx + ndy * ndy;
+        const maxSepDist = (e.radius + nbr.radius) * sepRadiusMult;
+
+        if (distSq < maxSepDist * maxSepDist && distSq > 0.0001) {
+          nearbyAllyCount++;
+          const d = Math.sqrt(distSq);
+          const falloff = 1 - d / maxSepDist;
+
+          let massWeight = 1.0;
+          if (nbr.isFinalBoss || nbr.isArenaFlower || nbr.isHeroGrave) {
+            massWeight = 3.2;
+          } else if (nbr.archetypeId === 'brute' || nbr.isMiniBoss) {
+            massWeight = 2.0;
+          } else if (e.archetypeId === 'brute' || e.isMiniBoss) {
+            massWeight = 0.4;
+          }
+
+          sepForceX += (ndx / d) * falloff * massWeight;
+          sepForceY += (ndy / d) * falloff * massWeight;
+
+          // Tangential flank: if neighbor is ahead along seek direction towards hero,
+          // deflect laterally to cover more area and encircle rather than conga-lining
+          const toNbrX = -ndx;
+          const toNbrY = -ndy;
+          const dotSeek = toNbrX * seekX + toNbrY * seekY;
+          if (dotSeek > 0.05) {
+            const cross = seekX * toNbrY - seekY * toNbrX;
+            if (cross > 0.02) {
+              lateralBias -= falloff;
+            } else if (cross < -0.02) {
+              lateralBias += falloff;
+            } else {
+              lateralBias += (e.id % 2 === 0 ? 1 : -1) * falloff;
+            }
+          }
+        }
+      }
+
+      // Attenuate flanking when very close to hero so enemies close in for the strike
+      const distHeroWeight = clamp((dHero - 0.8) / 2.0, 0.25, 1.0);
+      const effectiveFlankWeight = flankWeight * distHeroWeight;
+
+      let moveDirX = seekX + sepForceX * sepWeight + tanX * lateralBias * effectiveFlankWeight;
+      let moveDirY = seekY + sepForceY * sepWeight + tanY * lateralBias * effectiveFlankWeight;
+      const moveDirLen = Math.hypot(moveDirX, moveDirY);
+      if (moveDirLen > 0.001) {
+        moveDirX /= moveDirLen;
+        moveDirY /= moveDirLen;
+      } else {
+        moveDirX = seekX;
+        moveDirY = seekY;
+      }
 
       // Update Final Boss Phases & Arena Rule (Spec Section 12)
       if (e.isFinalBoss) {
@@ -2312,6 +2449,9 @@ export class Simulation {
                 this.projectiles.push({
                   id: this.nextEntityId++,
                   isEnemy: true,
+                  sourceEnemyId: e.id,
+                  sourceEnemyArchetype: e.archetypeId,
+                  sourceEnemySpecialId: e.specialId,
                   projectileKind: 'sunflower_seed',
                   x: e.x,
                   y: e.y,
@@ -2338,6 +2478,9 @@ export class Simulation {
                 this.projectiles.push({
                   id: this.nextEntityId++,
                   isEnemy: true,
+                  sourceEnemyId: e.id,
+                  sourceEnemyArchetype: e.archetypeId,
+                  sourceEnemySpecialId: e.specialId,
                   projectileKind: 'sunflower_leaf',
                   x: e.x,
                   y: e.y,
@@ -2377,9 +2520,9 @@ export class Simulation {
         }
       } else if (e.archetypeId === 'dasher') {
         if (e.aiState === 'seek') {
-          e.facingAngle = angleToHero;
-          e.x += Math.cos(angleToHero) * moveSpeed * dt;
-          e.y += Math.sin(angleToHero) * moveSpeed * dt;
+          e.facingAngle = heroInvisible ? e.facingAngle : Math.atan2(moveDirY, moveDirX);
+          e.x += moveDirX * moveSpeed * dt;
+          e.y += moveDirY * moveSpeed * dt;
           if (!heroInvisible && dHero <= 4.5 && activeTelegraphs < 5) {
             e.aiState = 'telegraph';
             e.aiTimer = BALANCE_CONFIG.CHARGER_TELEGRAPH_DURATION_SEC;
@@ -2422,12 +2565,26 @@ export class Simulation {
         }
       } else if (e.archetypeId === 'spitter') {
         e.facingAngle = angleToHero;
+        let radialSpeed = 0;
         if (dHero > 4.6) {
-          e.x += Math.cos(angleToHero) * moveSpeed * dt;
-          e.y += Math.sin(angleToHero) * moveSpeed * dt;
+          radialSpeed = 1.0;
         } else if (dHero < 2.8) {
-          e.x -= Math.cos(angleToHero) * moveSpeed * 0.85 * dt;
-          e.y -= Math.sin(angleToHero) * moveSpeed * 0.85 * dt;
+          radialSpeed = -0.85;
+        }
+        const spitterFlankMult = nearbyAllyCount > 0 ? 1.35 : 0.4;
+        let spitterDirX =
+          seekX * radialSpeed +
+          sepForceX * sepWeight * 0.8 +
+          tanX * lateralBias * effectiveFlankWeight * spitterFlankMult;
+        let spitterDirY =
+          seekY * radialSpeed +
+          sepForceY * sepWeight * 0.8 +
+          tanY * lateralBias * effectiveFlankWeight * spitterFlankMult;
+        const spitterLen = Math.hypot(spitterDirX, spitterDirY);
+        if (spitterLen > 0.001) {
+          const spd = radialSpeed !== 0 || nearbyAllyCount > 0 ? moveSpeed : 0;
+          e.x += (spitterDirX / spitterLen) * spd * dt;
+          e.y += (spitterDirY / spitterLen) * spd * dt;
         }
         e.aiTimer -= dt;
         // Spitters cannot acquire lock to fire while hero is in dash invisibility frames
@@ -2441,6 +2598,9 @@ export class Simulation {
               id: this.nextEntityId++,
               isEnemy: true,
               sourceEnemyId: e.id,
+              sourceEnemyArchetype: e.archetypeId,
+              sourceEnemySpecialId: e.specialId,
+              projectileKind: 'spitter_spore',
               x: e.x,
               y: e.y,
               prevX: e.x,
@@ -2761,9 +2921,9 @@ export class Simulation {
         }
       } else if (e.archetypeId === 'brute' || e.isMiniBoss) {
         if (e.aiState === 'seek') {
-          e.facingAngle = angleToHero;
-          e.x += Math.cos(angleToHero) * moveSpeed * dt;
-          e.y += Math.sin(angleToHero) * moveSpeed * dt;
+          e.facingAngle = heroInvisible ? e.facingAngle : Math.atan2(moveDirY, moveDirX);
+          e.x += moveDirX * moveSpeed * dt;
+          e.y += moveDirY * moveSpeed * dt;
           e.aiTimer -= dt;
           const slamRange = e.isMiniBoss ? 2.2 : 2.05;
           if (
@@ -2822,7 +2982,8 @@ export class Simulation {
       } else if (e.archetypeId === 'shielded') {
         // Rotates facing angle with capped speed so flanking works (cannot track while hero is invisible)
         if (!heroInvisible) {
-          const diff = angleDifference(e.facingAngle, angleToHero);
+          const targetAngle = Math.atan2(moveDirY, moveDirX);
+          const diff = angleDifference(e.facingAngle, targetAngle);
           const maxTurn = 2.1 * dt;
           e.facingAngle += clamp(diff, -maxTurn, maxTurn);
         }
@@ -2830,9 +2991,9 @@ export class Simulation {
         e.y += Math.sin(e.facingAngle) * moveSpeed * dt;
       } else {
         // Chaser & Splitter
-        e.facingAngle = angleToHero;
-        e.x += Math.cos(angleToHero) * moveSpeed * dt;
-        e.y += Math.sin(angleToHero) * moveSpeed * dt;
+        e.facingAngle = heroInvisible ? e.facingAngle : Math.atan2(moveDirY, moveDirX);
+        e.x += moveDirX * moveSpeed * dt;
+        e.y += moveDirY * moveSpeed * dt;
         if (e.isSpecial && e.specialId === 'brood_mother') {
           e.aiTimer -= dt;
           if (e.aiTimer <= 0 && this.enemies.length < 140) {
@@ -2874,41 +3035,80 @@ export class Simulation {
 
     if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
 
-    // Soft enemy-to-enemy separation pass so swarms form a readable ring rather than 1 stacked pixel
+    // Rebuild spatial grid with current post-movement positions for collision relaxation
+    this.rebuildSpatialGrid();
+
+    // Spatial enemy-to-enemy relaxation pass so swarms space out and form a readable perimeter rather than 1 stacked pixel
     const len = this.enemies.length;
+    const relaxationDistMult = lerp(
+      BALANCE_CONFIG.CROWD_SEPARATION_RADIUS_MULT_NORMAL,
+      1.32,
+      crowdIntensity
+    );
+
     for (let i = 0; i < len; i++) {
       const a = this.enemies[i];
       if (!a || a.koTimer > 0) continue;
-      for (let j = i + 1; j < Math.min(i + 12, len); j++) {
-        const b = this.enemies[j];
+
+      this.spatialGrid.queryCircle(
+        a.x,
+        a.y,
+        a.radius * 2.8 + 1.2,
+        this.queryScratch
+      );
+
+      for (let s = 0; s < this.queryScratch.length; s++) {
+        const bId = this.queryScratch[s]!;
+        if (bId <= a.id) continue; // Only process each pair once
+        const b = this.enemyById.get(bId);
         if (!b || b.koTimer > 0) continue;
+
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        const minDist = (a.radius + b.radius) * 0.85;
+        const minDist = (a.radius + b.radius) * relaxationDistMult;
         const dSq = dx * dx + dy * dy;
+
         if (dSq > 0.0001 && dSq < minDist * minDist) {
           const aStatic = Boolean(a.isArenaFlower || a.isHeroGrave);
           const bStatic = Boolean(b.isArenaFlower || b.isHeroGrave);
           if (aStatic && bStatic) continue;
+
+          const aCharging = a.aiState === 'charge';
+          const bCharging = b.aiState === 'charge';
+          if (aCharging && bCharging) continue;
+
           const d = Math.sqrt(dSq);
-          const overlap = (minDist - d) * 0.35;
           const nx = dx / d;
           const ny = dy / d;
-          if (aStatic) {
-            b.x += nx * overlap * 2;
-            b.y += ny * overlap * 2;
-          } else if (bStatic) {
-            a.x -= nx * overlap * 2;
-            a.y -= ny * overlap * 2;
-          } else {
-            a.x -= nx * overlap;
-            a.y -= ny * overlap;
+          const overlap = (minDist - d) * relaxationPush;
+
+          if (aStatic || aCharging) {
             b.x += nx * overlap;
             b.y += ny * overlap;
+          } else if (bStatic || bCharging) {
+            a.x -= nx * overlap;
+            a.y -= ny * overlap;
+          } else {
+            // Distribute displacement based on mass / knockback resistance
+            const aResist = a.isFinalBoss ? 0.95 : a.knockbackResist;
+            const bResist = b.isFinalBoss ? 0.95 : b.knockbackResist;
+            const aMobility = Math.max(0.05, 1 - aResist);
+            const bMobility = Math.max(0.05, 1 - bResist);
+            const totalMobility = aMobility + bMobility;
+            const aShare = aMobility / totalMobility;
+            const bShare = bMobility / totalMobility;
+
+            a.x -= nx * overlap * aShare;
+            a.y -= ny * overlap * aShare;
+            b.x += nx * overlap * bShare;
+            b.y += ny * overlap * bShare;
           }
         }
       }
     }
+
+    // Final spatial grid sync after relaxation so projectiles and weapons receive accurate coordinates
+    this.rebuildSpatialGrid();
   }
 
   private updateProjectiles(dt: number): void {
@@ -2956,6 +3156,44 @@ export class Simulation {
           this.projectiles.splice(i, 1);
         }
         continue;
+      }
+
+      // Garden Blade piercing crescent / slash projectile vs Enemy Projectiles
+      if (p.weaponTags.includes('slash')) {
+        const bladeWpn = this.weapons.find((w) => w.id === 'garden_blade');
+        const bladeLevel = bladeWpn?.level ?? (this.cards.garden_blade ?? 1);
+        const bladeEvolved = bladeWpn?.evolved ?? false;
+
+        for (let epIdx = this.projectiles.length - 1; epIdx >= 0; epIdx--) {
+          const ep = this.projectiles[epIdx];
+          if (!ep || !ep.isEnemy) continue;
+          if (!this.canGardenBladeDestroyProjectile(bladeLevel, bladeEvolved, ep)) continue;
+
+          if (
+            ccdSegmentHitsCircle(
+              p.prevX,
+              p.prevY,
+              p.x,
+              p.y,
+              p.radius,
+              ep.x,
+              ep.y,
+              ep.radius
+            )
+          ) {
+            this.spawnProjectileSliceEffect(ep.x, ep.y, ep.color, Math.atan2(p.vy, p.vx));
+            this.events.emit('ProjectileDestroyed', {
+              x: ep.x,
+              y: ep.y,
+              projectileKind: ep.projectileKind,
+              weaponId: 'garden_blade',
+            });
+            this.projectiles.splice(epIdx, 1);
+            if (epIdx < i) {
+              i--;
+            }
+          }
+        }
       }
 
       // Player projectile vs Enemies (using SpatialHashGrid + CCD sweep)
@@ -3176,6 +3414,188 @@ export class Simulation {
   }
 
   /**
+   * Computes effective stats for Arbalete (Damage, Reach/Range, Area, Cooldown),
+   * applying smooth improvements on each level up as well as Hero stat multipliers.
+   */
+  public getArbaleteStats(
+    level?: number,
+    evolved?: boolean
+  ): {
+    damage: number;
+    reach: number;
+    areaMult: number;
+    cooldown: number;
+  } {
+    const def = WEAPONS.thorn_spear;
+    const w = this.weapons.find((item) => item.id === 'thorn_spear');
+    const lvl = clamp(Math.floor(level ?? w?.level ?? 1), 1, 8);
+    const isEvolved = evolved ?? w?.evolved ?? false;
+
+    // Damage: +22% per level up to Lv 7, +35% capstone boost at Lv 8, +35% when evolved
+    const dmgGrowth = BALANCE_CONFIG.ARBALETE_DAMAGE_GROWTH_PER_LEVEL ?? 0.22;
+    const lvMult = 1 + (lvl - 1) * dmgGrowth + (lvl >= 8 ? 0.15 : 0) + (isEvolved ? 0.35 : 0);
+    const damage = (def?.baseDamage ?? 17) * lvMult * this.stats.damageMult;
+
+    // Range (Bolt Reach): +0.15 u per level, +0.65 u when evolved
+    const reachGrowth = BALANCE_CONFIG.ARBALETE_REACH_GROWTH_PER_LEVEL ?? 0.15;
+    const reachBonus = (lvl - 1) * reachGrowth + (isEvolved ? 0.65 : 0);
+    const reach = ((def?.baseReach ?? 3.6) + reachBonus) * this.stats.reachMult;
+
+    // Area: bolt impact area increases +6% per level, +18% at Lv 3+, +20% when evolved
+    const areaMult =
+      this.stats.areaMult *
+      (1 + (lvl - 1) * 0.06 + (lvl >= 3 ? 0.12 : 0) + (isEvolved ? 0.20 : 0));
+
+    // Cooldown: 1.05s base, reduced at Lv 4 (~0.92s) and Lv 7 (~0.82s), -15% evolved
+    const baseCd =
+      (def?.baseCooldown ?? 1.05) *
+      (lvl >= 7 ? 0.78 : lvl >= 4 ? 0.88 : 1.0) *
+      (isEvolved ? 0.85 : 1.0);
+    const cooldown = Math.max(0.18, baseCd / this.stats.attackSpeedMult);
+
+    return { damage, reach, areaMult, cooldown };
+  }
+
+  /**
+   * Checks whether a projectile originates from a Spitter enemy.
+   */
+  public isSpitterProjectile(p: SimProjectile): boolean {
+    if (!p.isEnemy) return false;
+    if (p.projectileKind === 'spitter_spore') return true;
+    if (p.sourceEnemyArchetype === 'spitter') return true;
+    if (p.sourceEnemyId !== undefined) {
+      const e = this.enemies.find((enemy) => enemy.id === p.sourceEnemyId);
+      if (e && e.archetypeId === 'spitter') return true;
+    }
+    return false;
+  }
+
+  /**
+   * Checks whether a projectile originates from the Bloom Giant (Sunflower Colossus) boss.
+   */
+  public isBloomGiantProjectile(p: SimProjectile): boolean {
+    if (!p.isEnemy) return false;
+    if (p.projectileKind === 'sunflower_seed' || p.projectileKind === 'sunflower_leaf') return true;
+    if (p.sourceEnemySpecialId === 'bloom_giant') return true;
+    if (p.sourceEnemyId !== undefined) {
+      const e = this.enemies.find((enemy) => enemy.id === p.sourceEnemyId);
+      if (e && (e.specialId === 'bloom_giant' || e.bossAttackMode?.startsWith('sunflower_'))) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Determines whether Garden Blade at the given level and evolution state can destroy the projectile:
+   * - Level 1: Cannot destroy any projectiles
+   * - Level 2: Destroys spitter projectiles
+   * - Level 3 & 4: Destroys spitter projectiles and bloom giant projectiles
+   * - Level 5+ (and evolved Verdant Edge): Destroys any enemy projectiles
+   */
+  public canGardenBladeDestroyProjectile(
+    level: number,
+    evolved: boolean,
+    p: SimProjectile
+  ): boolean {
+    if (!p.isEnemy) return false;
+    const effectiveLevel = evolved ? 8 : level;
+    if (effectiveLevel < 2) return false;
+    if (effectiveLevel >= 5) return true;
+    if (effectiveLevel >= 3) {
+      return this.isSpitterProjectile(p) || this.isBloomGiantProjectile(p);
+    }
+    return this.isSpitterProjectile(p);
+  }
+
+  /**
+   * Destroys enemy projectiles overlapping an arc swing if Garden Blade's level permits it.
+   */
+  public destroyProjectilesInArc(
+    originX: number,
+    originY: number,
+    reach: number,
+    facingAngle: number,
+    arcRad: number,
+    bladeLevel: number,
+    evolved: boolean
+  ): number {
+    let destroyedCount = 0;
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      if (!p || !p.isEnemy) continue;
+      if (!this.canGardenBladeDestroyProjectile(bladeLevel, evolved, p)) continue;
+
+      if (
+        arcOverlapsCircle(
+          originX,
+          originY,
+          reach,
+          facingAngle,
+          arcRad,
+          p.x,
+          p.y,
+          p.radius
+        )
+      ) {
+        this.spawnProjectileSliceEffect(p.x, p.y, p.color, facingAngle);
+        this.events.emit('ProjectileDestroyed', {
+          x: p.x,
+          y: p.y,
+          projectileKind: p.projectileKind,
+          weaponId: 'garden_blade',
+        });
+        this.projectiles.splice(i, 1);
+        destroyedCount++;
+      }
+    }
+    return destroyedCount;
+  }
+
+  public spawnProjectileSliceEffect(
+    x: number,
+    y: number,
+    color: number,
+    angle: number
+  ): void {
+    this.visualEffects.push({
+      id: this.nextEntityId++,
+      kind: 'projectile_slice',
+      x,
+      y,
+      targetX: x + Math.cos(angle) * 0.4,
+      targetY: y + Math.sin(angle) * 0.4,
+      angle,
+      radius: 0.35,
+      arcRad: 0,
+      color,
+      timer: 0.22,
+      maxTimer: 0.22,
+    });
+  }
+
+  /**
+   * Targets the closest incoming killable projectile within range if no enemies are in range.
+   */
+  private acquireKillableProjectileTarget(
+    bladeLevel: number,
+    evolved: boolean,
+    range: number
+  ): { x: number; y: number } | null {
+    const maxDistSq = range * range;
+    let closest: SimProjectile | null = null;
+    let closestDistSq = Infinity;
+    for (const p of this.projectiles) {
+      if (!p.isEnemy) continue;
+      if (!this.canGardenBladeDestroyProjectile(bladeLevel, evolved, p)) continue;
+      const dSq = distSq(this.heroX, this.heroY, p.x, p.y);
+      if (dSq <= maxDistSq && dSq < closestDistSq) {
+        closestDistSq = dSq;
+        closest = p;
+      }
+    }
+    return closest ? { x: closest.x, y: closest.y } : null;
+  }
+
+  /**
    * Calculates the tip (edge) position of the equipped Garden Blade in simulation world coordinates.
    * Returns null if Garden Blade is not equipped on the hero.
    */
@@ -3317,6 +3737,12 @@ export class Simulation {
         effectiveReach = bladeStats.reach;
         effectiveArea = bladeStats.areaMult;
         effectiveCooldown = bladeStats.cooldown;
+      } else if (w.id === 'thorn_spear') {
+        const arbaleteStats = this.getArbaleteStats(w.level, w.evolved);
+        effectiveDamage = arbaleteStats.damage;
+        effectiveReach = arbaleteStats.reach;
+        effectiveArea = arbaleteStats.areaMult;
+        effectiveCooldown = arbaleteStats.cooldown;
       } else {
         const lvMult = 1 + (w.level - 1) * 0.18 + (w.evolved ? 0.35 : 0);
         effectiveDamage = def.baseDamage * lvMult * this.stats.damageMult;
@@ -3359,10 +3785,13 @@ export class Simulation {
                   piercingSlashRange * BALANCE_CONFIG.PIERCING_SLASH_ATTACK_BUFFER_RATIO
                 )
               : effectiveReach + 1.0;
-          const target =
+          let target: { x: number; y: number } | null =
             w.id === 'seed_blades'
               ? this.acquireRandomTargetInRange(acquireRange)
               : this.acquireTarget(acquireRange);
+          if (!target && w.id === 'garden_blade') {
+            target = this.acquireKillableProjectileTarget(w.level, w.evolved, acquireRange);
+          }
           if (target) {
             w.phase = 'windup';
             w.phaseTimer = w.id === 'thorn_spear' ? 0.14 : 0.06;
@@ -3488,6 +3917,17 @@ export class Simulation {
         false,
         isCrit
       );
+      if (w.id === 'garden_blade') {
+        this.destroyProjectilesInArc(
+          this.heroX,
+          this.heroY,
+          reach,
+          attackAngle,
+          arcRad,
+          w.level,
+          w.evolved
+        );
+      }
       this.visualEffects.push({
         id: this.nextEntityId++,
         kind: 'slash_arc',
@@ -3501,6 +3941,7 @@ export class Simulation {
         color,
         timer: isEcho ? 0.24 : 0.18,
         maxTimer: isEcho ? 0.24 : 0.18,
+        bladeLevel: w.level,
         isEcho,
       });
 
@@ -3519,6 +3960,17 @@ export class Simulation {
           false,
           isCrit
         );
+        if (w.id === 'garden_blade') {
+          this.destroyProjectilesInArc(
+            this.heroX,
+            this.heroY,
+            reach * 0.9,
+            backAngle,
+            arcRad * 0.85,
+            w.level,
+            w.evolved
+          );
+        }
         this.visualEffects.push({
           id: this.nextEntityId++,
           kind: 'slash_arc',
@@ -3532,6 +3984,7 @@ export class Simulation {
           color,
           timer: isEcho ? 0.24 : 0.18,
           maxTimer: isEcho ? 0.24 : 0.18,
+          bladeLevel: w.level,
           isEcho,
         });
       }
@@ -3743,6 +4196,13 @@ export class Simulation {
       const staggerSec = CHAIN_LIGHTNING_CONFIG.staggerMs / 1000;
       const lifetimeSec = isEcho ? 0.28 : CHAIN_LIGHTNING_CONFIG.lifetimeMs / 1000;
 
+      const chainLightningWpn = this.weapons.find((item) => item.id === 'chain_lightning');
+      const enablesStaticDebuff =
+        !chainLightningWpn || chainLightningWpn.level >= 2 || Boolean(chainLightningWpn.evolved);
+      const attackTags = enablesStaticDebuff
+        ? [...def.tags, 'lightning']
+        : def.tags.filter((t) => t !== 'lightning');
+
       for (let b = 0; b < steps.length; b++) {
         const step = steps[b]!;
         this.applyDamageToEnemy(
@@ -3750,7 +4210,7 @@ export class Simulation {
           damage * Math.pow(CHAIN_LIGHTNING_CONFIG.damageFalloff, b),
           isCrit || w.evolved,
           def.baseKnockback,
-          [...def.tags, 'lightning']
+          attackTags
         );
         if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) break;
 

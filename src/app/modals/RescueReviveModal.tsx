@@ -5,7 +5,7 @@
  * @llm-description Stitch design compliant modal offering player a chance to revive via rewarded ad or 150 coins (granting 50% max HP, invulnerability shield, and screen-clearing shockwave), or decline to conclude the run.
  */
 
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useGameShell } from '../context/GameShellContext';
 
 /**
@@ -25,6 +25,81 @@ export function RescueReviveModal() {
   const coins = saveData.currencies.coins;
   const canAffordCoins = coins >= 150;
 
+  const availableActions = useMemo(() => {
+    const list: Array<{
+      key: number;
+      label: string;
+      onClick: () => void;
+      disabled?: boolean;
+    }> = [];
+
+    if (canWatchRewardedAd) {
+      list.push({
+        key: list.length + 1,
+        label: 'Revive with Ad',
+        onClick: handleWatchAdRevive,
+        disabled: isAdLoading,
+      });
+    }
+
+    if (canAffordCoins) {
+      list.push({
+        key: list.length + 1,
+        label: 'Pay 150 Coins',
+        onClick: handleSpendCoinsRevive,
+      });
+    }
+
+    list.push({
+      key: list.length + 1,
+      label: 'Accept Perish & View Summary',
+      onClick: handleDeclineRevive,
+    });
+
+    return list;
+  }, [
+    canWatchRewardedAd,
+    canAffordCoins,
+    isAdLoading,
+    handleWatchAdRevive,
+    handleSpendCoinsRevive,
+    handleDeclineRevive,
+  ]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
+      let index = -1;
+      if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
+        index = 0;
+      } else if (e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2') {
+        index = 1;
+      } else if (e.key === '3' || e.code === 'Digit3' || e.code === 'Numpad3') {
+        index = 2;
+      } else if (e.key === '4' || e.code === 'Digit4' || e.code === 'Numpad4') {
+        index = 3;
+      }
+
+      if (index >= 0 && availableActions[index] && !availableActions[index].disabled) {
+        e.preventDefault();
+        availableActions[index].onClick();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [availableActions]);
+
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-[#100E04]/85 backdrop-blur-sm pointer-events-auto overflow-y-auto"
@@ -32,6 +107,53 @@ export function RescueReviveModal() {
       aria-modal="true"
       aria-labelledby="rescue-modal-title"
     >
+      {/* Hidden number buttons control (1, 2, 3, 4) */}
+      <div
+        className="sr-only"
+        aria-hidden="true"
+        data-testid="rescue-hidden-controls"
+      >
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="1"
+          data-testid="rescue-hidden-button-1"
+          disabled={!availableActions[0] || availableActions[0].disabled}
+          onClick={availableActions[0]?.onClick}
+        >
+          1
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="2"
+          data-testid="rescue-hidden-button-2"
+          disabled={!availableActions[1] || availableActions[1].disabled}
+          onClick={availableActions[1]?.onClick}
+        >
+          2
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="3"
+          data-testid="rescue-hidden-button-3"
+          disabled={!availableActions[2] || availableActions[2].disabled}
+          onClick={availableActions[2]?.onClick}
+        >
+          3
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="4"
+          data-testid="rescue-hidden-button-4"
+          disabled={!availableActions[3] || availableActions[3].disabled}
+          onClick={availableActions[3]?.onClick}
+        >
+          4
+        </button>
+      </div>
       {/* Background ambient radial glow */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div

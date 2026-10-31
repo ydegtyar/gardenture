@@ -13,6 +13,10 @@ import {
   LeafBladeSymbol,
   FleetStepSymbol,
   DoubleDashSymbol,
+  EchoSwingSymbol,
+  PiercingSlashSymbol,
+  EchoSwingIcon,
+  PiercingSlashIcon,
 } from './index';
 
 test('TarotCards: metadata completeness and fallback', () => {
@@ -40,6 +44,8 @@ test('TarotCards: symbol registry pattern resolves symbols', () => {
   assert.equal(getCardSymbol('leaf_blade'), LeafBladeSymbol);
   assert.equal(getCardSymbol('fleet_step'), FleetStepSymbol);
   assert.equal(getCardSymbol('double_dash'), DoubleDashSymbol);
+  assert.equal(getCardSymbol('echo_swing'), EchoSwingSymbol);
+  assert.equal(getCardSymbol('piercing_slash'), PiercingSlashSymbol);
 
   // Fallback
   const fallbackSymbol = getCardSymbol('non_existent_card');
@@ -64,6 +70,31 @@ test('TarotCards: TarotIllustrationSvg renders with symbols and preserved test I
   );
   assert.ok(htmlDash.includes('data-testid="tarot-symbol-double_dash"'));
   assert.ok(htmlDash.includes('#FDE047')); // legendary halo stop color
+
+  // Echo Swing: Rare halo and dedicated EchoSwingSymbol
+  const htmlEcho = renderToStaticMarkup(
+    <TarotIllustrationSvg targetId="echo_swing" rarity="rare" />
+  );
+  assert.ok(htmlEcho.includes('data-testid="tarot-symbol-echo_swing"'));
+  assert.ok(htmlEcho.includes('#93C5FD')); // rare halo stop color
+  assert.ok(htmlEcho.includes('stroke="#2D1E2F"')); // dark plum anime outline
+
+  // Piercing Slash: Uncommon halo and dedicated PiercingSlashSymbol
+  const htmlPierce = renderToStaticMarkup(
+    <TarotIllustrationSvg targetId="piercing_slash" rarity="uncommon" />
+  );
+  assert.ok(htmlPierce.includes('data-testid="tarot-symbol-piercing_slash"'));
+  assert.ok(htmlPierce.includes('#6EE7B7')); // uncommon halo stop color
+  assert.ok(htmlPierce.includes('stroke="#2D1E2F"')); // dark plum anime outline
+
+  // Standalone Icon wrappers
+  const htmlEchoIcon = renderToStaticMarkup(<EchoSwingIcon size={96} />);
+  assert.ok(htmlEchoIcon.includes('data-testid="tarot-symbol-echo_swing"'));
+  assert.ok(htmlEchoIcon.includes('width="96"'));
+
+  const htmlPierceIcon = renderToStaticMarkup(<PiercingSlashIcon size={120} />);
+  assert.ok(htmlPierceIcon.includes('data-testid="tarot-symbol-piercing_slash"'));
+  assert.ok(htmlPierceIcon.includes('width="120"'));
 
   // Custom icon check (e.g. magnet_moss or leaf_blade)
   const htmlMoss = renderToStaticMarkup(

@@ -222,6 +222,7 @@ export const CARDS: CardDef[] = [
     rarity: 'uncommon',
     maxLevel: 5,
     tags: ['nature', 'area'],
+    requiresWeaponId: 'petal_orbit',
     shortDesc: 'Adds +1 permanent orbiting sakura petal around the hero',
     iconColor: '#FFD3B6',
   },

@@ -50,6 +50,28 @@ export const STORE_CARD_THEMES = {
     body: '#CFC3BE',
     muted: '#8E7D80',
   },
+  draft: {
+    bg: 'linear-gradient(150deg, #13281e 0%, #0d1a14 55%, #070e0a 100%)',
+    lockedBg: 'linear-gradient(150deg, #101c16 0%, #0a120e 55%, #060a08 100%)',
+    border: '#1e5e3a',
+    borderHover: '#34d399',
+    borderActive: '#6ee7b7',
+    innerBevel: 'rgba(52, 211, 153, 0.28)',
+    lockedBorder: 'rgba(30, 94, 58, 0.45)',
+    lockedBevel: 'rgba(30, 94, 58, 0.18)',
+    accent: '#6ee7b7',
+    glow: 'rgba(52, 211, 153, 0.24)',
+    activeGlow: 'rgba(110, 231, 183, 0.48)',
+    vignetteShadow:
+      '0 12px 28px rgba(0,0,0,0.85), inset 0 1px 0 rgba(167, 243, 208, 0.18)',
+    activeShadow:
+      '0 16px 36px rgba(0,0,0,0.9), 0 0 20px rgba(52, 211, 153, 0.35), inset 0 1px 0 rgba(167, 243, 208, 0.3)',
+    lockedShadow:
+      '0 10px 24px rgba(0,0,0,0.85), inset 0 0 20px rgba(10, 30, 20, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+    title: '#fff8e7',
+    body: '#d4dec9',
+    muted: '#7ea88f',
+  },
 } as const;
 
 export interface SectionHeaderProps {

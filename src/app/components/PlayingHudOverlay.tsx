@@ -69,11 +69,11 @@ export function PlayingHudOverlay() {
       </div>
 
       <div
-        className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5 pt-6 sm:pt-7 pb-5 sm:pb-6">
-        {/* TOP PERIMETER ROW: 3 Compact Corner Clusters */}
-        <div className="flex items-start justify-between gap-1.5 sm:gap-3 w-full">
+        className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-2 sm:p-3 md:p-5 pt-6 sm:pt-7 pb-5 sm:pb-6">
+        {/* TOP PERIMETER ROW: 3 Compact Corner Clusters (Mobile single-row fit) */}
+        <div className="flex items-center sm:items-start justify-between gap-1.5 sm:gap-3 w-full">
           {/* Cluster 1 (Top-Left): AAA Botanical Tarot Health Bar + Segmented Dash Cooldown + Dev-Only Demo Controls */}
-          <div className="w-64 sm:w-[340px] shrink-0 flex flex-col gap-1.5 pointer-events-none">
+          <div className="w-[124px] min-[390px]:w-[145px] min-[440px]:w-44 sm:w-[340px] shrink-0 flex flex-col gap-1 sm:gap-1.5 pointer-events-none">
             <div data-testid="hud-vitality-thermometer" className="w-full">
               <BotanicalHealthBar
                 hp={hud.hp}
@@ -100,7 +100,7 @@ export function PlayingHudOverlay() {
                   <div
                     key={i}
                     data-testid={`hud-dash-segment-${i}`}
-                    className="relative flex-1 h-2 sm:h-2.5 rounded-full bg-[#18111A] border border-[#2D1E2F] overflow-hidden"
+                    className="relative flex-1 h-1.5 sm:h-2.5 rounded-full bg-[#18111A] border border-[#2D1E2F] overflow-hidden"
                   >
                     <div
                       className={cn(
@@ -123,30 +123,30 @@ export function PlayingHudOverlay() {
           </div>
 
           {/* Cluster 2 (Top-Center): Style Rank Letter + Score Near Rank Letter & Decaying SP Bar (No Box Background) */}
-          <div className="relative flex flex-col items-center shrink-0">
+          <div className="relative flex flex-col items-center shrink min-w-0">
             <div
               data-testid="hud-rank-score-badge"
-              className="relative flex flex-col items-center px-2 py-0.5 shrink-0 transition-all duration-300 z-10"
+              className="relative flex flex-col items-center px-1 sm:px-2 py-0.5 shrink-0 transition-all duration-300 z-10"
             >
               <div
-                className="flex items-baseline justify-center gap-2 sm:gap-2.5 whitespace-nowrap">
+                className="flex items-baseline justify-center gap-1 sm:gap-2.5 whitespace-nowrap">
                 <span
                   key={`rank-${currentRankDef.letter}-${rankAura?.key ?? 0}`}
                   data-testid="hud-rank-letter"
-                  className="text-3xl sm:text-4xl font-display font-black leading-none stroke-plum animate-rank-letter-pop drop-shadow-[0_2px_6px_rgba(0,0,0,0.75)]"
+                  className="text-2xl min-[380px]:text-3xl sm:text-4xl font-display font-black leading-none stroke-plum animate-rank-letter-pop drop-shadow-[0_2px_6px_rgba(0,0,0,0.75)]"
                   style={{ color: currentRankDef.colorHex }}
                 >
                   {currentRankDef.letter}
                 </span>
                 <span
                   data-testid="hud-score"
-                  className="text-xs sm:text-sm font-mono-tabular font-extrabold text-[#FDFFB6] tracking-tight drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]"
+                  className="text-[11px] min-[380px]:text-xs sm:text-sm font-mono-tabular font-extrabold text-[#FDFFB6] tracking-tight drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]"
                 >
                   {hud.score.toLocaleString()} PTS
                 </span>
               </div>
               <div
-                className="w-24 sm:w-32 h-2 rounded-full bg-[#18111A]/90 border border-[#2D1E2F] overflow-hidden mt-1 shadow-sm">
+                className="w-16 min-[380px]:w-20 sm:w-32 h-1.5 sm:h-2 rounded-full bg-[#18111A]/90 border border-[#2D1E2F] overflow-hidden mt-0.5 sm:mt-1 shadow-sm">
                 <div
                   className="h-full transition-all duration-75"
                   style={{
@@ -160,7 +160,7 @@ export function PlayingHudOverlay() {
           </div>
 
           {/* Cluster 3 (Top-Right): Square <svg> Utility Buttons [M] [P] [R] + Dev-Only Lazy Debug Button */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pointer-events-auto">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 pointer-events-auto">
             <button
               type="button"
               tabIndex={-1}
@@ -187,8 +187,10 @@ export function PlayingHudOverlay() {
               <PauseSvgIcon />
             </button>
 
-            {/* Lazy-loaded & rendered ONLY during development process */}
-            <LazyHudDebugButton onOpen={openDebugMenu} />
+            {/* Lazy-loaded & rendered ONLY during development process on desktop */}
+            <div className="hidden sm:block">
+              <LazyHudDebugButton onOpen={openDebugMenu} />
+            </div>
 
             <button
               type="button"
@@ -198,7 +200,7 @@ export function PlayingHudOverlay() {
                 e.currentTarget.blur();
                 startNewOrResumedRun(false);
               }}
-              className="btn-herbarium-seal shrink-0 text-[#EDE6D0]"
+              className="btn-herbarium-seal shrink-0 text-[#EDE6D0] hidden sm:inline-flex"
             >
               <RestartSvgIcon />
             </button>

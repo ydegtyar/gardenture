@@ -2,8 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { MenuEventBus, MenuQualityMonitor, MENU_QUALITY_BUDGETS } from '../scene/menuEventBus';
 import { MenuScene } from '../scene/MenuScene';
+import { MenuHtmlUi } from './MenuHtmlUi';
+import type { MenuDataProvider } from './MenuHost';
 
 function listTypeScriptFiles(dirPath: string): string[] {
   if (!fs.existsSync(dirPath)) return [];
@@ -154,4 +158,95 @@ test('Menu Isolation Rules 6 & 7: MenuScene 20x idempotent mount/unmount leaves 
   assert.equal(diag.activeListeners, 0, 'Expected 0 active window listeners after 20x mount/unmount');
   assert.equal(diag.activeTextures, 0, 'Expected 0 active textures after 20x mount/unmount');
   assert.equal(bus.listenerCount(), 0, 'Expected 0 bus listeners remaining after unmount');
+});
+
+test('MenuHtmlUi: Hidden number controls (1, 2, 3, 4) map correctly based on resume availability', () => {
+  let calledAction = '';
+
+  const dataWithResume: MenuDataProvider = {
+    bestScore: 1000,
+    coins: 50,
+    crystals: 5,
+    hasRun: true,
+    runLevel: 4,
+  };
+
+  const uiWithResume = React.createElement(MenuHtmlUi, {
+    data: dataWithResume,
+    onStartRun: () => { calledAction = 'start'; },
+    onResumeRun: () => { calledAction = 'resume'; },
+    onOpenLoadout: () => { calledAction = 'loadout'; },
+    onOpenStore: () => { calledAction = 'store'; },
+  });
+
+  const htmlWithResume = renderToStaticMarkup(uiWithResume);
+  assert.ok(htmlWithResume.includes('data-testid="menu-hidden-controls"'));
+  assert.ok(htmlWithResume.includes('data-testid="menu-hidden-button-1"'));
+  assert.ok(htmlWithResume.includes('data-testid="menu-hidden-button-2"'));
+  assert.ok(htmlWithResume.includes('data-testid="menu-hidden-button-3"'));
+  assert.ok(htmlWithResume.includes('data-testid="menu-hidden-button-4"'));
+
+  // Test callbacks directly when resume is available
+  // Button 1 -> Start
+  // Button 2 -> Resume
+  // Button 3 -> Loadout
+  // Button 4 -> Store
+  const renderedWithResume = MenuHtmlUi({
+    data: dataWithResume,
+    onStartRun: () => { calledAction = 'start'; },
+    onResumeRun: () => { calledAction = 'resume'; },
+    onOpenLoadout: () => { calledAction = 'loadout'; },
+    onOpenStore: () => { calledAction = 'store'; },
+  }) as React.ReactElement;
+  const buttonsWithResume = (renderedWithResume.props as any).children[0].props.children;
+  buttonsWithResume[0].props.onClick();
+  assert.equal(calledAction, 'start');
+  buttonsWithResume[1].props.onClick();
+  assert.equal(calledAction, 'resume');
+  buttonsWithResume[2].props.onClick();
+  assert.equal(calledAction, 'loadout');
+  buttonsWithResume[3].props.onClick();
+  assert.equal(calledAction, 'store');
+
+  const dataWithoutResume: MenuDataProvider = {
+    bestScore: 200,
+    coins: 10,
+    crystals: 1,
+    hasRun: false,
+  };
+
+  const uiWithoutResume = React.createElement(MenuHtmlUi, {
+    data: dataWithoutResume,
+    onStartRun: () => { calledAction = 'start'; },
+    onResumeRun: () => { calledAction = 'resume'; },
+    onOpenLoadout: () => { calledAction = 'loadout'; },
+    onOpenStore: () => { calledAction = 'store'; },
+  });
+
+  const htmlWithoutResume = renderToStaticMarkup(uiWithoutResume);
+  assert.ok(htmlWithoutResume.includes('data-testid="menu-hidden-button-4"'));
+  assert.ok(htmlWithoutResume.includes('disabled=""'));
+
+  // Test callbacks directly when resume is NOT available
+  // Button 1 -> Start
+  // Button 2 -> Loadout
+  // Button 3 -> Store
+  // Button 4 -> disabled / undefined
+  const renderedWithoutResume = MenuHtmlUi({
+    data: dataWithoutResume,
+    onStartRun: () => { calledAction = 'start'; },
+    onResumeRun: () => { calledAction = 'resume'; },
+    onOpenLoadout: () => { calledAction = 'loadout'; },
+    onOpenStore: () => { calledAction = 'store'; },
+  }) as React.ReactElement;
+  const buttonsWithoutResume = (renderedWithoutResume.props as any).children[0].props.children;
+  calledAction = '';
+  buttonsWithoutResume[0].props.onClick();
+  assert.equal(calledAction, 'start');
+  buttonsWithoutResume[1].props.onClick();
+  assert.equal(calledAction, 'loadout');
+  buttonsWithoutResume[2].props.onClick();
+  assert.equal(calledAction, 'store');
+  assert.equal(buttonsWithoutResume[3].props.disabled, true);
+  assert.equal(buttonsWithoutResume[3].props.onClick, undefined);
 });

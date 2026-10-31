@@ -23,6 +23,7 @@ import { useDraftSequence } from './draft/useDraftSequence';
  * @llm-hook level-up-draft: presents 3 tarot card choices on player level up
  */
 export function CardDraftModal() {
+
   const {
     hud,
     draftOffers,
@@ -46,6 +47,21 @@ export function CardDraftModal() {
   const reducedMotion = Boolean(saveData.settings?.reducedMotion);
   const onOpenDebugCards = IS_DEV ? openDebugMenu : undefined;
 
+  // Detect mobile screen width (<= 899px) for vertical 3D card flips
+  const [isMobile, setIsMobile] = React.useState<boolean>(() => {
+    return typeof window !== 'undefined' ? window.innerWidth <= 899 : false;
+  });
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 899px)');
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    setIsMobile(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+
   const {
     phase,
     displayedOffers,
@@ -68,6 +84,15 @@ export function CardDraftModal() {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const firstCardRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+
+  // Track if user has used numbers on keyboard to pick a card, hiding [1]/[2]/[3] hotkey hints once learned
+  const [hasUsedNumberKeys, setHasUsedNumberKeys] = React.useState<boolean>(() => {
+    try {
+      return typeof window !== 'undefined' && window.localStorage?.getItem('gardenture_card_keys_used') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   // Focus management: remember prior focus on mount, focus first card when ready, restore on unmount
   useEffect(() => {
@@ -111,19 +136,31 @@ export function CardDraftModal() {
 
       if (!canInteract) return;
 
+      const markKeysUsed = () => {
+        if (!hasUsedNumberKeys) {
+          setHasUsedNumberKeys(true);
+          try {
+            window.localStorage?.setItem('gardenture_card_keys_used', 'true');
+          } catch {}
+        }
+      };
+
       if (e.code === 'Digit1' || e.code === 'Numpad1') {
         if (displayedOffers[0]) {
           e.preventDefault();
+          markKeysUsed();
           triggerSelectCard(displayedOffers[0].offerId);
         }
       } else if (e.code === 'Digit2' || e.code === 'Numpad2') {
         if (displayedOffers[1]) {
           e.preventDefault();
+          markKeysUsed();
           triggerSelectCard(displayedOffers[1].offerId);
         }
       } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
         if (displayedOffers[2]) {
           e.preventDefault();
+          markKeysUsed();
           triggerSelectCard(displayedOffers[2].offerId);
         }
       } else if (e.code === 'KeyR') {
@@ -197,9 +234,6 @@ export function CardDraftModal() {
         {/* Header Bar Floating Directly on Backdrop */}
         <header className="w-full flex items-center justify-between gap-3 px-1 shrink-0">
           <div className="min-w-0">
-            <p className="text-[10px] sm:text-xs font-extrabold tracking-[0.16em] text-[#86efac] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-              LEVEL {level} REACHED · DRAW ONE BOTANICAL ARCANA
-            </p>
             <h2
               id="draft-modal-title"
               className="text-xl sm:text-2xl min-[900px]:text-3xl font-display font-extrabold text-[#fff8e7] leading-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.92)]"
@@ -233,6 +267,8 @@ export function CardDraftModal() {
               isAnySelected={selectedOfferId !== null}
               canInteract={canInteract}
               reducedMotion={reducedMotion}
+              isMobile={isMobile}
+              showHotkey={!hasUsedNumberKeys}
               onSelect={triggerSelectCard}
               cardRef={idx === 0 ? (el) => { firstCardRef.current = el; } : undefined}
             />

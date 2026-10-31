@@ -3,7 +3,7 @@ import type { TrinketDef } from '../../content/schema/types';
 
 export type TrinketId = TrinketDef['id'];
 
-export type StoreCardVariant = 'trinket' | 'curse';
+export type StoreCardVariant = 'trinket' | 'curse' | 'draft';
 
 export type CornerPosition = 'tl' | 'tr' | 'bl' | 'br';
 

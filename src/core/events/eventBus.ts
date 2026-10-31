@@ -119,6 +119,12 @@ export interface SimEventMap {
   LethalHitIntercepted: {
     reason: 'second_wind' | 'rescue_offer';
   };
+  ProjectileDestroyed: {
+    x: number;
+    y: number;
+    projectileKind?: string;
+    weaponId: string;
+  };
   RunEnded: {
     outcome: 'victory' | 'defeat' | 'timeout';
     score: number;

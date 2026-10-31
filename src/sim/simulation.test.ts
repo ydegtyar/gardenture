@@ -22,7 +22,7 @@ import {
   stepStyleRank,
 } from './rules/formulas';
 import { generateCardDraftOffers } from './systems/cardDraft';
-import { Simulation } from './Simulation';
+import { Simulation, type SimProjectile } from './Simulation';
 import {
   SaveManager,
   createDefaultSaveData,
@@ -1660,7 +1660,7 @@ test('Arbalete (replaces Thorn Spear) has increased default range, fires arbalet
   sim.debugSetWeaponLevel('thorn_spear', 8, true);
 
   // Spawn a target at the end of the bolt's flight path (off-axis by 0.9u so the bolt itself misses it, but the end-of-flight explosion hits it!)
-  const evolvedReach = (3.6 + 0.45 + 0.65) * sim.stats.reachMult;
+  const evolvedReach = sim.getArbaleteStats(8, true).reach;
   const bystander = sim.spawnEnemy('brute', sim.heroX + evolvedReach, sim.heroY + 0.95, false)!;
   bystander.hp = 600;
   bystander.maxHp = 600;
@@ -2844,6 +2844,92 @@ test('Garden Blade level-up progression increases damage, range, and area on eac
   }
 });
 
+test('Arbalete level-up progression increases damage and range on each level', () => {
+  const sim = new Simulation({
+    seed: 3030,
+    professionId: 'seeker',
+    unlockedWeapons: ['thorn_spear'],
+  });
+
+  // 1. Verify strict per-level stat growth from Lv 1 to Lv 8
+  let prevStats = sim.getArbaleteStats(1, false);
+  assert.equal(prevStats.damage, 17 * sim.stats.damageMult, 'Lv 1 damage should equal base 17 * damageMult');
+  assert.equal(prevStats.reach, 3.6 * sim.stats.reachMult, 'Lv 1 reach should equal base 3.6u * reachMult');
+
+  for (let lv = 2; lv <= 8; lv++) {
+    const currentStats = sim.getArbaleteStats(lv, false);
+    assert.ok(
+      currentStats.damage > prevStats.damage,
+      `Arbalete Lv ${lv} damage (${currentStats.damage}) must be strictly higher than Lv ${lv - 1} (${prevStats.damage})`
+    );
+    assert.ok(
+      currentStats.reach > prevStats.reach,
+      `Arbalete Lv ${lv} reach (${currentStats.reach}) must be strictly higher than Lv ${lv - 1} (${prevStats.reach})`
+    );
+    prevStats = currentStats;
+  }
+
+  // 2. Verify milestone cooldown reductions at Lv 4 and Lv 7
+  const cdLv1 = sim.getArbaleteStats(1, false).cooldown;
+  const cdLv4 = sim.getArbaleteStats(4, false).cooldown;
+  const cdLv7 = sim.getArbaleteStats(7, false).cooldown;
+  assert.ok(cdLv4 < cdLv1, 'Cooldown at Lv 4 should be reduced compared to Lv 1');
+  assert.ok(cdLv7 < cdLv4, 'Cooldown at Lv 7 should be reduced compared to Lv 4');
+
+  // 3. Verify Evolved Crimson Bramble Arbalete has highest stats
+  const evolvedStats = sim.getArbaleteStats(8, true);
+  assert.ok(evolvedStats.damage > prevStats.damage, 'Evolved arbalete damage should exceed Lv 8');
+  assert.ok(evolvedStats.reach > prevStats.reach, 'Evolved arbalete reach should exceed Lv 8');
+
+  // 4. Hitbox Range Scaling Verification in Combat:
+  // With Seeker reachMult (1.15):
+  // Lv 1 bolt reach = 3.6u * 1.15 = 4.14u.
+  // Lv 3 bolt reach = 3.90u * 1.15 = 4.485u.
+  // Target at x = 5.45u is beyond Lv 1 bolt trajectory (max hit limit ~5.30u), but within Lv 3 bolt trajectory (hits up to 5.60u).
+  sim.weapons = [];
+  sim.enemies = [];
+  sim.spatialGrid.clear();
+  sim.projectiles = [];
+  sim.visualEffects = [];
+  sim.debugSetWeaponLevel('thorn_spear', 1, false);
+
+  const targetFar = sim.spawnEnemy('brute', 5.45, 0, false)!;
+  targetFar.aiState = 'frozen';
+  sim.spatialGrid.insert(targetFar.id, targetFar.x, targetFar.y, targetFar.radius);
+  const targetFarHpBefore = targetFar.hp;
+
+  const arbalete = sim.weapons.find((w) => w.id === 'thorn_spear')!;
+  arbalete.phase = 'ready';
+  arbalete.cooldownTimer = 999;
+  arbalete.lockedAngle = 0;
+  arbalete.lockedTargetX = targetFar.x;
+  arbalete.lockedTargetY = targetFar.y;
+
+  // Fire attack at Lv 1 (reach 3.6u * 1.15 = 4.14u): bolt expires before reaching target at 5.45u
+  const statsLv1 = sim.getArbaleteStats(1, false);
+  (sim as any).fireWeaponAttack(arbalete, 'line', statsLv1.damage, statsLv1.reach, statsLv1.areaMult, false);
+
+  // Step bolt until it expires
+  for (let t = 0; t < 25; t++) sim.tick();
+  assert.equal(targetFar.hp, targetFarHpBefore, 'Enemy at 5.45u should NOT take damage from Lv 1 Arbalete');
+
+  // Fire attack at Lv 3 (reach 3.90u * 1.15 = 4.485u): bolt reaches and damages 5.45u target
+  sim.debugSetWeaponLevel('thorn_spear', 3, false);
+  arbalete.cooldownTimer = 999;
+  const statsLv3 = sim.getArbaleteStats(3, false);
+  (sim as any).fireWeaponAttack(arbalete, 'line', statsLv3.damage, statsLv3.reach, statsLv3.areaMult, false);
+  for (let t = 0; t < 25; t++) sim.tick();
+  assert.ok(targetFar.hp < targetFarHpBefore, 'Enemy at 5.45u MUST take damage from Lv 3 Arbalete');
+
+  // 5. Verify levelUpDescriptions clearly outline damage and range improvements
+  const desc = WEAPONS.thorn_spear.levelUpDescriptions;
+  assert.equal(desc.length, 8);
+  for (let i = 1; i < desc.length; i++) {
+    assert.ok(desc[i].includes('Damage'), `Level ${i + 1} description should mention Damage: "${desc[i]}"`);
+    assert.ok(desc[i].includes('Range'), `Level ${i + 1} description should mention Range: "${desc[i]}"`);
+  }
+});
+
 test('Overhead Lightning Strike: New lightning style rendering on lightning-marked enemy taking damage', () => {
   const sim = new Simulation({ seed: 42, startingWeaponId: 'garden_blade' });
   const enemy = sim.spawnEnemy('brute', 3.0, 0, false)!;
@@ -3985,6 +4071,421 @@ test('Revive lifecycle: lethal hit halts mid-tick card drafts, revive clears sta
     );
   }
 });
+
+test('Crowd separation & area coverage: > 20 enemies fan out laterally to avoid massive crowds', () => {
+  const sim = new Simulation({ seed: 7777, professionId: 'warden' });
+  sim.enemies.length = 0;
+  sim.weapons.length = 0; // Disable weapons so enemies aren't killed during motion analysis
+  sim.heroX = 0;
+  sim.heroY = 0;
+
+  // 1. Spawn a crowd of 30 chasers clustered along the X axis approaching hero from the right
+  const crowdCount = 30;
+  assert.ok(
+    crowdCount > BALANCE_CONFIG.CROWD_ENEMY_COUNT_THRESHOLD,
+    'Must exceed crowd threshold (20 enemies)'
+  );
+
+  for (let i = 0; i < crowdCount; i++) {
+    // Clustered tightly in a 1.2u x 0.8u box around (8.0, 0.0)
+    const offsetX = (i % 6) * 0.2;
+    const offsetY = (Math.floor(i / 6) - 2.5) * 0.15;
+    sim.spawnEnemy('chaser', 8.0 + offsetX, offsetY, false);
+  }
+
+  assert.equal(sim.enemies.length, 30);
+
+  // Measure initial cluster spread
+  let initialMinY = Infinity;
+  let initialMaxY = -Infinity;
+  for (const e of sim.enemies) {
+    if (e.y < initialMinY) initialMinY = e.y;
+    if (e.y > initialMaxY) initialMaxY = e.y;
+  }
+  const initialYSpread = initialMaxY - initialMinY;
+
+  // 2. Simulate 90 ticks (~1.5s) of crowd movement
+  for (let t = 0; t < 90; t++) {
+    sim.tick();
+  }
+
+  // 3. Measure evolved spread: enemies should have fanned out laterally to cover more area
+  let evolvedMinY = Infinity;
+  let evolvedMaxY = -Infinity;
+  let angles: number[] = [];
+
+  for (const e of sim.enemies) {
+    if (e.y < evolvedMinY) evolvedMinY = e.y;
+    if (e.y > evolvedMaxY) evolvedMaxY = e.y;
+    angles.push(Math.atan2(e.y - sim.heroY, e.x - sim.heroX));
+  }
+
+  const evolvedYSpread = evolvedMaxY - evolvedMinY;
+  assert.ok(
+    evolvedYSpread > initialYSpread * 2.2,
+    `Crowd should significantly expand lateral spread to cover more area (initial: ${initialYSpread.toFixed(2)}, evolved: ${evolvedYSpread.toFixed(2)})`
+  );
+  assert.ok(
+    evolvedYSpread > 2.8,
+    `Evolved lateral spread must be > 2.8u across the arena, got ${evolvedYSpread.toFixed(2)}`
+  );
+
+  // Verify angular coverage around hero: angles should span a wide arc rather than a narrow beam
+  const minAngle = Math.min(...angles);
+  const maxAngle = Math.max(...angles);
+  const angularSpreadRad = maxAngle - minAngle;
+  assert.ok(
+    angularSpreadRad > 0.65, // ~37+ degrees spread around hero
+    `Enemies should fan out around hero to cover area, angular spread: ${angularSpreadRad.toFixed(2)} rad`
+  );
+
+  // 4. Pairwise spacing: ensure no two enemies collapse into overlapping stacked pixels
+  let minPairwiseDist = Infinity;
+  for (let i = 0; i < sim.enemies.length; i++) {
+    const a = sim.enemies[i]!;
+    for (let j = i + 1; j < sim.enemies.length; j++) {
+      const b = sim.enemies[j]!;
+      const d = Math.hypot(b.x - a.x, b.y - a.y);
+      if (d < minPairwiseDist) minPairwiseDist = d;
+    }
+  }
+
+  assert.ok(
+    minPairwiseDist > 0.28,
+    `Minimum pairwise distance should maintain personal space (> 0.28u, got ${minPairwiseDist.toFixed(3)})`
+  );
+
+  // 5. Mass-weighted separation: heavy Brute pushes small Chasers outward
+  const simMass = new Simulation({ seed: 8888, professionId: 'warden' });
+  simMass.enemies.length = 0;
+  simMass.weapons.length = 0;
+  const brute = simMass.spawnEnemy('brute', 5.0, 0, false)!;
+  const chaserTop = simMass.spawnEnemy('chaser', 5.0, 0.45, false)!;
+  const chaserBottom = simMass.spawnEnemy('chaser', 5.0, -0.45, false)!;
+
+  for (let t = 0; t < 30; t++) {
+    simMass.tick();
+  }
+
+  // Brute should maintain steady forward march while chasers are pushed out laterally
+  assert.ok(
+    Math.abs(chaserTop.y) > 0.55 && Math.abs(chaserBottom.y) > 0.55,
+    'Chasers should be repelled laterally by brute mass'
+  );
+
+  // 6. Spitter perimeter fanning
+  const simSpitter = new Simulation({ seed: 9999, professionId: 'warden' });
+  simSpitter.enemies.length = 0;
+  simSpitter.weapons.length = 0;
+  simSpitter.heroX = 0;
+  simSpitter.heroY = 0;
+
+  // Spawn 4 spitters tightly grouped at 3.8u from hero
+  simSpitter.spawnEnemy('spitter', 3.8, -0.3, false);
+  simSpitter.spawnEnemy('spitter', 3.8, -0.1, false);
+  simSpitter.spawnEnemy('spitter', 3.8, 0.1, false);
+  simSpitter.spawnEnemy('spitter', 3.8, 0.3, false);
+
+  for (let t = 0; t < 60; t++) {
+    simSpitter.tick();
+  }
+
+  let spitterMinY = Infinity;
+  let spitterMaxY = -Infinity;
+  for (const s of simSpitter.enemies) {
+    if (s.y < spitterMinY) spitterMinY = s.y;
+    if (s.y > spitterMaxY) spitterMaxY = s.y;
+  }
+  assert.ok(
+    spitterMaxY - spitterMinY > 1.2,
+    `Spitters should fan out along perimeter, spread: ${(spitterMaxY - spitterMinY).toFixed(2)}`
+  );
+});
+
+test('Garden Blade projectile slicing progression: Lv2 kills spitter projectiles, Lv3 kills bloom giant projectiles, Lv5 kills any projectiles', () => {
+  const sim = new Simulation({ seed: 123, startingWeaponId: 'garden_blade' });
+  sim.heroX = 0;
+  sim.heroY = 0;
+  sim.enemies.length = 0;
+  sim.projectiles.length = 0;
+
+  const blade = sim.weapons.find((w) => w.id === 'garden_blade')!;
+  assert.ok(blade, 'Garden Blade should be equipped');
+
+  // Helper to spawn test projectiles at (1.0, 0)
+  const spawnTestProjectile = (kind: SimProjectile['projectileKind'], isEnemy = true): SimProjectile => {
+    const p: SimProjectile = {
+      id: sim['nextEntityId']++,
+      isEnemy,
+      projectileKind: kind,
+      x: 1.0,
+      y: 0,
+      prevX: 1.0,
+      prevY: 0,
+      vx: -2.0,
+      vy: 0,
+      radius: 0.25,
+      damage: 10,
+      isCrit: false,
+      pierceRemaining: 0,
+      lifeTimer: 2.0,
+      color: 0xff0000,
+      weaponTags: [],
+      hitEnemyIds: new Set(),
+    };
+    sim.projectiles.push(p);
+    return p;
+  };
+
+  // Helper to trigger blade attack facing angle 0 (towards x = 1.0)
+  const fireBladeAttack = (level: number, evolved = false) => {
+    blade.level = level;
+    blade.evolved = evolved;
+    blade.lockedAngle = 0;
+    blade.lockedTargetX = 1.0;
+    blade.lockedTargetY = 0;
+    const stats = sim.getGardenBladeStats(level, evolved);
+    (sim as any).fireWeaponAttack(blade, 'arc', stats.damage, stats.reach, stats.areaMult, false);
+  };
+
+  // Track ProjectileDestroyed events
+  const destroyedEvents: Array<{ x: number; y: number; projectileKind?: string; weaponId: string }> = [];
+  sim.events.on('ProjectileDestroyed', (payload) => {
+    destroyedEvents.push(payload);
+  });
+
+  // ============================================
+  // 1. Level 1: Cannot kill ANY enemy projectile
+  // ============================================
+  sim.debugSetWeaponLevel('garden_blade', 1, false);
+  sim.projectiles.length = 0;
+  spawnTestProjectile('spitter_spore');
+  spawnTestProjectile('sunflower_seed');
+  spawnTestProjectile('boss_vine_thorn');
+  assert.equal(sim.projectiles.length, 3);
+
+  fireBladeAttack(1, false);
+  assert.equal(sim.projectiles.length, 3, 'Level 1 Garden Blade should NOT destroy any projectiles');
+  assert.equal(destroyedEvents.length, 0);
+
+  // =========================================================================
+  // 2. Level 2: Kills spitter projectiles ONLY (not bloom giant or boss)
+  // =========================================================================
+  sim.debugSetWeaponLevel('garden_blade', 2, false);
+  sim.projectiles.length = 0;
+  const spitterProj = spawnTestProjectile('spitter_spore');
+  const seedProj = spawnTestProjectile('sunflower_seed');
+  const bossProj = spawnTestProjectile('boss_vine_thorn');
+  assert.equal(sim.projectiles.length, 3);
+
+  fireBladeAttack(2, false);
+  assert.equal(sim.projectiles.length, 2, 'Level 2 Garden Blade should destroy spitter projectile');
+  assert.ok(!sim.projectiles.includes(spitterProj), 'Spitter projectile should be destroyed at Lv 2');
+  assert.ok(sim.projectiles.includes(seedProj), 'Bloom giant projectile must NOT be destroyed at Lv 2');
+  assert.ok(sim.projectiles.includes(bossProj), 'Boss projectile must NOT be destroyed at Lv 2');
+  assert.equal(destroyedEvents.length, 1);
+  assert.equal(destroyedEvents[0]!.projectileKind, 'spitter_spore');
+  assert.equal(destroyedEvents[0]!.weaponId, 'garden_blade');
+
+  // Verify slice visual effect was emitted
+  const sliceFx = sim.visualEffects.find((fx) => fx.kind === 'projectile_slice');
+  assert.ok(sliceFx, 'projectile_slice visual effect should be created');
+
+  // =====================================================================================
+  // 3. Level 3 & 4: Kills spitter projectiles AND bloom giant projectiles (not boss)
+  // =====================================================================================
+  destroyedEvents.length = 0;
+  sim.projectiles.length = 0;
+  sim.debugSetWeaponLevel('garden_blade', 3, false);
+  const spitterP3 = spawnTestProjectile('spitter_spore');
+  const seedP3 = spawnTestProjectile('sunflower_seed');
+  const leafP3 = spawnTestProjectile('sunflower_leaf');
+  const bossP3 = spawnTestProjectile('boss_magenta_petal');
+  assert.equal(sim.projectiles.length, 4);
+
+  fireBladeAttack(3, false);
+  assert.equal(sim.projectiles.length, 1, 'Level 3 Garden Blade should destroy spitter and bloom giant projectiles');
+  assert.ok(!sim.projectiles.includes(spitterP3), 'Spitter projectile destroyed at Lv 3');
+  assert.ok(!sim.projectiles.includes(seedP3), 'Bloom giant seed destroyed at Lv 3');
+  assert.ok(!sim.projectiles.includes(leafP3), 'Bloom giant leaf destroyed at Lv 3');
+  assert.ok(sim.projectiles.includes(bossP3), 'Boss petal must NOT be destroyed at Lv 3');
+  assert.equal(destroyedEvents.length, 3);
+
+  // Level 4 also kills spitter & bloom giant projectiles
+  destroyedEvents.length = 0;
+  sim.projectiles.length = 0;
+  sim.debugSetWeaponLevel('garden_blade', 4, false);
+  spawnTestProjectile('spitter_spore');
+  spawnTestProjectile('sunflower_seed');
+  spawnTestProjectile('boss_abyssal_razor');
+  fireBladeAttack(4, false);
+  assert.equal(sim.projectiles.length, 1, 'Level 4 should destroy spitter & sunflower seed but not boss');
+  assert.equal(sim.projectiles[0]!.projectileKind, 'boss_abyssal_razor');
+
+  // =========================================================================
+  // 4. Level 5+: Kills ANY projectiles (spitter, bloom giant, boss, generic)
+  // =========================================================================
+  destroyedEvents.length = 0;
+  sim.projectiles.length = 0;
+  sim.debugSetWeaponLevel('garden_blade', 5, false);
+  spawnTestProjectile('spitter_spore');
+  spawnTestProjectile('sunflower_seed');
+  spawnTestProjectile('sunflower_leaf');
+  spawnTestProjectile('boss_vine_thorn');
+  spawnTestProjectile('boss_magenta_petal');
+  spawnTestProjectile('boss_abyssal_razor');
+  spawnTestProjectile('default');
+  assert.equal(sim.projectiles.length, 7);
+
+  fireBladeAttack(5, false);
+  assert.equal(sim.projectiles.length, 0, 'Level 5 Garden Blade must destroy ANY enemy projectiles in arc');
+  assert.equal(destroyedEvents.length, 7);
+
+  // =========================================================================
+  // 5. Evolved Verdant Edge (Level 8 / evolved): Destroys any enemy projectiles
+  //    on front-swing, back-swing, and with piercing crescent wave
+  // =========================================================================
+  destroyedEvents.length = 0;
+  sim.projectiles.length = 0;
+  sim.debugSetWeaponLevel('garden_blade', 8, true);
+
+  // Front projectile at (1.0, 0) and rear projectile at (-1.0, 0)
+  const frontP = spawnTestProjectile('boss_vine_thorn');
+  const backP: SimProjectile = {
+    id: sim['nextEntityId']++,
+    isEnemy: true,
+    projectileKind: 'boss_abyssal_razor',
+    x: -1.0,
+    y: 0,
+    prevX: -1.0,
+    prevY: 0,
+    vx: 2.0,
+    vy: 0,
+    radius: 0.25,
+    damage: 10,
+    isCrit: false,
+    pierceRemaining: 0,
+    lifeTimer: 2.0,
+    color: 0xff0000,
+    weaponTags: [],
+    hitEnemyIds: new Set(),
+  };
+  sim.projectiles.push(backP);
+  assert.equal(sim.projectiles.length, 2);
+
+  fireBladeAttack(8, true);
+  assert.ok(!sim.projectiles.includes(frontP), 'Evolved front-swing should destroy front projectile');
+  assert.ok(!sim.projectiles.includes(backP), 'Evolved back-swing should destroy rear projectile');
+
+  // Crescent wave piercing through enemy projectiles
+  sim.projectiles.length = 0;
+  const enemySpore = spawnTestProjectile('spitter_spore');
+  assert.equal(sim.projectiles.length, 1);
+  // Add player crescent projectile that travels through enemySpore
+  sim.projectiles.push({
+    id: sim['nextEntityId']++,
+    isEnemy: false,
+    x: 0.9,
+    y: 0,
+    prevX: 0.5,
+    prevY: 0,
+    vx: 10,
+    vy: 0,
+    radius: 0.4,
+    damage: 20,
+    isCrit: false,
+    pierceRemaining: 3,
+    lifeTimer: 1.0,
+    color: 0x7be0a8,
+    weaponTags: ['slash', 'pierce'],
+    hitEnemyIds: new Set(),
+  });
+  sim['updateProjectiles'](0.016);
+  assert.ok(!sim.projectiles.includes(enemySpore), 'Crescent slash projectile should destroy enemy projectile on contact');
+
+  // =========================================================================
+  // 6. Incoming projectile target acquisition when no enemies in range
+  // =========================================================================
+  sim.projectiles.length = 0;
+  sim.enemies.length = 0;
+  sim.debugSetWeaponLevel('garden_blade', 2, false);
+  blade.phase = 'ready';
+  blade.cooldownTimer = 0;
+
+  // Spawn incoming spitter spore at 1.5u
+  const incoming = spawnTestProjectile('spitter_spore');
+  incoming.x = 1.5;
+  incoming.y = 0;
+  sim['updateWeapons'](0.016);
+  assert.equal(blade.phase, 'windup', 'Garden Blade should acquire incoming killable projectile as target when no enemies in range');
+  assert.equal(blade.lockedTargetX, 1.5);
+  assert.equal(blade.lockedTargetY, 0);
+});
+
+test('Chain Lightning: static status and overhead lightning only activate at Level 2+; base cooldown is 1.12s', () => {
+  const sim = new Simulation({ seed: 777, startingWeaponId: 'chain_lightning' });
+  const wpn = sim.weapons.find((w) => w.id === 'chain_lightning');
+  assert.ok(wpn);
+  assert.equal(wpn.level, 1);
+
+  const def = WEAPONS['chain_lightning'];
+  assert.ok(def);
+  assert.equal(def.baseCooldown, 1.12, 'Base cooldown for Chain Lightning must be 1.12s');
+
+  const enemy = sim.spawnEnemy('brute', 2.0, 0, false)!;
+  const initialHp = enemy.hp;
+
+  // Level 1: Fire chain lightning -> enemy takes damage, but NO storm mark (static status) is applied
+  wpn.cooldownTimer = 0;
+  wpn.phase = 'ready';
+  for (let i = 0; i < 70; i++) {
+    sim.tick();
+    if (enemy.hp < initialHp) break;
+  }
+  assert.ok(enemy.hp < initialHp, 'Level 1 Chain Lightning must deal damage');
+  assert.equal(
+    enemy.stormMarkTimer,
+    0,
+    'Level 1 Chain Lightning must NOT apply static / storm mark debuff'
+  );
+
+  // Subsequent hit does NOT trigger overhead lightning since enemy has no static mark
+  const fxCountBefore = sim.visualEffects.length;
+  (sim as any).applyDamageToEnemy(enemy, 10, false, 0, ['slash']);
+  assert.equal(
+    sim.visualEffects.some((fx) => fx.kind === 'lightning_strike'),
+    false,
+    'No overhead lightning strike should occur from attacks when no static mark was applied'
+  );
+
+  // Upgrade to Level 2
+  sim.debugSetWeaponLevel('chain_lightning', 2, false);
+  assert.equal(wpn.level, 2);
+
+  const enemy2 = sim.spawnEnemy('brute', 2.0, 0, false)!;
+  const initialHp2 = enemy2.hp;
+
+  wpn.cooldownTimer = 0;
+  wpn.phase = 'ready';
+  for (let i = 0; i < 70; i++) {
+    sim.tick();
+    if (enemy2.hp < initialHp2) break;
+  }
+  assert.ok(enemy2.hp < initialHp2, 'Level 2 Chain Lightning must deal damage');
+  assert.ok(
+    enemy2.stormMarkTimer > 4.5,
+    'Level 2+ Chain Lightning MUST apply static status (stormMarkTimer = 5s)'
+  );
+
+  // Subsequent attack on enemy with static mark detonates overhead lightning strike
+  (sim as any).applyDamageToEnemy(enemy2, 10, false, 0, ['slash']);
+  assert.equal(enemy2.stormMarkTimer, 0, 'Static mark must be consumed on detonation');
+  assert.ok(
+    sim.visualEffects.some((fx) => fx.kind === 'lightning_strike'),
+    'Overhead lightning strike must be spawned when enemy with static mark takes damage'
+  );
+});
+
 
 
 

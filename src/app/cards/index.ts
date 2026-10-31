@@ -6,3 +6,5 @@ export { TarotCardFrame } from './TarotCardFrame';
 export { TarotCardBackSvg } from './TarotCardBackSvg';
 export { TarotIllustrationSvg } from './TarotIllustrationSvg';
 export * from './symbols';
+export { EchoSwingIcon, type EchoSwingIconProps } from '../components/EchoSwingIcon';
+export { PiercingSlashIcon, type PiercingSlashIconProps } from '../components/PiercingSlashIcon';

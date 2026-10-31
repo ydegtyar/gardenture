@@ -24,8 +24,10 @@ import {
   SporePopSymbol,
   SecondWindSymbol,
   PetalStormSymbol,
+  EchoSwingSymbol,
 } from './BehaviorSymbols';
 import {
+  PiercingSlashSymbol,
   EchoSlashSymbol,
   BriarThornsSymbol,
   HealingBloomSymbol,
@@ -68,7 +70,7 @@ const SYMBOL_REGISTRY: Record<string, CardSymbolComponent> = {
   fleet_step: FleetStepSymbol,
 
   // Behavior Cards (4.13 - 4.20)
-  echo_swing: EchoSlashSymbol,
+  echo_swing: EchoSwingSymbol,
   thorn_trail: BriarThornsSymbol,
   spore_pop: SporePopSymbol,
   second_wind: SecondWindSymbol,
@@ -78,7 +80,7 @@ const SYMBOL_REGISTRY: Record<string, CardSymbolComponent> = {
   petal_storm: PetalStormSymbol,
 
   // Synergy Cards (4.21 - 4.26)
-  piercing_slash: EchoSlashSymbol,
+  piercing_slash: PiercingSlashSymbol,
   burning_thorns: BriarThornsSymbol,
   healing_bloom: HealingBloomSymbol,
   chain_bloom: ChainBloomSymbol,

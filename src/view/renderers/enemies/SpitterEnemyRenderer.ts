@@ -1,11 +1,47 @@
+import * as PIXI from 'pixi.js';
 import { PALETTE } from '../../../content/data/catalog';
 import { clamp } from '../../../core/math/vec2';
-import type { SimEnemy } from '../../../sim/Simulation';
+import type { SimEnemy, SimProjectile } from '../../../sim/Simulation';
 import type {
   EnemyBehaviorRenderer,
   EnemyRenderContext,
   EnemyTransformModifiers,
 } from './types';
+
+/**
+ * Renders the toxic acidic spore projectile fired by Spitter enemies.
+ */
+export function drawSpitterProjectile(
+  g: PIXI.Graphics,
+  p: SimProjectile,
+  px: number,
+  py: number,
+  rPx: number,
+  angle: number
+): void {
+  const m = new PIXI.Matrix();
+  m.rotate(angle);
+  m.translate(px, py);
+  g.setTransform(m);
+
+  // Outer elongated toxic spore droplet
+  g.moveTo(rPx * 1.35, 0)
+    .quadraticCurveTo(0, -rPx * 0.9, -rPx * 1.1, 0)
+    .quadraticCurveTo(0, rPx * 0.9, rPx * 1.35, 0)
+    .closePath()
+    .fill({ color: p.color || PALETTE.CRIMSON_WARN })
+    .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
+
+  // Inner acidic spore core
+  g.circle(0, 0, rPx * 0.42).fill({ color: PALETTE.BLUSH_ROSE, alpha: 0.9 });
+  g.circle(rPx * 0.25, 0, rPx * 0.2).fill({ color: PALETTE.CREAM_WHITE });
+
+  // Trailing spore flecks
+  g.circle(-rPx * 1.4, -rPx * 0.35, rPx * 0.2).fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.75 });
+  g.circle(-rPx * 1.4, rPx * 0.35, rPx * 0.2).fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.75 });
+
+  g.setTransform(new PIXI.Matrix());
+}
 
 export class SpitterEnemyRenderer implements EnemyBehaviorRenderer {
   public readonly id = 'spitter';

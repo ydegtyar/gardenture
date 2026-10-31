@@ -11,6 +11,8 @@ export type { TarotCardBackProps };
  */
 export const TarotCardBackSvg: React.FC<TarotCardBackProps> = ({
   orientation = 'vertical',
+  className = 'w-full h-full drop-shadow-sm select-none pointer-events-none',
+  preserveAspectRatio = 'none',
 }) => {
   const rawId = useId().replace(/:/g, '');
   const backGradId = `tarot-back-bg-${rawId}`;
@@ -21,7 +23,8 @@ export const TarotCardBackSvg: React.FC<TarotCardBackProps> = ({
     return (
       <svg
         viewBox="0 0 420 116"
-        className="w-full h-full drop-shadow-sm select-none pointer-events-none"
+        preserveAspectRatio={preserveAspectRatio}
+        className={className}
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
@@ -125,7 +128,8 @@ export const TarotCardBackSvg: React.FC<TarotCardBackProps> = ({
   return (
     <svg
       viewBox="0 0 180 260"
-      className="w-full h-full drop-shadow-sm select-none pointer-events-none"
+      preserveAspectRatio={preserveAspectRatio}
+      className={className}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >

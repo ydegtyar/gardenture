@@ -42,11 +42,13 @@ export function drawArbaleteLineEffect(
     });
 
   // 2. High-velocity bolt launch slipstream & wind-tunnel rails
+  // Thicker rail lines and brighter trail with increasing bolt range & power
+  const lineThick = Math.max(4, fx.radius * PPU * 0.55);
   g.moveTo(muzzleX, muzzleY)
     .lineTo(x2, y2)
     .stroke({
       color: fx.color,
-      width: Math.max(4, fx.radius * PPU * 0.55) * fade,
+      width: lineThick * fade,
       alpha: 0.45 * fade,
       cap: 'round',
     });
@@ -54,7 +56,7 @@ export function drawArbaleteLineEffect(
     .lineTo(x2, y2)
     .stroke({
       color: PALETTE.CREAM_WHITE,
-      width: 2.8 * fade,
+      width: Math.max(2.8, lineThick * 0.35) * fade,
       alpha: 0.92 * fade,
       cap: 'round',
     });

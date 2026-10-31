@@ -29,6 +29,8 @@ export type CardSymbolComponent = React.ComponentType<CardSymbolProps>;
 
 export interface TarotCardBackProps {
   orientation?: 'vertical' | 'horizontal';
+  className?: string;
+  preserveAspectRatio?: string;
 }
 
 export interface TarotIllustrationProps {
@@ -37,6 +39,8 @@ export interface TarotIllustrationProps {
   accentColor?: string;
   iconColor?: string;
   className?: string;
+  size?: number;
+  style?: React.CSSProperties;
 }
 
 export interface TarotCardFrameProps {

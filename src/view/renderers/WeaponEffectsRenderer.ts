@@ -5,6 +5,7 @@ import type { SimVisualEffect, Simulation } from '../../sim/Simulation';
 import { PPU } from './EnvironmentRenderer';
 import {
   drawGardenBladeEffect,
+  drawGardenBladeProjectileSliceEffect,
   drawArbaleteLineEffect,
   drawArbaleteBoltProjectile,
   drawBloomHammerEffect,
@@ -30,6 +31,11 @@ import {
 } from './items';
 import { getGardenBladeTipPosition } from './heros/weapons';
 import { getStormcallerHatTipPosition } from './heros/StormcallerHeroRenderer';
+import { drawSpitterProjectile } from './enemies/SpitterEnemyRenderer';
+import {
+  drawSunflowerSeedProjectile,
+  drawSunflowerLeafProjectile,
+} from './enemies/GoldenSunflowerBossRenderer';
 
 /**
  * Renders Ground Hazards, Pickups, Orbiting Petals, Weapon Visual Effects,
@@ -152,6 +158,8 @@ export class WeaponEffectsRenderer {
 
       if (fx.kind === 'slash_arc') {
         drawGardenBladeEffect(g, fx, fade);
+      } else if (fx.kind === 'projectile_slice') {
+        drawGardenBladeProjectileSliceEffect(g, fx, progress, fade);
       } else if (fx.kind === 'spear_line') {
         drawArbaleteLineEffect(g, fx, progress, fade);
       } else if (fx.kind === 'bloom_hammer') {
@@ -497,36 +505,11 @@ export class WeaponEffectsRenderer {
 
       if (p.isEnemy) {
         if (p.projectileKind === 'sunflower_seed') {
-          // Striped Golden/Brown Sunflower Seed projectile
-          const m = new PIXI.Matrix();
-          m.rotate(angle);
-          m.translate(px, py);
-          g.setTransform(m);
-          g.moveTo(rPx * 1.45, 0)
-            .lineTo(-rPx * 0.6, -rPx * 0.85)
-            .lineTo(-rPx * 1.15, 0)
-            .lineTo(-rPx * 0.6, rPx * 0.85)
-            .closePath()
-            .fill({ color: 0x78350f })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
-          g.moveTo(rPx * 0.9, 0)
-            .lineTo(-rPx * 0.7, 0)
-            .stroke({ color: PALETTE.BUTTER_YELLOW, width: 2.2, cap: 'round' });
-          g.setTransform(new PIXI.Matrix());
+          drawSunflowerSeedProjectile(g, p, px, py, rPx, angle);
         } else if (p.projectileKind === 'sunflower_leaf') {
-          // Spinning Razor Sunflower Leaf projectile
-          const spinAngle = angle + sim.elapsedSeconds * 12;
-          const m = new PIXI.Matrix();
-          m.rotate(spinAngle);
-          m.translate(px, py);
-          g.setTransform(m);
-          g.ellipse(0, 0, rPx * 1.45, rPx * 0.72)
-            .fill({ color: PALETTE.MINT_GREEN })
-            .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
-          g.moveTo(-rPx * 1.1, 0)
-            .lineTo(rPx * 1.1, 0)
-            .stroke({ color: PALETTE.BUTTER_YELLOW, width: 1.8 });
-          g.setTransform(new PIXI.Matrix());
+          drawSunflowerLeafProjectile(g, p, px, py, rPx, angle, sim.elapsedSeconds);
+        } else if (p.projectileKind === 'spitter_spore') {
+          drawSpitterProjectile(g, p, px, py, rPx, angle);
         } else if (p.projectileKind === 'boss_vine_thorn') {
           // Phase 1 Boss ('Primordial Thornheart'): Knotted Emerald-and-Bark Vine Thorn Spearhead
           const m = new PIXI.Matrix();

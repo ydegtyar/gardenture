@@ -137,6 +137,9 @@ export function generateCardDraftOffers(ctx: DraftContext): {
     if (card.id === 'burning_thorns' && (ctx.ownedCards?.thorn_trail ?? 0) <= 0) {
       continue;
     }
+    if (card.id === 'petal_storm' && !equippedWeaponIds.has('petal_orbit')) {
+      continue;
+    }
 
     const currentLv = ctx.ownedCards[card.id] ?? 0;
     if (card.evolvedName && currentLv === card.maxLevel) {

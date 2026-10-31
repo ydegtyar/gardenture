@@ -2,7 +2,7 @@
  * @file DraftActions.tsx
  * Action buttons bar for the Botanical Tarot Draft screen built exclusively with `GameButton`
  * from `src/ui/ornate/`:
- * - Mobile (<= 899px): Staggered, slightly overlapping hand-crafted stack with `Skip Draft` inset right.
+ * - Mobile (<= 899px): Column layout where all 3 buttons (Ad Reroll, Coin Reroll, Skip Draft) share full equal width with clean vertical gaps.
  * - Desktop (>= 900px): `Watch Ad to Reroll` + `Reroll with Coins` side-by-side, `Skip Draft` centered below.
  */
 
@@ -47,10 +47,10 @@ export const DraftActions: React.FC<DraftActionsProps> = ({
   return (
     <div
       data-testid="draft-actions-bar"
-      className="w-full max-w-[540px] min-[900px]:max-w-[780px] mx-auto pt-1 flex flex-col gap-1.5 min-[900px]:gap-2.5 shrink-0"
+      className="w-full max-w-[540px] min-[900px]:max-w-[780px] mx-auto pt-1 flex flex-col gap-2 min-[900px]:gap-2.5 shrink-0"
     >
-      {/* Primary Reroll Row: Stacked & slightly overlapping on Mobile, Side-by-Side on Desktop */}
-      <div className="flex flex-col min-[900px]:grid min-[900px]:grid-cols-2 items-stretch gap-1 min-[900px]:gap-4 w-full">
+      {/* Primary Reroll Row: Stacked with gap on Mobile column layout, Side-by-Side on Desktop */}
+      <div className="flex flex-col min-[900px]:grid min-[900px]:grid-cols-2 items-stretch gap-2 min-[900px]:gap-4 w-full">
         {freeRerollAvailable ? (
           <GameButton
             variant="green"
@@ -64,7 +64,7 @@ export const DraftActions: React.FC<DraftActionsProps> = ({
             title="Free Reroll"
             subtitle="Trinket Blessing"
             badge={`${freeRerollsRemaining} Left`}
-            className="w-full z-20"
+            className="w-full"
             icon={
               <svg
                 className="w-4 h-4"
@@ -95,7 +95,7 @@ export const DraftActions: React.FC<DraftActionsProps> = ({
             title="Watch Ad to Reroll"
             subtitle={`Ad Rerolls: ${adRerollsRemaining}/${Simulation.MAX_AD_REROLLS} Left`}
             badge={`${adRerollsRemaining}/${Simulation.MAX_AD_REROLLS}`}
-            className="w-full z-20"
+            className="w-full"
             icon={
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5.14v14l11-7-11-7z" />
@@ -121,7 +121,7 @@ export const DraftActions: React.FC<DraftActionsProps> = ({
               <span>40</span>
             </span>
           }
-          className="w-full max-[899px]:-mt-1 z-10"
+          className="w-full"
           icon={
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
               <path
@@ -137,8 +137,8 @@ export const DraftActions: React.FC<DraftActionsProps> = ({
         />
       </div>
 
-      {/* Secondary Row: Skip Draft (Inset to right on mobile per Reference 2, centered on desktop) */}
-      <div className="w-full flex justify-end min-[900px]:justify-center">
+      {/* Secondary Row: Skip Draft (Same full width as rerolls on mobile column layout, centered on desktop) */}
+      <div className="w-full flex justify-center">
         <GameButton
           variant="teal"
           size="md"
@@ -151,7 +151,7 @@ export const DraftActions: React.FC<DraftActionsProps> = ({
           subtitle="Herbal Rest"
           badge="+10 HP · +100 Score"
           icon={<WingedHeartIconSvg className="w-5 h-5" />}
-          className="w-[88%] sm:w-[82%] min-[900px]:w-[360px]"
+          className="w-full min-[900px]:w-[360px]"
         />
       </div>
     </div>

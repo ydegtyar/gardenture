@@ -32,6 +32,51 @@ export const MenuHtmlUi: React.FC<Props> = ({
 
   return (
     <main className={getMainContainerClassName(isExiting)}>
+      {/* Hidden number buttons control (1, 2, 3, 4) */}
+      <div
+        className="sr-only"
+        aria-hidden="true"
+        data-testid="menu-hidden-controls"
+      >
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="1"
+          data-testid="menu-hidden-button-1"
+          onClick={onStartRun}
+        >
+          1
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="2"
+          data-testid="menu-hidden-button-2"
+          onClick={data.hasRun ? onResumeRun : onOpenLoadout}
+        >
+          2
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="3"
+          data-testid="menu-hidden-button-3"
+          onClick={data.hasRun ? onOpenLoadout : onOpenStore}
+        >
+          3
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="4"
+          data-testid="menu-hidden-button-4"
+          disabled={!data.hasRun}
+          onClick={data.hasRun ? onOpenStore : undefined}
+        >
+          4
+        </button>
+      </div>
+
       {/* Top Bar: Left Status Capsule & Right Currency Capsule */}
       <div className="flex flex-wrap items-center justify-between gap-2 pointer-events-auto w-full shrink-0">
         {/* Left Capsule: Active Profession · Biome · Best Score */}

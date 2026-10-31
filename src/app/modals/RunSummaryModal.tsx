@@ -5,7 +5,7 @@
  * @llm-description Features near-miss boss milestone notifications, daily streak animations, rewarded ad double coins multiplier, and quick replay/loadout actions.
  */
 
-import React from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { STYLE_RANKS } from '../../content/data/catalog';
 import { getDailyStreakHighlight } from '../../meta/SaveManager';
 import { CoinIcon } from '../SvgIcons';
@@ -42,13 +42,84 @@ export function RunSummaryModal() {
     handleReturnToTitleFromSummary,
   } = useGameShell();
 
-  if (!runSummary) return null;
-
   const summary = runSummary;
   const canWatchDoubleAd = canWatchRewardedAd;
   const onWatchDoubleCoinsAd = handleWatchDoubleCoinsAd;
-  const onPlayAgain = () => startNewOrResumedRun(false);
+  const onPlayAgain = useCallback(() => startNewOrResumedRun(false), [startNewOrResumedRun]);
   const onReturnToTitle = handleReturnToTitleFromSummary;
+
+  const availableActions = useMemo(() => {
+    const list: Array<{
+      key: number;
+      label: string;
+      onClick: () => void;
+      disabled?: boolean;
+    }> = [];
+
+    if (canWatchDoubleAd && summary && !summary.doubleCoinsClaimed) {
+      list.push({
+        key: list.length + 1,
+        label: 'Watch Ad to Double Coins',
+        onClick: onWatchDoubleCoinsAd,
+      });
+    }
+
+    list.push({
+      key: list.length + 1,
+      label: 'Play Again',
+      onClick: onPlayAgain,
+    });
+
+    list.push({
+      key: list.length + 1,
+      label: 'Loadout & Store',
+      onClick: onReturnToTitle,
+    });
+
+    return list;
+  }, [
+    canWatchDoubleAd,
+    summary,
+    onWatchDoubleCoinsAd,
+    onPlayAgain,
+    onReturnToTitle,
+  ]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
+      let index = -1;
+      if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
+        index = 0;
+      } else if (e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2') {
+        index = 1;
+      } else if (e.key === '3' || e.code === 'Digit3' || e.code === 'Numpad3') {
+        index = 2;
+      } else if (e.key === '4' || e.code === 'Digit4' || e.code === 'Numpad4') {
+        index = 3;
+      }
+
+      if (index >= 0 && availableActions[index] && !availableActions[index].disabled) {
+        e.preventDefault();
+        availableActions[index].onClick();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [availableActions]);
+
+  if (!summary) return null;
 
   const peakRank = STYLE_RANKS[summary.peakRankIndex] ?? STYLE_RANKS[0]!;
   const mins = Math.floor(summary.elapsedSeconds / 60);
@@ -72,6 +143,53 @@ export function RunSummaryModal() {
       aria-modal="true"
       aria-labelledby="summary-modal-title"
     >
+      {/* Hidden number buttons control (1, 2, 3, 4) */}
+      <div
+        className="sr-only"
+        aria-hidden="true"
+        data-testid="summary-hidden-controls"
+      >
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="1"
+          data-testid="summary-hidden-button-1"
+          disabled={!availableActions[0] || availableActions[0].disabled}
+          onClick={availableActions[0]?.onClick}
+        >
+          1
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="2"
+          data-testid="summary-hidden-button-2"
+          disabled={!availableActions[1] || availableActions[1].disabled}
+          onClick={availableActions[1]?.onClick}
+        >
+          2
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="3"
+          data-testid="summary-hidden-button-3"
+          disabled={!availableActions[2] || availableActions[2].disabled}
+          onClick={availableActions[2]?.onClick}
+        >
+          3
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="4"
+          data-testid="summary-hidden-button-4"
+          disabled={!availableActions[3] || availableActions[3].disabled}
+          onClick={availableActions[3]?.onClick}
+        >
+          4
+        </button>
+      </div>
       <div className="relative w-full max-w-lg rounded-[28px] p-5 sm:p-6 text-[#EDE6D0] overflow-hidden backdrop-blur-md bg-[radial-gradient(130%_100%_at_50%_0%,#1f2a26_0%,#161e1c_55%,#101715_100%)] border border-[#6FA36B]/30 shadow-[0_0_0_1px_rgba(232,182,74,0.12),0_24px_60px_-10px_rgba(4,10,8,0.85),0_0_45px_rgba(95,224,200,0.08),inset_0_1px_0_rgba(237,230,208,0.2),inset_0_0_30px_rgba(14,26,23,0.6)]">
         {/* Botanical corner filigree */}
         <div className="absolute top-2.5 left-3 text-[#6FA36B]/35 text-xs pointer-events-none font-serif select-none">

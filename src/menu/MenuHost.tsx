@@ -76,14 +76,20 @@ export function MenuHost({
   const callbacksRef = useRef({
     onStartRun,
     onResumeRun,
+    onOpenLoadout,
+    onOpenStore,
     onTransitionComplete,
     isModalOpen,
+    hasRun: data.hasRun,
   });
   callbacksRef.current = {
     onStartRun,
     onResumeRun,
+    onOpenLoadout,
+    onOpenStore,
     onTransitionComplete,
     isModalOpen,
+    hasRun: data.hasRun,
   };
 
   useEffect(() => {
@@ -195,9 +201,51 @@ export function MenuHost({
       ) {
         return;
       }
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) {
+        return;
+      }
+
       if (ev.code === 'Enter' || ev.code === 'Space') {
         ev.preventDefault();
         triggerRunHandoff('new');
+        return;
+      }
+
+      const key = ev.key;
+      const code = ev.code;
+
+      if (key === '1' || code === 'Digit1' || code === 'Numpad1') {
+        ev.preventDefault();
+        triggerRunHandoff('new');
+        return;
+      }
+
+      if (key === '2' || code === 'Digit2' || code === 'Numpad2') {
+        ev.preventDefault();
+        if (callbacksRef.current.hasRun) {
+          triggerRunHandoff('resume');
+        } else {
+          callbacksRef.current.onOpenLoadout();
+        }
+        return;
+      }
+
+      if (key === '3' || code === 'Digit3' || code === 'Numpad3') {
+        ev.preventDefault();
+        if (callbacksRef.current.hasRun) {
+          callbacksRef.current.onOpenLoadout();
+        } else {
+          callbacksRef.current.onOpenStore();
+        }
+        return;
+      }
+
+      if (key === '4' || code === 'Digit4' || code === 'Numpad4') {
+        ev.preventDefault();
+        if (callbacksRef.current.hasRun) {
+          callbacksRef.current.onOpenStore();
+        }
+        return;
       }
     };
 

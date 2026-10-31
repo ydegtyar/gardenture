@@ -47,6 +47,33 @@ export function getCornerFiligreeColors(
   variant: StoreCardVariant,
   active: boolean
 ): CornerFiligreeColorTokens {
+  if (variant === 'draft') {
+    const primaryStroke = locked
+      ? '#2d5440'
+      : active
+        ? '#6ee7b7'
+        : '#34d399';
+
+    const secondaryStroke = locked
+      ? '#1a3327'
+      : active
+        ? '#10b981'
+        : '#1b5e3c';
+
+    const fillAccent = locked
+      ? '#264837'
+      : active
+        ? '#a7f3d0'
+        : '#4ade80';
+
+    return {
+      primaryStroke,
+      secondaryStroke,
+      fillAccent,
+      fillOpacity: locked ? 0.35 : active ? 0.85 : 0.65,
+    };
+  }
+
   const isCurse = variant === 'curse';
 
   const primaryStroke = locked
