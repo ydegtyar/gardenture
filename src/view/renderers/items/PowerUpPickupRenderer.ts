@@ -17,19 +17,24 @@ export class PowerUpPickupRenderer implements PickupRenderer {
     const pId = p.powerUpId ?? 'shield';
     const def = getPowerUpDef(pId);
     const col = def.tint;
-    // Gentle bobbing: Math.sin(t * 3) * 3
-    const py = p.y * PPU + Math.sin(sim.elapsedSeconds * 3 + p.id) * 3;
-    const pulse = 1 + 0.08 * Math.sin(sim.elapsedSeconds * 5 + p.id);
+    const baseY = p.y * PPU;
+    const bob = Math.sin(sim.elapsedSeconds * 3 + p.id) * 3;
+    const py = baseY + bob;
 
-    // Ground shadow
-    g.ellipse(px, py + 15, 13, 5.5).fill({ color: 0x0f131d, alpha: 0.42 });
-
-    // Soft radial glow behind the icon (color: def.tint, alpha: 0.25)
-    g.circle(px, py, 22 * pulse).fill({ color: col, alpha: 0.25 });
-    g.circle(px, py, 18 * pulse).stroke({
-      color: col,
-      width: 2,
-      alpha: 0.68,
+    // Multi-layered feathered ground drop shadow anchored beneath the floating power-up
+    const shadowScale = 1 - bob * 0.05;
+    const groundY = baseY + 16;
+    g.ellipse(px, groundY, 15 * shadowScale, 6.5 * shadowScale).fill({
+      color: 0x0f131d,
+      alpha: 0.18,
+    });
+    g.ellipse(px, groundY, 11 * shadowScale, 4.6 * shadowScale).fill({
+      color: 0x0f131d,
+      alpha: 0.35,
+    });
+    g.ellipse(px, groundY, 7.5 * shadowScale, 3.0 * shadowScale).fill({
+      color: 0x0f131d,
+      alpha: 0.52,
     });
 
     const tex = getPowerUpTexture(def.id, 64);

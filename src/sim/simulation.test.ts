@@ -31,9 +31,19 @@ import {
   updateDailyRunStreak,
 } from '../meta/SaveManager';
 import { createPlatformFacade } from '../platform/Adapters';
-import { BALANCE_CONFIG, CARDS, CURSES, PERSONAS, POWER_UPS } from '../content/data/catalog';
+import { BALANCE_CONFIG, CARDS, CURSES, PALETTE, PERSONAS, POWER_UPS, WEAPONS, isPersonaRelatedToProfession } from '../content/data/catalog';
+import { resolveHeroSpriteKey } from '../view/SpriteAtlas';
 import { isDevelopmentProcess, IS_DEV } from '../app/debug/devGate';
 import { computeHitenJadeAuraSample } from '../view/renderers/heros/HerbalistFrierenPersonaRenderer';
+import { findChainLightningTargets } from './weapons/chainLightning';
+import { CHAIN_LIGHTNING_CONFIG } from '../content/data/chainLightningConfig';
+import { drawLightningStrikeEffect } from '../view/renderers/weapons/ChainLightningRenderer';
+import { drawThornTrailHazard } from '../view/renderers/weapons/ThornTrailRenderer';
+import { getGardenBladeTipPosition } from '../view/renderers/heros/weapons';
+import {
+  getStormcallerHatTipPosition,
+  getStormcallerEyePositions,
+} from '../view/renderers/heros/StormcallerHeroRenderer';
 
 test('Current Daily Streak consecutive-day tracking (updateDailyRunStreak) & milestone highlight rules', () => {
   // 1. First completed run ever -> 1 Day, streakIncremented = true
@@ -138,11 +148,11 @@ test('Dash invisibility frames (i-frames) grant full contact/projectile immunity
     hitEnemyIds: new Set(),
   });
 
-  // Trigger Dash ability -> activates dash invisibility frames (0.26s = 15 ticks at 60Hz)
+  // Trigger Dash ability -> activates dash invisibility frames (0.32s = ~19 ticks at 60Hz)
   const dashed = sim.requestDash(0);
   assert.equal(dashed, true);
   assert.equal(sim.isHeroDashInvisible(), true);
-  assert.ok(sim.dashIframeTimer >= 0.25);
+  assert.ok(sim.dashIframeTimer >= 0.30);
 
   // Step 12 ticks while inside dash invisibility frames: hero takes 0 damage from overlapping brute or projectile
   for (let i = 0; i < 12; i++) {
@@ -151,7 +161,7 @@ test('Dash invisibility frames (i-frames) grant full contact/projectile immunity
     assert.equal(sim.currentHp, initialHp);
   }
 
-  // Step another 10 ticks so the 0.26s dash i-frame window expires cleanly
+  // Step another 10 ticks so the 0.32s dash i-frame window expires cleanly
   for (let i = 0; i < 10; i++) {
     sim.tick();
   }
@@ -364,11 +374,11 @@ test('Storm Mark Debuff & Card-Scaling Lightning Detonation', () => {
   assert.ok(lightningFx, 'Overhead lightning strike effect should be triggered on detonation');
   assert.ok(sim.visualEffects.length > fxCountBefore);
 
-  // Damage with 0 cards: 10 (slash) + 20 (base lightning detonation) = ~30 damage
+  // Damage with 0 cards: 10 (slash) + 10 (base lightning detonation) = ~20 damage
   const damageDealtWithoutCards = hpAfterHit1 - enemy.hp;
   assert.ok(
-    damageDealtWithoutCards >= 28,
-    `Expected at least 28 damage dealt, got ${damageDealtWithoutCards}`
+    damageDealtWithoutCards >= 19,
+    `Expected at least 19 damage dealt, got ${damageDealtWithoutCards}`
   );
 
   // Now test that detonation damage increases with each card received
@@ -394,6 +404,28 @@ test('Storm Mark Debuff & Card-Scaling Lightning Detonation', () => {
   assert.ok(
     damageDealtWithCards >= damageDealtWithoutCards + 25,
     `Card-scaled damage should scale substantially with 4 cards received`
+  );
+
+  // Attack 3: Test that even when the triggering attack is a Critical Hit, overhead lightning strike is NORMAL damage (avoids always crit mechanic)
+  const enemy3 = sim.spawnEnemy('brute', 2.0, 0, false)!;
+  (sim as any).applyDamageToEnemy(enemy3, 15, false, 0, ['lightning', 'area']);
+  assert.ok(enemy3.stormMarkTimer > 4.5);
+
+  const hits: Array<{ damage: number; isCrit: boolean; weaponTag: string }> = [];
+  const unsubscribe = sim.events.on('EnemyHit', (ev) => {
+    hits.push({ damage: ev.damage, isCrit: ev.isCrit, weaponTag: ev.weaponTag });
+  });
+
+  // Trigger detonation with a guaranteed critical attack
+  (sim as any).applyDamageToEnemy(enemy3, 10, true, 0, ['slash']);
+  unsubscribe();
+
+  const detonationHit = hits.find((h) => h.weaponTag === 'storm_detonation');
+  assert.ok(detonationHit, 'Must emit EnemyHit event for storm_detonation');
+  assert.equal(
+    detonationHit.isCrit,
+    false,
+    'Overhead lightning strike must be normal damage, not inheriting crit from triggering hit'
   );
 });
 
@@ -1579,6 +1611,15 @@ test('Quick Hands increases Petal Orbs spinning speed, Thander Rein persona rewo
     simBossTiming.spawnTimer >= 2.0,
     `Expected decreased spawn rate (spawnTimer >= 2.0s) during Final Boss, got ${simBossTiming.spawnTimer}`
   );
+
+  // Check Final Boss health points scaling
+  assert.equal(Simulation.FINAL_BOSS_BASE_HP, 1500, 'Final Boss base HP should be 1500');
+  const spawnedFinalBoss = simBossTiming.enemies.find((e) => e.isFinalBoss);
+  assert.ok(spawnedFinalBoss, 'Final Boss should be in enemies list');
+  assert.ok(
+    spawnedFinalBoss.maxHp > 2500,
+    `Final Boss HP at 225s should scale above 2500, got ${spawnedFinalBoss.maxHp}`
+  );
 });
 
 test('Arbalete (replaces Thorn Spear) has increased default range, fires arbalete_bolt projectiles, explodes at end of flight when evolved, and Swift Boots grants passive dodge chance', () => {
@@ -1671,7 +1712,7 @@ test('Arbalete (replaces Thorn Spear) has increased default range, fires arbalet
     (simDodge as any).damageHero(10);
     if (simDodge.currentHp === simDodge.maxHp) {
       dodgesTriggered++;
-      assert.equal(lastFloatText, 'DODGE!', 'Passive dodge should emit DODGE! FloatingText event');
+      assert.equal(lastFloatText, 'miss', 'Passive dodge should emit miss FloatingText event');
     } else {
       hitsTaken++;
     }
@@ -2518,4 +2559,1343 @@ test('Item pickup and Perfect Dodge do not spawn floating text', () => {
     `Picking up items must not spawn item title floating text, got: ${floatingTexts.join(', ')}`
   );
 });
+
+test('Chain Lightning Rework: Targeting logic, jump progression, mid-chain enemy death resilience, and buffer reuse', () => {
+  // Test pure targeting function with mock enemies
+  const mockEnemies: any[] = [
+    { id: 1, x: 2.0, y: 0, hp: 50, koTimer: 0 },
+    { id: 2, x: 5.5, y: 0, hp: 40, koTimer: 0 },
+    { id: 3, x: 8.8, y: 0, hp: 30, koTimer: 0 },
+    { id: 4, x: 25.0, y: 0, hp: 100, koTimer: 0 }, // Out of range of all jumps
+  ];
+
+  // Config: initial range 4.0 from caster (0, 0), chainRange 4.0, maxChains 3
+  const config = {
+    range: 4.0,
+    chainRange: 4.0,
+    maxChains: 3,
+  };
+
+  const steps = findChainLightningTargets(0, 0, mockEnemies, config);
+  assert.equal(steps.length, 3, 'Should chain through 3 targets (E1 -> E2 -> E3)');
+
+  // Step 0: Caster -> E1
+  assert.equal(steps[0]!.targetId, 1);
+  assert.equal(steps[0]!.fromX, 0);
+  assert.equal(steps[0]!.fromY, 0);
+  assert.equal(steps[0]!.toX, 2.0);
+
+  // Step 1: E1 -> E2 (within chainRange 4.0 of E1, even though distance from caster is 5.5!)
+  assert.equal(steps[1]!.targetId, 2);
+  assert.equal(steps[1]!.fromX, 2.0);
+  assert.equal(steps[1]!.toX, 5.5);
+
+  // Step 2: E2 -> E3 (within chainRange 4.0 of E2)
+  assert.equal(steps[2]!.targetId, 3);
+  assert.equal(steps[2]!.fromX, 5.5);
+  assert.equal(steps[2]!.toX, 8.8);
+
+  // Resilience against mid-chain enemy death:
+  // If an enemy dies mid-chain, the stored strike point ensures subsequent jumps continue
+  const dyingEnemies: any[] = [
+    { id: 10, x: 2.0, y: 0, hp: 10, koTimer: 0 },
+    { id: 20, x: 5.0, y: 0, hp: 100, koTimer: 0 },
+  ];
+  const stepsWithDeath = findChainLightningTargets(0, 0, dyingEnemies, config);
+  assert.equal(stepsWithDeath.length, 2);
+  assert.equal(stepsWithDeath[0]!.targetId, 10);
+  // Emulate death: hp becomes 0
+  dyingEnemies[0]!.hp = 0;
+  // Second step was calculated from (2.0, 0)
+  assert.equal(stepsWithDeath[1]!.targetId, 20);
+  assert.equal(stepsWithDeath[1]!.fromX, 2.0);
+
+  // Buffer reuse check: returned array is populated without throwing
+  const bufA = findChainLightningTargets(0, 0, mockEnemies, config);
+  const bufB = findChainLightningTargets(0, 0, mockEnemies, config);
+  assert.equal(bufA, bufB, 'Should reuse pre-allocated buffer for zero hot-path allocations');
+
+  // Verify full simulation weapon swing with chain lightning
+  const sim = new Simulation({ seed: 42, startingWeaponId: 'chain_lightning' });
+  const e1 = sim.spawnEnemy('brute', 2.0, 0, false)!;
+  const e2 = sim.spawnEnemy('brute', 5.8, 0, false)!;
+  const e1StartHp = e1.hp;
+  const e2StartHp = e2.hp;
+
+  // Trigger attack
+  sim.tick();
+  const weapon = sim.weapons.find((w) => w.id === 'chain_lightning');
+  assert.ok(weapon);
+
+  // Advance simulation to weapon trigger
+  for (let i = 0; i < 70; i++) {
+    sim.tick();
+    if (e1.hp < e1StartHp) break;
+  }
+  assert.ok(e1.hp < e1StartHp, 'Target 1 should receive chain lightning damage');
+  assert.ok(e2.hp < e2StartHp, 'Target 2 should receive chained lightning damage');
+
+  const dmgE1 = e1StartHp - e1.hp;
+  const dmgE2 = e2StartHp - e2.hp;
+  assert.ok(
+    dmgE1 > dmgE2,
+    `Target 1 damage (${dmgE1}) must be strictly greater than Target 2 damage (${dmgE2}) due to per-bounce falloff`
+  );
+  assert.ok(
+    Math.abs(dmgE2 / dmgE1 - CHAIN_LIGHTNING_CONFIG.damageFalloff) <= 0.1,
+    `Target 2 damage should be ~${CHAIN_LIGHTNING_CONFIG.damageFalloff * 100}% of Target 1 damage`
+  );
+
+  // Verify lightning start point follows hero on movement
+  const initialBolt = sim.visualEffects.find(
+    (fx) => fx.kind === 'chain_bolt' && fx.angle === 0
+  );
+  if (initialBolt) {
+    const origBoltX = initialBolt.x;
+    sim.heroX += 3.5;
+    sim.heroY -= 2.0;
+    sim.tick();
+    assert.equal(
+      initialBolt.x,
+      sim.heroX,
+      'Lightning start x must follow heroX upon movement'
+    );
+    assert.equal(
+      initialBolt.y,
+      sim.heroY,
+      'Lightning start y must follow heroY upon movement'
+    );
+    assert.notEqual(initialBolt.x, origBoltX);
+  }
+});
+
+test('Chain Bloom: Bolder chain lightning approach with multi-chain synergy and isBloom flag', () => {
+  const sim = new Simulation({ seed: 100, startingWeaponId: 'arbalete' });
+  sim.cards.chain_bloom = 3;
+
+  // Spawn an initial enemy and a chained enemy nearby
+  const e1 = sim.spawnEnemy('brute', 2.0, 0, false)!;
+  const e2 = sim.spawnEnemy('brute', 4.0, 0, false)!;
+  sim.spatialGrid.insert(e1.id, e1.x, e1.y, e1.radius);
+  sim.spatialGrid.insert(e2.id, e2.x, e2.y, e2.radius);
+  const e2HpBefore = e2.hp;
+
+  // Simulate projectile hitting enemy 1
+  sim.projectiles.push({
+    id: 9999,
+    isEnemy: false,
+    x: e1.x,
+    y: e1.y,
+    prevX: e1.x - 0.5,
+    prevY: e1.y,
+    vx: 10,
+    vy: 0,
+    radius: 0.3,
+    damage: 30,
+    isCrit: false,
+    pierceRemaining: 0,
+    lifeTimer: 1.0,
+    color: 0xffffff,
+    weaponTags: ['projectile'],
+    hitEnemyIds: new Set(),
+  });
+
+  sim.tick();
+
+  assert.ok(e2.hp < e2HpBefore, 'Chain Bloom should damage nearby chained enemy');
+  const bloomFx = sim.visualEffects.find((fx) => fx.isBloom);
+  assert.ok(bloomFx, 'Chain Bloom visual effect should have isBloom = true');
+  assert.equal(bloomFx.kind, 'chain_bolt');
+});
+
+test('Garden Blade level-up progression increases damage, range, and area on each level', () => {
+  const sim = new Simulation({
+    seed: 1234,
+    startingWeaponId: 'garden_blade',
+    professionId: 'warden',
+    unlockedWeapons: ['garden_blade'],
+  });
+
+  // 1. Verify strict per-level stat growth from Lv 1 to Lv 8
+  let prevStats = sim.getGardenBladeStats(1, false);
+  assert.equal(prevStats.damage, 14 * sim.stats.damageMult, 'Lv 1 damage should equal base 14 * damageMult');
+  assert.equal(prevStats.reach, 1.85 * sim.stats.reachMult, 'Lv 1 reach should equal base 1.85u * reachMult');
+  assert.equal(prevStats.arcDeg, 115 * sim.stats.areaMult, 'Lv 1 arc should equal base 115 deg * areaMult');
+  assert.equal(prevStats.areaMult, 1.0 * sim.stats.areaMult, 'Lv 1 areaMult should equal base 1.0 * areaMult');
+
+  for (let lv = 2; lv <= 8; lv++) {
+    const currentStats = sim.getGardenBladeStats(lv, false);
+    assert.ok(
+      currentStats.damage > prevStats.damage,
+      `Garden Blade Lv ${lv} damage (${currentStats.damage}) must be strictly higher than Lv ${lv - 1} (${prevStats.damage})`
+    );
+    assert.ok(
+      currentStats.reach > prevStats.reach,
+      `Garden Blade Lv ${lv} reach (${currentStats.reach}) must be strictly higher than Lv ${lv - 1} (${prevStats.reach})`
+    );
+    assert.ok(
+      currentStats.arcDeg > prevStats.arcDeg,
+      `Garden Blade Lv ${lv} arcDeg (${currentStats.arcDeg}) must be strictly wider than Lv ${lv - 1} (${prevStats.arcDeg})`
+    );
+    assert.ok(
+      currentStats.arcRad > prevStats.arcRad,
+      `Garden Blade Lv ${lv} arcRad must be strictly wider than Lv ${lv - 1}`
+    );
+    assert.ok(
+      currentStats.areaMult > prevStats.areaMult,
+      `Garden Blade Lv ${lv} areaMult (${currentStats.areaMult}) must be strictly higher than Lv ${lv - 1} (${prevStats.areaMult})`
+    );
+    prevStats = currentStats;
+  }
+
+  // 2. Verify milestone cooldown reductions at Lv 4 and Lv 7
+  const cdLv1 = sim.getGardenBladeStats(1, false).cooldown;
+  const cdLv4 = sim.getGardenBladeStats(4, false).cooldown;
+  const cdLv7 = sim.getGardenBladeStats(7, false).cooldown;
+  assert.ok(cdLv4 < cdLv1, 'Cooldown at Lv 4 should be reduced compared to Lv 1');
+  assert.ok(cdLv7 < cdLv4, 'Cooldown at Lv 7 should be reduced compared to Lv 4');
+
+  // 3. Verify Evolved Verdant Edge has highest stats
+  const evolvedStats = sim.getGardenBladeStats(8, true);
+  assert.ok(evolvedStats.damage > prevStats.damage, 'Evolved blade damage should exceed Lv 8');
+  assert.ok(evolvedStats.reach > prevStats.reach, 'Evolved blade reach should exceed Lv 8');
+  assert.ok(evolvedStats.arcDeg > prevStats.arcDeg, 'Evolved blade arc should exceed Lv 8');
+
+  // 4. Hitbox Range Scaling Verification in Combat:
+  // Enemy radius for chaser is 0.4u.
+  // Lv 1 reach = 1.85u -> maxDist = 1.85 + 0.4 = 2.25u.
+  // Lv 3 reach = 2.01u -> maxDist = 2.01 + 0.4 = 2.41u.
+  // Place target at x = 2.30u (within reach of Lv 3, but outside Lv 1).
+  sim.enemies = [];
+  sim.spatialGrid.clear();
+  sim.visualEffects = [];
+  sim.debugSetWeaponLevel('garden_blade', 1, false);
+  const targetFar = sim.spawnEnemy('chaser', 2.30, 0, false)!;
+  sim.spatialGrid.insert(targetFar.id, targetFar.x, targetFar.y, targetFar.radius);
+  const targetFarHpBefore = targetFar.hp;
+
+  const blade = sim.weapons.find((w) => w.id === 'garden_blade')!;
+  blade.phase = 'ready';
+  blade.cooldownTimer = 0;
+  blade.lockedAngle = 0;
+  blade.lockedTargetX = targetFar.x;
+  blade.lockedTargetY = targetFar.y;
+
+  // Fire attack at Lv 1
+  const statsLv1 = sim.getGardenBladeStats(1, false);
+  (sim as any).fireWeaponAttack(blade, 'arc', statsLv1.damage, statsLv1.reach, statsLv1.areaMult, false);
+  assert.equal(targetFar.hp, targetFarHpBefore, 'Enemy at 2.30u should NOT take damage from Lv 1 Garden Blade (reach 1.85u)');
+
+  // Fire attack at Lv 3 (reach 2.01u)
+  sim.debugSetWeaponLevel('garden_blade', 3, false);
+  const statsLv3 = sim.getGardenBladeStats(3, false);
+  (sim as any).fireWeaponAttack(blade, 'arc', statsLv3.damage, statsLv3.reach, statsLv3.areaMult, false);
+  assert.ok(targetFar.hp < targetFarHpBefore, 'Enemy at 2.30u MUST take damage from Lv 3 Garden Blade (reach 2.01u)');
+
+  // 5. Hitbox Arc/Area Scaling Verification in Combat:
+  // Place enemy at radius 1.6u, angle 82 deg off-center.
+  // With Warden areaMult (1.1):
+  // Lv 1 arc is 126.5 deg (half-arc = 63.25 deg) + 14.48 deg padding = 77.73 deg. At 82 deg, outside arc!
+  // Lv 4 arc is 145.48 deg (half-arc = 72.74 deg) + 14.48 deg padding = 87.22 deg. At 82 deg, inside arc!
+  sim.enemies = [];
+  sim.spatialGrid.clear();
+  sim.debugSetWeaponLevel('garden_blade', 1, false);
+  const angleOffCenter = (82 * Math.PI) / 180;
+  const arcTarget = sim.spawnEnemy(
+    'chaser',
+    Math.cos(angleOffCenter) * 1.6,
+    Math.sin(angleOffCenter) * 1.6,
+    false
+  )!;
+  sim.spatialGrid.insert(arcTarget.id, arcTarget.x, arcTarget.y, arcTarget.radius);
+  const arcTargetHpBefore = arcTarget.hp;
+
+  blade.phase = 'ready';
+  blade.cooldownTimer = 0;
+  blade.lockedAngle = 0;
+  blade.lockedTargetX = 2.0;
+  blade.lockedTargetY = 0;
+
+  // Fire attack at Lv 1 (115 deg * 1.1 arc)
+  (sim as any).fireWeaponAttack(blade, 'arc', statsLv1.damage, statsLv1.reach, statsLv1.areaMult, false);
+  assert.equal(arcTarget.hp, arcTargetHpBefore, 'Enemy at 82 deg should NOT take damage from Lv 1 Garden Blade');
+
+  // Fire attack at Lv 4 (widened arc)
+  sim.debugSetWeaponLevel('garden_blade', 4, false);
+  const statsLv4 = sim.getGardenBladeStats(4, false);
+  (sim as any).fireWeaponAttack(blade, 'arc', statsLv4.damage, statsLv4.reach, statsLv4.areaMult, false);
+  assert.ok(arcTarget.hp < arcTargetHpBefore, 'Enemy at 82 deg MUST take damage from Lv 4 Garden Blade');
+
+  // 6. Visual Effects Radius & ArcRad scale with blade level
+  sim.visualEffects = [];
+  (sim as any).fireWeaponAttack(blade, 'arc', statsLv4.damage, statsLv4.reach, statsLv4.areaMult, false);
+  const slashFx = sim.visualEffects.find((fx: any) => fx.kind === 'slash_arc')!;
+  assert.ok(slashFx, 'Must spawn slash_arc visual effect');
+  assert.equal(slashFx.radius, statsLv4.reach, 'Visual effect radius should match weapon reach');
+  assert.equal(slashFx.arcRad, statsLv4.arcRad, 'Visual effect arcRad should match weapon arcRad');
+
+  // 7. Verify levelUpDescriptions clearly outline damage, range, and area improvements
+  const desc = WEAPONS.garden_blade.levelUpDescriptions;
+  assert.equal(desc.length, 8);
+  for (let i = 1; i < desc.length; i++) {
+    assert.ok(desc[i].includes('Damage'), `Level ${i + 1} description should mention Damage: "${desc[i]}"`);
+    assert.ok(desc[i].includes('Range'), `Level ${i + 1} description should mention Range: "${desc[i]}"`);
+    assert.ok(desc[i].includes('Area'), `Level ${i + 1} description should mention Area: "${desc[i]}"`);
+  }
+});
+
+test('Overhead Lightning Strike: New lightning style rendering on lightning-marked enemy taking damage', () => {
+  const sim = new Simulation({ seed: 42, startingWeaponId: 'garden_blade' });
+  const enemy = sim.spawnEnemy('brute', 3.0, 0, false)!;
+
+  // 1. Initial lightning hit marks the enemy with Storm Mark debuff
+  (sim as any).applyDamageToEnemy(enemy, 15, false, 0, ['lightning']);
+  assert.ok(enemy.stormMarkTimer > 4.5, 'Enemy must receive Storm Mark debuff when struck by lightning');
+
+  // 2. Any subsequent attack detonates the mark with overhead lightning strike
+  (sim as any).applyDamageToEnemy(enemy, 10, false, 0, ['slash']);
+  assert.equal(enemy.stormMarkTimer, 0, 'Storm Mark must be consumed upon detonation');
+
+  const strikeFx = sim.visualEffects.find((fx) => fx.kind === 'lightning_strike');
+  assert.ok(strikeFx, 'Overhead lightning_strike visual effect must be spawned');
+  assert.equal(strikeFx.color, CHAIN_LIGHTNING_CONFIG.strike.colors.midGlow);
+
+  // 3. Verify new lightning style rendering pipeline
+  const strokeCalls: any[] = [];
+  const fillCalls: any[] = [];
+  const fakeGraphics: any = {
+    moveTo: () => fakeGraphics,
+    lineTo: () => fakeGraphics,
+    stroke: (opts: any) => {
+      strokeCalls.push(opts);
+      return fakeGraphics;
+    },
+    circle: () => fakeGraphics,
+    fill: (opts: any) => {
+      fillCalls.push(opts);
+      return fakeGraphics;
+    },
+  };
+
+  // Execute drawing mid-flight (timeElapsed = 0.05s)
+  strikeFx.timer = strikeFx.maxTimer - 0.05;
+  assert.doesNotThrow(() => {
+    drawLightningStrikeEffect(fakeGraphics, strikeFx, 1.0);
+  });
+
+  // Verify multi-layered glow strokes and core were rendered (at least 4 main layers + branches)
+  assert.ok(strokeCalls.length >= 4, 'Must render at least 4 layered strokes (outer, mid, inner, core)');
+  assert.ok(fillCalls.length >= 2, 'Must render ground impact flash and overhead cloud origin flash');
+
+  // Verify that once the effect expires, nothing is drawn (no lingering graphics)
+  strokeCalls.length = 0;
+  fillCalls.length = 0;
+  strikeFx.timer = 0; // expired
+  drawLightningStrikeEffect(fakeGraphics, strikeFx, 0.0);
+  assert.equal(strokeCalls.length, 0, 'Expired strike must not draw strokes');
+  assert.equal(fillCalls.length, 0, 'Expired strike must not draw fills');
+});
+
+test('Dash high velocity removal and extended invulnerability coverage', () => {
+  const sim = new Simulation({
+    seed: 8888,
+    professionId: 'warden',
+    startingWeaponId: 'garden_blade',
+  });
+
+  // 1. Dash with stationary input (no movement intent)
+  sim.setMoveIntent(0, 0);
+  assert.equal(sim.requestDash(0), true);
+
+  // During active dash (dashTimer > 0), hero moves at high dash speed
+  sim.tick();
+  assert.ok(sim.heroVx > 10, 'Hero should have high velocity during the active dash burst');
+  assert.equal(sim.heroVy, 0);
+
+  // Tick until dashTimer reaches 0 (total 0.14s = 9 ticks)
+  for (let i = 0; i < 8; i++) {
+    sim.tick();
+    // Verify invulnerability covers the whole dash duration
+    assert.ok(sim.invulnTimer > 0, 'Hero must be invulnerable during the entire dash duration');
+    assert.equal(sim.isHeroDashInvisible(), true, 'Hero must have dash i-frames during dash duration');
+  }
+
+  // Dash has now completed: heroVx must immediately reset to 0 without residual high velocity slide
+  assert.equal(sim.dashTimer, 0, 'Dash timer should be completed');
+  assert.equal(sim.heroVx, 0, 'Hero X velocity must be 0 immediately after dash completion with no movement intent');
+  assert.equal(sim.heroVy, 0, 'Hero Y velocity must be 0 immediately after dash completion');
+
+  // Verify dash range was slightly increased from 2.6u to 3.2u
+  const posAfterDashX = sim.heroX;
+  assert.equal(Simulation.DASH_DISTANCE_U, 3.2, 'Dash distance should be set to 3.2 units');
+  assert.ok(posAfterDashX >= 3.0, `Dash travel distance should exceed old 2.6u, got ${posAfterDashX}`);
+
+  // Verify that on subsequent ticks, hero remains completely stopped (no sliding forward)
+  sim.tick();
+  assert.equal(sim.heroX, posAfterDashX, 'Hero should not slide forward after dash ends');
+
+  // Hero still maintains invulnerability / i-frames right after dash arrival to safely recover
+  assert.ok(sim.invulnTimer > 0, 'Invulnerability should safely cover post-dash arrival');
+  assert.equal(sim.isHeroDashInvisible(), true, 'I-frames should safely cover post-dash arrival');
+
+  // 2. Dash with active movement intent: velocity should seamlessly drop to walk speed, not lingering dash velocity
+  const simMoving = new Simulation({
+    seed: 8889,
+    professionId: 'warden',
+    startingWeaponId: 'garden_blade',
+  });
+  simMoving.setMoveIntent(1, 0);
+  assert.equal(simMoving.requestDash(0), true);
+
+  // Run through active dash duration
+  for (let i = 0; i < 9; i++) {
+    simMoving.tick();
+  }
+  assert.equal(simMoving.dashTimer, 0);
+  assert.ok(
+    Math.abs(simMoving.heroVx - simMoving.stats.moveSpeed) < 1e-4,
+    `Hero X velocity should reset immediately to moveSpeed (${simMoving.stats.moveSpeed}), but got ${simMoving.heroVx}`
+  );
+
+  // 3. Stormcaller profession should receive 0.38s invulnerability window
+  const simStorm = new Simulation({
+    seed: 8890,
+    professionId: 'stormcaller',
+    startingWeaponId: 'chain_lightning',
+  });
+  simStorm.requestDash(0);
+  assert.ok(
+    simStorm.dashIframeTimer >= 0.37,
+    `Stormcaller should receive ~0.38s i-frames, got ${simStorm.dashIframeTimer}`
+  );
+  assert.ok(
+    simStorm.invulnTimer >= 0.37,
+    `Stormcaller should receive ~0.38s invulnerability, got ${simStorm.invulnTimer}`
+  );
+});
+
+test('Golden Wheat Fox AI: slightly decreased speed, thorn area avoidance, and seeking the most powerful enemy', () => {
+  const sim = new Simulation({
+    seed: 4242,
+    professionId: 'warden',
+    startingWeaponId: 'blade_slash',
+  });
+
+  // 1. Spawning Golden Wheat Fox verifies slightly decreased movement speed (2.25 vs old 2.65)
+  const fox = sim.spawnSpecialMonster('golden_beast');
+  assert.ok(fox, 'Golden Wheat Fox should be spawned');
+  assert.equal(fox.specialId, 'golden_beast');
+  assert.equal(
+    fox.speed,
+    2.25,
+    `Golden Wheat Fox speed should be slightly decreased to 2.25, got ${fox.speed}`
+  );
+
+  // 2. Identification of the most powerful enemy on the map
+  // Clean other enemies for controlled test
+  sim.enemies = [fox];
+
+  // When only the fox is present, no powerful ally exists
+  assert.equal(sim.findMostPowerfulEnemy(fox.id), null);
+
+  // Spawn a weak spitter and a high-HP brute
+  const spitter = sim.spawnEnemy('spitter', 5, 5, false);
+  const brute = sim.spawnEnemy('brute', -5, -5, false);
+  assert.ok(spitter && brute);
+
+  // findMostPowerfulEnemy should rank brute higher than spitter
+  const powerful1 = sim.findMostPowerfulEnemy(fox.id);
+  assert.ok(powerful1);
+  assert.equal(powerful1.id, brute.id, 'Brute should be selected over Spitter as most powerful');
+
+  // Spawn an Ancient Moss Colossus (Mini-Boss)
+  const miniBoss = (sim as any).spawnBoss(false);
+  assert.ok(miniBoss);
+  const powerful2 = sim.findMostPowerfulEnemy(fox.id);
+  assert.ok(powerful2);
+  assert.equal(powerful2.id, miniBoss.id, 'Mini-Boss should take precedence as most powerful combat enemy');
+
+  // Stationary objects like Arena Flower and Hero Grave should NEVER be chosen
+  const flower = sim.spawnArenaFlower(0, 0);
+  const grave = sim.spawnHeroGrave(1, 1);
+  assert.ok(flower && grave);
+  miniBoss.hp = 0; // kill mini boss
+  brute.hp = 0; // kill brute
+  spitter.hp = 0; // kill spitter
+  assert.equal(sim.findMostPowerfulEnemy(fox.id), null, 'Flowers and Graves should not be chosen as allies');
+
+  // 3. Fox fleeing toward most powerful enemy
+  // Reset enemies to just fox and a healthy Brute
+  brute.hp = brute.maxHp;
+  sim.enemies = [fox, brute];
+  brute.x = 10;
+  brute.y = 0;
+  fox.x = 0;
+  fox.y = 0;
+  sim.heroX = 0;
+  sim.heroY = 5; // Hero is below fox at (0, 5)
+
+  // Force fox mode to seek_powerful
+  fox.foxRunMode = 'seek_powerful';
+  fox.foxTargetEnemyId = brute.id;
+  fox.aiTimer = 3.0;
+
+  const startDistToBrute = Math.hypot(brute.x - fox.x, brute.y - fox.y);
+  sim.tick();
+  const nextDistToBrute = Math.hypot(brute.x - fox.x, brute.y - fox.y);
+  assert.ok(
+    nextDistToBrute < startDistToBrute,
+    `Fox in seek_powerful mode should move closer to most powerful enemy (started: ${startDistToBrute}, now: ${nextDistToBrute})`
+  );
+
+  // 4. Thorn Area Avoidance: outer thorn circle arena
+  // Position hero at arena center (0, 0) and fox right near thorn edge (19.0, 0) inside arena of radius 20.0
+  sim.enemies = [fox];
+  sim.arenaActive = true;
+  sim.finalBossSpawned = true; // Prevent automatic collapse calculation from overwriting test radius
+  sim.arenaCenterX = 0;
+  sim.arenaCenterY = 0;
+  sim.arenaRadiusU = 20.0;
+  sim.heroX = 0;
+  sim.heroY = 0;
+  fox.x = 19.0;
+  fox.y = 0;
+  fox.foxRunMode = 'flee_hero';
+  fox.aiTimer = 3.0;
+
+  // Run 30 ticks; the hero is at center (0,0), so pure flee would push directly into thorns (x > 20)
+  for (let t = 0; t < 30; t++) {
+    sim.tick();
+  }
+  const distFromCenter = Math.hypot(fox.x - sim.arenaCenterX, fox.y - sim.arenaCenterY);
+  const maxSafeDist = sim.arenaRadiusU - fox.radius;
+  assert.ok(
+    distFromCenter <= maxSafeDist + 0.01,
+    `Fox must avoid running into the thorn perimeter! Dist: ${distFromCenter}, max safe: ${maxSafeDist}`
+  );
+  // Also verify it deflected tangentially (y != 0) rather than stalling head-on
+  assert.ok(
+    Math.abs(fox.y) > 0.1,
+    `Fox should deflect tangentially along the thorn boundary wall (y: ${fox.y})`
+  );
+
+  // 5. Thorn Area Avoidance: ground thorn hazards
+  // Place a thorn_trail hazard directly ahead of fox
+  fox.x = 5;
+  fox.y = 5;
+  sim.heroX = 5;
+  sim.heroY = 2; // Hero is above fox at (5, 2), fleeing would normally push downward to (5, 6+)
+  sim.hazards = [
+    {
+      id: 9999,
+      kind: 'thorn_trail',
+      x: 5,
+      y: 7, // Thorn patch directly in the flee path
+      radius: 1.5,
+      damage: 10,
+      tickTimer: 0.2,
+      lifeTimer: 5.0,
+      color: 0xff0000,
+    },
+  ];
+
+  sim.tick();
+  // With thorn trail avoidance, fox should deflect sideways (x != 5) to avoid the thorn patch
+  assert.ok(
+    Math.abs(fox.x - 5) > 0.001,
+    `Fox should steer away from thorn trail hazard (fox.x: ${fox.x})`
+  );
+});
+
+test('Chain Lightning with Garden Blade equipped starts at the edge of the blade', () => {
+  const sim = new Simulation({ seed: 42, startingWeaponId: 'chain_lightning' });
+  sim.weapons.push({
+    id: 'garden_blade',
+    level: 2,
+    evolved: false,
+    phase: 'ready',
+    phaseTimer: 0,
+    cooldownTimer: 0,
+    swingCounter: 0,
+    lockedAngle: 0,
+    lockedTargetX: 0,
+    lockedTargetY: 0,
+    orbitAngle: 0,
+    orbitHitCooldowns: new Map(),
+  });
+
+  const tipWorld = sim.getGardenBladeTipWorld();
+  assert.ok(tipWorld, 'Must return world coordinates for Garden Blade tip');
+  assert.notEqual(tipWorld.x, sim.heroX, 'Blade tip x must differ from hero x');
+
+  const tipPx = getGardenBladeTipPosition(sim, 100, 100, 0, 0);
+  assert.ok(tipPx, 'Must return pixel coordinates for Garden Blade tip');
+  assert.ok(tipPx.x > 100, 'Blade tip pixel x must extend forward from hero center');
+
+  const e1 = sim.spawnEnemy('brute', 2.0, 0, false)!;
+  for (let i = 0; i < 70; i++) {
+    sim.tick();
+    if (sim.visualEffects.some((fx) => fx.kind === 'chain_bolt' && fx.angle === 0)) break;
+  }
+
+  const initialBolt = sim.visualEffects.find(
+    (fx) => fx.kind === 'chain_bolt' && fx.angle === 0
+  );
+  assert.ok(initialBolt, 'Initial chain bolt must spawn');
+  const currentTip = sim.getGardenBladeTipWorld()!;
+  assert.ok(
+    Math.abs(initialBolt.x - currentTip.x) < 0.05,
+    `Initial bolt start x (${initialBolt.x}) must match blade tip x (${currentTip.x})`
+  );
+  assert.ok(
+    Math.abs(initialBolt.y - currentTip.y) < 0.05,
+    `Initial bolt start y (${initialBolt.y}) must match blade tip y (${currentTip.y})`
+  );
+});
+
+test('Stormcaller always starts Chain Lightning from the tip of the hat even if Garden Blade is equipped', () => {
+  const sim = new Simulation({
+    seed: 42,
+    professionId: 'stormcaller',
+    startingWeaponId: 'chain_lightning',
+  });
+  sim.weapons.push({
+    id: 'garden_blade',
+    level: 2,
+    evolved: false,
+    phase: 'ready',
+    phaseTimer: 0,
+    cooldownTimer: 0,
+    swingCounter: 0,
+    lockedAngle: 0,
+    lockedTargetX: 0,
+    lockedTargetY: 0,
+    orbitAngle: 0,
+    orbitHitCooldowns: new Map(),
+  });
+
+  const hatTipWorld = sim.getStormcallerHatTipWorld();
+  assert.ok(hatTipWorld, 'Must return world coordinates for Stormcaller hat tip');
+  assert.ok(
+    hatTipWorld.y < sim.heroY,
+    `Hat tip y (${hatTipWorld.y}) must be above hero y (${sim.heroY})`
+  );
+
+  const bladeTipWorld = sim.getGardenBladeTipWorld();
+  assert.ok(bladeTipWorld, 'Garden blade tip world coordinates should be present');
+  assert.notEqual(
+    hatTipWorld.y,
+    bladeTipWorld.y,
+    'Hat tip y and blade tip y must be different points'
+  );
+
+  const hatTipPx = getStormcallerHatTipPosition(100, 100, 1, 0);
+  assert.ok(hatTipPx, 'Must return pixel coordinates for Stormcaller hat tip');
+  assert.equal(
+    hatTipPx.y,
+    73,
+    'Hat tip pixel y must be exactly 27px above hero center (100 - 27 = 73)'
+  );
+
+  sim.spawnEnemy('brute', 2.0, 0, false);
+  for (let i = 0; i < 70; i++) {
+    sim.tick();
+    if (sim.visualEffects.some((fx) => fx.kind === 'chain_bolt' && fx.angle === 0)) break;
+  }
+
+  const initialBolt = sim.visualEffects.find(
+    (fx) => fx.kind === 'chain_bolt' && fx.angle === 0
+  );
+  assert.ok(initialBolt, 'Initial chain bolt must spawn');
+  const currentHatTip = sim.getStormcallerHatTipWorld();
+  assert.ok(
+    Math.abs(initialBolt.x - currentHatTip.x) < 0.05,
+    `Initial bolt start x (${initialBolt.x}) must match Stormcaller hat tip x (${currentHatTip.x})`
+  );
+  assert.ok(
+    Math.abs(initialBolt.y - currentHatTip.y) < 0.05,
+    `Initial bolt start y (${initialBolt.y}) must match Stormcaller hat tip y (${currentHatTip.y})`
+  );
+
+  // Initial bolt must NOT start at the blade tip for Stormcaller
+  const currentBladeTip = sim.getGardenBladeTipWorld()!;
+  assert.ok(
+    Math.abs(initialBolt.y - currentBladeTip.y) > 0.5,
+    `Initial bolt start y (${initialBolt.y}) should not equal garden blade tip y (${currentBladeTip.y})`
+  );
+});
+
+test('Thorn Trail slows down enemies by 50% while in hazard and applies thorn slow debuff', () => {
+  const sim = new Simulation({
+    seed: 1234,
+    professionId: 'warden',
+    startingWeaponId: 'garden_blade',
+  });
+
+  // Spawn an ordinary enemy (chaser) at (0, 3) with hero at (0, 0)
+  sim.heroX = 0;
+  sim.heroY = 0;
+  const enemy = sim.spawnEnemy('chaser', 0, 3, false);
+  assert.ok(enemy, 'Enemy must be spawned');
+  assert.equal(enemy.thornSlowTimer, 0);
+  assert.equal(enemy.slowTimer, 0);
+
+  // Measure base move distance without any hazard
+  const startY = enemy.y;
+  sim.tick();
+  const normalDeltaY = Math.abs(startY - enemy.y);
+  assert.ok(normalDeltaY > 0.01, 'Enemy should move toward hero');
+
+  // Place a thorn_trail hazard directly at the enemy position
+  sim.hazards = [
+    {
+      id: 8881,
+      kind: 'thorn_trail',
+      x: enemy.x,
+      y: enemy.y,
+      radius: 1.5,
+      damage: 10,
+      tickTimer: 0.2,
+      lifeTimer: 2.0,
+      color: 0xff0000,
+    },
+  ];
+
+  const beforeThornY = enemy.y;
+  sim.tick();
+  const slowedDeltaY = Math.abs(beforeThornY - enemy.y);
+
+  // Verify enemy received active thornSlowTimer and slowTimer
+  assert.ok(enemy.thornSlowTimer > 0, 'Enemy in thorn trail must have thornSlowTimer > 0');
+  assert.ok(enemy.slowTimer > 0, 'Enemy in thorn trail must have slowTimer > 0');
+
+  // Verify enemy moves at approximately 50% speed
+  const speedRatio = slowedDeltaY / normalDeltaY;
+  assert.ok(
+    speedRatio <= 0.55 && speedRatio >= 0.45,
+    `Enemy speed in thorn trail should be ~50% of normal speed (ratio: ${speedRatio.toFixed(3)})`
+  );
+
+  // Clear hazard and tick to verify slow debuff lingers and decays
+  sim.hazards = [];
+  const initialThornTimer = enemy.thornSlowTimer;
+  sim.tick();
+  assert.ok(
+    enemy.thornSlowTimer < initialThornTimer,
+    'Thorn slow timer should count down after leaving hazard'
+  );
+});
+
+test('Thorn Trail Hazard Renderer draws 3 thorns per vine (added 1 extra thorn per vine, 9 total)', () => {
+  const fillCalls: any[] = [];
+  const strokeCalls: any[] = [];
+  const fakeGraphics: any = {
+    moveTo: () => fakeGraphics,
+    lineTo: () => fakeGraphics,
+    bezierCurveTo: () => fakeGraphics,
+    closePath: () => fakeGraphics,
+    setTransform: () => fakeGraphics,
+    stroke: (opts: any) => {
+      strokeCalls.push(opts);
+      return fakeGraphics;
+    },
+    fill: (opts: any) => {
+      fillCalls.push(opts);
+      return fakeGraphics;
+    },
+  };
+
+  assert.doesNotThrow(() => {
+    drawThornTrailHazard(fakeGraphics, 100, 100, 30, 1.0, 42, 0.5);
+  });
+
+  // Verify thorns were drawn with PALETTE.CRIMSON_WARN
+  // 3 vines * 3 thorns per vine = 9 sharp crimson thorns
+  const thornFills = fillCalls.filter((f) => f.color === PALETTE.CRIMSON_WARN);
+  assert.equal(
+    thornFills.length,
+    9,
+    `drawThornTrailHazard must draw 9 crimson thorns across the 3 vines (3 per vine), found ${thornFills.length}`
+  );
+
+  // Verify mint leaves (4) and blush rosebud (1) were also rendered
+  const leafFills = fillCalls.filter((f) => f.color === PALETTE.MINT_GREEN);
+  assert.equal(leafFills.length, 4, 'Must draw 4 emerald/mint leaves');
+  const budFills = fillCalls.filter((f) => f.color === PALETTE.BLUSH_ROSE);
+  assert.equal(budFills.length, 1, 'Must draw central rosebud diamond');
+});
+
+test('Stormcaller eye placement: screen pixels and simulation world coordinates match sprite anatomy', () => {
+  const hatTipPx = getStormcallerHatTipPosition(100, 100, 1, 0);
+  assert.equal(hatTipPx.y, 73, 'Hat tip y must be 27px above hero center');
+
+  const baseEyesPx = getStormcallerEyePositions(100, 100, 1, false);
+  assert.equal(baseEyesPx.leftEyeX, 96.8, 'Base left eye x should be 100 - 3.2 = 96.8');
+  assert.equal(baseEyesPx.rightEyeX, 103.2, 'Base right eye x should be 100 + 3.2 = 103.2');
+  assert.equal(baseEyesPx.eyeY, 87.9, 'Base eye y should be 100 - 12.1 = 87.9');
+
+  const flippedEyesPx = getStormcallerEyePositions(100, 100, -1, false);
+  assert.equal(flippedEyesPx.leftEyeX, 103.2, 'Flipped left eye x should be 100 + 3.2 = 103.2');
+  assert.equal(flippedEyesPx.rightEyeX, 96.8, 'Flipped right eye x should be 100 - 3.2 = 96.8');
+  assert.equal(flippedEyesPx.eyeY, 87.9, 'Flipped eye y should remain 87.9');
+
+  const skinEyesPx = getStormcallerEyePositions(100, 100, 1, true);
+  assert.equal(skinEyesPx.leftEyeX, 96.15, 'Skin left eye x should be 100 - 3.85 = 96.15');
+  assert.equal(skinEyesPx.rightEyeX, 103.85, 'Skin right eye x should be 100 + 3.85 = 103.85');
+  assert.equal(skinEyesPx.eyeY, 87.5, 'Skin eye y should be 100 - 12.5 = 87.5');
+
+  const sim = new Simulation({
+    seed: 99,
+    professionId: 'stormcaller',
+  });
+  const eyesWorld = sim.getStormcallerEyesWorld();
+  assert.ok(eyesWorld.eyeY < sim.heroY, 'Stormcaller eye world y must be above hero world y');
+  assert.ok(
+    eyesWorld.eyeY > sim.getStormcallerHatTipWorld().y,
+    'Stormcaller eyes must be positioned below the hat tip'
+  );
+});
+
+test('Passive dodge spawns smaller "miss" text above the missed enemy instead of "dodge"', () => {
+  const sim = new Simulation({ seed: 7777, professionId: 'warden' });
+  sim.debugSetCardLevel('swift_boots', 5); // 30% dodge chance
+  sim.cardPickInvisTimer = 0;
+  sim.invulnTimer = 0;
+
+  const enemy = sim.spawnEnemy('brute', sim.heroX + 2.0, sim.heroY + 1.0, false)!;
+  assert.ok(enemy, 'Enemy should be spawned');
+
+  const floatingEvents: Array<{
+    x: number;
+    y: number;
+    text: string;
+    scale: number;
+    color: number;
+  }> = [];
+  sim.events.on('FloatingText', (ev) => {
+    floatingEvents.push({ ...ev });
+  });
+
+  // Force a dodge against the enemy
+  let dodged = false;
+  for (let i = 0; i < 50; i++) {
+    sim.currentHp = sim.maxHp;
+    sim.invulnTimer = 0;
+    sim.cardPickInvisTimer = 0;
+    floatingEvents.length = 0;
+
+    (sim as any).damageHero(10, enemy);
+    if (sim.currentHp === sim.maxHp) {
+      dodged = true;
+      const floatEv = floatingEvents[0];
+      assert.ok(floatEv, 'Dodge must emit a FloatingText event');
+      assert.equal(floatEv.text, 'miss', 'Floating text must be "miss" instead of "dodge"');
+      assert.equal(floatEv.scale, 0.55, 'Floating text must have smaller scale (0.55)');
+      assert.equal(floatEv.color, PALETTE.MINT_GREEN);
+      // Verify floating text was placed above the missed enemy
+      assert.equal(floatEv.x, enemy.x, 'Text x coordinate must be positioned on the missed enemy');
+      assert.ok(
+        floatEv.y < enemy.y,
+        `Text y coordinate (${floatEv.y}) must be above the missed enemy (${enemy.y})`
+      );
+      break;
+    }
+  }
+
+  assert.equal(dodged, true, 'At least one dodge should trigger across 50 attempts');
+});
+
+test('Piercing Slash card is never offered in card draft if Garden Blade is not equipped', () => {
+  // 1. Without garden_blade equipped (even with thorn_spear which has 'slash' tag)
+  for (let seed = 1000; seed < 1100; seed++) {
+    const streams = new RNGStreams(seed);
+    const result = generateCardDraftOffers({
+      rng: streams.cards,
+      luck: 10,
+      weapons: [{ id: 'thorn_spear', level: 3, evolved: false }],
+      ownedCards: {},
+      unlockedWeapons: ['thorn_spear'],
+      consecutiveAllCommonOffers: 0,
+    });
+    const hasPiercingSlash = result.offers.some(
+      (o) => o.targetId === 'piercing_slash' || o.offerId.includes('piercing_slash')
+    );
+    assert.equal(
+      hasPiercingSlash,
+      false,
+      `Piercing Slash must not be offered when garden_blade is not equipped (seed ${seed})`
+    );
+  }
+
+  // 2. In Simulation level-up drafts with a hero who does not have garden_blade (Seeker starts with thorn_spear)
+  const simSeeker = new Simulation({ seed: 7777, professionId: 'seeker' });
+  for (let i = 0; i < 50; i++) {
+    simSeeker.triggerLevelUpCardDraft();
+    const hasPiercingSlash = simSeeker.pendingCardOffers.some(
+      (o) => o.targetId === 'piercing_slash' || o.offerId.includes('piercing_slash')
+    );
+    assert.equal(
+      hasPiercingSlash,
+      false,
+      'Piercing Slash must never appear in draft offers for Seeker without Garden Blade'
+    );
+    // Also test rerolls
+    const rerolled = simSeeker.rerollCardDraft('free');
+    const hasPiercingSlashReroll = rerolled.some(
+      (o) => o.targetId === 'piercing_slash' || o.offerId.includes('piercing_slash')
+    );
+    assert.equal(
+      hasPiercingSlashReroll,
+      false,
+      'Piercing Slash must never appear after reroll without Garden Blade'
+    );
+    simSeeker.pendingCardOffers = [];
+  }
+
+  // 3. When garden_blade is equipped, piercing_slash CAN be offered
+  let offeredWithBlade = false;
+  for (let seed = 2000; seed < 2100; seed++) {
+    const streams = new RNGStreams(seed);
+    const result = generateCardDraftOffers({
+      rng: streams.cards,
+      luck: 10,
+      weapons: [{ id: 'garden_blade', level: 3, evolved: false }],
+      ownedCards: {},
+      unlockedWeapons: ['garden_blade'],
+      consecutiveAllCommonOffers: 0,
+    });
+    if (result.offers.some((o) => o.targetId === 'piercing_slash')) {
+      offeredWithBlade = true;
+      break;
+    }
+  }
+  assert.equal(
+    offeredWithBlade,
+    true,
+    'Piercing Slash should be eligible and offered when garden_blade is equipped'
+  );
+});
+
+test('Sharper Edge card is only shown/offered if Garden Blade is equipped', () => {
+  // 1. Without garden_blade equipped (e.g. thorn_spear)
+  for (let seed = 1000; seed < 1100; seed++) {
+    const streams = new RNGStreams(seed);
+    const result = generateCardDraftOffers({
+      rng: streams.cards,
+      luck: 10,
+      weapons: [{ id: 'thorn_spear', level: 3, evolved: false }],
+      ownedCards: {},
+      unlockedWeapons: ['thorn_spear'],
+      consecutiveAllCommonOffers: 0,
+    });
+    const hasSharperEdge = result.offers.some(
+      (o) => o.targetId === 'sharper_edge' || o.offerId.includes('sharper_edge')
+    );
+    assert.equal(
+      hasSharperEdge,
+      false,
+      `Sharper Edge must not be offered when garden_blade is not equipped (seed ${seed})`
+    );
+  }
+
+  // 2. In Simulation level-up drafts with Seeker (starts with thorn_spear)
+  const simSeeker = new Simulation({ seed: 8888, professionId: 'seeker' });
+  for (let i = 0; i < 50; i++) {
+    simSeeker.triggerLevelUpCardDraft();
+    const hasSharperEdge = simSeeker.pendingCardOffers.some(
+      (o) => o.targetId === 'sharper_edge' || o.offerId.includes('sharper_edge')
+    );
+    assert.equal(
+      hasSharperEdge,
+      false,
+      'Sharper Edge must never appear in draft offers for Seeker without Garden Blade'
+    );
+    const rerolled = simSeeker.rerollCardDraft('free');
+    const hasSharperEdgeReroll = rerolled.some(
+      (o) => o.targetId === 'sharper_edge' || o.offerId.includes('sharper_edge')
+    );
+    assert.equal(
+      hasSharperEdgeReroll,
+      false,
+      'Sharper Edge must never appear after reroll without Garden Blade'
+    );
+    simSeeker.pendingCardOffers = [];
+  }
+
+  // 3. When garden_blade is equipped, sharper_edge CAN be offered
+  let offeredWithBlade = false;
+  for (let seed = 3000; seed < 3100; seed++) {
+    const streams = new RNGStreams(seed);
+    const result = generateCardDraftOffers({
+      rng: streams.cards,
+      luck: 0,
+      weapons: [{ id: 'garden_blade', level: 1, evolved: false }],
+      ownedCards: {},
+      unlockedWeapons: ['garden_blade'],
+      consecutiveAllCommonOffers: 0,
+    });
+    if (result.offers.some((o) => o.targetId === 'sharper_edge')) {
+      offeredWithBlade = true;
+      break;
+    }
+  }
+  assert.equal(
+    offeredWithBlade,
+    true,
+    'Sharper Edge should be eligible and offered when garden_blade is equipped'
+  );
+});
+
+test('Burning Thorns card is only shown/offered if Thorn Trail is equipped', () => {
+  // 1. Without thorn_trail equipped (even with weapons having pierce like arbalete)
+  for (let seed = 1000; seed < 1100; seed++) {
+    const streams = new RNGStreams(seed);
+    const result = generateCardDraftOffers({
+      rng: streams.cards,
+      luck: 15,
+      weapons: [{ id: 'thorn_spear', level: 3, evolved: false }],
+      ownedCards: {},
+      unlockedWeapons: ['thorn_spear'],
+      consecutiveAllCommonOffers: 0,
+    });
+    const hasBurningThorns = result.offers.some(
+      (o) => o.targetId === 'burning_thorns' || o.offerId.includes('burning_thorns')
+    );
+    assert.equal(
+      hasBurningThorns,
+      false,
+      `Burning Thorns must not be offered when thorn_trail is not equipped (seed ${seed})`
+    );
+  }
+
+  // 2. In Simulation level-up drafts without thorn_trail
+  const sim = new Simulation({ seed: 9999, professionId: 'seeker' });
+  for (let i = 0; i < 50; i++) {
+    sim.triggerLevelUpCardDraft();
+    const hasBurningThorns = sim.pendingCardOffers.some(
+      (o) => o.targetId === 'burning_thorns' || o.offerId.includes('burning_thorns')
+    );
+    assert.equal(
+      hasBurningThorns,
+      false,
+      'Burning Thorns must never appear in draft offers without Thorn Trail equipped'
+    );
+    const rerolled = sim.rerollCardDraft('free');
+    const hasBurningThornsReroll = rerolled.some(
+      (o) => o.targetId === 'burning_thorns' || o.offerId.includes('burning_thorns')
+    );
+    assert.equal(
+      hasBurningThornsReroll,
+      false,
+      'Burning Thorns must never appear after reroll without Thorn Trail equipped'
+    );
+    sim.pendingCardOffers = [];
+  }
+
+  // 3. When thorn_trail IS equipped, burning_thorns CAN be offered
+  let offeredWithThornTrail = false;
+  for (let seed = 4000; seed < 4100; seed++) {
+    const streams = new RNGStreams(seed);
+    const result = generateCardDraftOffers({
+      rng: streams.cards,
+      luck: 10,
+      weapons: [{ id: 'garden_blade', level: 1, evolved: false }],
+      ownedCards: { thorn_trail: 1 },
+      unlockedWeapons: ['garden_blade'],
+      consecutiveAllCommonOffers: 0,
+    });
+    if (result.offers.some((o) => o.targetId === 'burning_thorns')) {
+      offeredWithThornTrail = true;
+      break;
+    }
+  }
+  assert.equal(
+    offeredWithThornTrail,
+    true,
+    'Burning Thorns should be eligible and offered when thorn_trail is equipped'
+  );
+
+  // 4. Synergistic burn effect: enemies damaged by thorn_trail ignite when burning_thorns is owned
+  const simBurn = new Simulation({ seed: 5555, professionId: 'warden' });
+  simBurn.cards.thorn_trail = 1;
+  simBurn.cards.burning_thorns = 2;
+  const enemy = simBurn.spawnEnemy('chaser', simBurn.heroX + 1.0, simBurn.heroY, false)!;
+  enemy.hp = 100;
+  enemy.burnTimer = 0;
+  // Trigger hazard tick on enemy
+  simBurn.hazards.push({
+    id: (simBurn as any).nextEntityId++,
+    kind: 'thorn_trail',
+    x: enemy.x,
+    y: enemy.y,
+    radius: 1.0,
+    damage: 10,
+    tickTimer: 0,
+    lifeTimer: 2.0,
+    color: 0xffffff,
+  });
+  simBurn.tick();
+  assert.ok(enemy.burnTimer > 0, 'Enemy must catch fire from thorn trail hazard when burning_thorns is equipped');
+  assert.equal(enemy.burnDps, 8, 'Burn DPS should scale with burning_thorns level (2 * 4 = 8)');
+});
+
+test('Arcana Persona skin & amplification isolation: apply personas only to related heroes and show skin only if applied and related hero picked for run', () => {
+  // 1. Authoritative Hero-Persona associations
+  // warden -> losti siege (warden_zagreus_naruto)
+  // seeker -> vessel ackerman (seeker_hollow_levi)
+  // herbalist -> hiten jade (herbalist_frieren_strange)
+  // stormcaller -> thander rein (stormcaller_gojo_killua)
+  assert.equal(isPersonaRelatedToProfession('warden_zagreus_naruto', 'warden'), true);
+  assert.equal(isPersonaRelatedToProfession('seeker_hollow_levi', 'seeker'), true);
+  assert.equal(isPersonaRelatedToProfession('herbalist_frieren_strange', 'herbalist'), true);
+  assert.equal(isPersonaRelatedToProfession('stormcaller_gojo_killua', 'stormcaller'), true);
+
+  // 2. Cross-hero persona applications must return false
+  assert.equal(isPersonaRelatedToProfession('stormcaller_gojo_killua', 'seeker'), false, 'Stormcaller persona must NOT relate to seeker');
+  assert.equal(isPersonaRelatedToProfession('stormcaller_gojo_killua', 'warden'), false);
+  assert.equal(isPersonaRelatedToProfession('stormcaller_gojo_killua', 'herbalist'), false);
+  assert.equal(isPersonaRelatedToProfession('seeker_hollow_levi', 'stormcaller'), false);
+  assert.equal(isPersonaRelatedToProfession('seeker_hollow_levi', 'warden'), false);
+  assert.equal(isPersonaRelatedToProfession('seeker_hollow_levi', 'herbalist'), false);
+  assert.equal(isPersonaRelatedToProfession('warden_zagreus_naruto', 'seeker'), false);
+  assert.equal(isPersonaRelatedToProfession('herbalist_frieren_strange', 'seeker'), false);
+  assert.equal(isPersonaRelatedToProfession('adventurer_default', 'seeker'), false);
+  assert.equal(isPersonaRelatedToProfession(undefined, 'seeker'), false);
+
+  // 3. SpriteAtlas resolveHeroSpriteKey:
+  // Taking Seeker when Stormcaller persona is in state must return hero_seeker, NEVER skin_stormcaller_gojo_killua
+  assert.equal(resolveHeroSpriteKey('seeker', 'stormcaller_gojo_killua'), 'hero_seeker');
+  assert.equal(resolveHeroSpriteKey('seeker', 'warden_zagreus_naruto'), 'hero_seeker');
+  assert.equal(resolveHeroSpriteKey('seeker', 'herbalist_frieren_strange'), 'hero_seeker');
+  assert.equal(resolveHeroSpriteKey('seeker', 'adventurer_default'), 'hero_seeker');
+  // Seeker skin shows only if Vessel Ackerman is applied and Seeker is picked
+  assert.equal(resolveHeroSpriteKey('seeker', 'seeker_hollow_levi'), 'skin_seeker_hollow_levi');
+
+  // Warden
+  assert.equal(resolveHeroSpriteKey('warden', 'warden_zagreus_naruto'), 'skin_warden_zagreus_naruto');
+  assert.equal(resolveHeroSpriteKey('warden', 'stormcaller_gojo_killua'), 'hero_warden');
+  assert.equal(resolveHeroSpriteKey('warden', 'seeker_hollow_levi'), 'hero_warden');
+
+  // Herbalist
+  assert.equal(resolveHeroSpriteKey('herbalist', 'herbalist_frieren_strange'), 'skin_herbalist_frieren_strange');
+  assert.equal(resolveHeroSpriteKey('herbalist', 'stormcaller_gojo_killua'), 'hero_herbalist');
+  assert.equal(resolveHeroSpriteKey('herbalist', 'seeker_hollow_levi'), 'hero_herbalist');
+
+  // Stormcaller
+  assert.equal(resolveHeroSpriteKey('stormcaller', 'stormcaller_gojo_killua'), 'skin_stormcaller_gojo_killua');
+  assert.equal(resolveHeroSpriteKey('stormcaller', 'seeker_hollow_levi'), 'hero_stormcaller');
+  assert.equal(resolveHeroSpriteKey('stormcaller', 'warden_zagreus_naruto'), 'hero_stormcaller');
+
+  // 4. Simulation run isolation:
+  // If a run is started with Seeker but stormcaller_gojo_killua was passed as personaId:
+  const simSeekerMismatched = new Simulation({
+    seed: 101,
+    professionId: 'seeker',
+    personaId: 'stormcaller_gojo_killua',
+  });
+  assert.equal(simSeekerMismatched.isPersonaSkinApplied(), false);
+  simSeekerMismatched.setMoveIntent(1, 0);
+  for (let t = 0; t < 15; t++) {
+    simSeekerMismatched.tick();
+  }
+  // Mismatched persona must NEVER spawn step visual effects
+  assert.equal(
+    simSeekerMismatched.visualEffects.filter(
+      (fx) => fx.kind === 'godspeed_lightning_step' || fx.kind === 'void_soul_step'
+    ).length,
+    0,
+    'Mismatched persona must not leave any trailing footsteps'
+  );
+
+  // When Seeker is picked with Vessel Ackerman:
+  const simSeekerApplied = new Simulation({
+    seed: 102,
+    professionId: 'seeker',
+    personaId: 'seeker_hollow_levi',
+  });
+  assert.equal(simSeekerApplied.isPersonaSkinApplied(), true);
+  simSeekerApplied.setMoveIntent(1, 0);
+  for (let t = 0; t < 15; t++) {
+    simSeekerApplied.tick();
+  }
+  const voidSteps = simSeekerApplied.visualEffects.filter((fx) => fx.kind === 'void_soul_step');
+  assert.ok(voidSteps.length > 0, 'Seeker with Vessel Ackerman applied should spawn void_soul_step');
+
+  // 5. SaveManager loadout per-profession persona persistence & reconciliation
+  const defaultSave = createDefaultSaveData();
+  assert.deepEqual(defaultSave.loadout.personaByProfession, {});
+  const cloudSave = createDefaultSaveData();
+  cloudSave.loadout.personaByProfession = {
+    seeker: 'seeker_hollow_levi',
+    stormcaller: 'stormcaller_gojo_killua',
+  };
+  const merged = reconcileSaveData(JSON.stringify(cloudSave), JSON.stringify(defaultSave));
+  assert.equal(merged.state.loadout.personaByProfession?.seeker, 'seeker_hollow_levi');
+  assert.equal(merged.state.loadout.personaByProfession?.stormcaller, 'stormcaller_gojo_killua');
+});
+
+
+test('Avoid moving picked up item to Q slot if it is empty after Q slot item use', () => {
+  const sim = new Simulation({ seed: 101, professionId: 'warden' });
+  sim.heldPowerUps.length = 0;
+
+  // 1. Pick up two items: shield in slot 0 (Q) and fire_breath in slot 1 (E)
+  sim.addHeldPowerUp('shield');
+  sim.addHeldPowerUp('fire_breath');
+  assert.equal(sim.heldPowerUps[0], 'shield', 'Slot 0 [Q] should have shield');
+  assert.equal(sim.heldPowerUps[1], 'fire_breath', 'Slot 1 [E] should have fire_breath');
+
+  // 2. Use Q slot item (slotIndex = 0)
+  sim.requestUsePowerUp(0);
+  sim.tick();
+
+  // Shield was consumed; Q slot (index 0) must be empty (null/falsy), and E slot (index 1) must remain fire_breath
+  assert.equal(sim.heldPowerUps[0], null, 'Slot 0 [Q] should be empty (null) after Q slot item use');
+  assert.equal(
+    sim.heldPowerUps[1],
+    'fire_breath',
+    'Item in Slot 1 [E] must NOT be moved to Slot 0 [Q] when Q slot is used'
+  );
+  assert.ok(sim.shieldTimer > 0, 'Shield power up should be activated');
+
+  // 3. Trying to use Q slot again does nothing because it is empty
+  sim.requestUsePowerUp(0);
+  sim.tick();
+  assert.equal(sim.heldPowerUps[0], null, 'Slot 0 [Q] remains empty');
+  assert.equal(sim.heldPowerUps[1], 'fire_breath', 'Slot 1 [E] remains fire_breath');
+
+  // 4. Pick up another item ('time_slow') when Q slot is empty and E slot is occupied
+  const pickedSlot = sim.addHeldPowerUp('time_slow');
+  assert.equal(pickedSlot, 0, 'New item should fill empty Slot 0 [Q]');
+  assert.equal(sim.heldPowerUps[0], 'time_slow', 'Slot 0 [Q] now holds time_slow');
+  assert.equal(sim.heldPowerUps[1], 'fire_breath', 'Slot 1 [E] still holds fire_breath without moving');
+
+  // 5. Use E slot item (slotIndex = 1)
+  sim.requestUsePowerUp(1);
+  sim.tick();
+  assert.equal(sim.heldPowerUps[0], 'time_slow', 'Slot 0 [Q] still holds time_slow');
+  assert.equal(sim.heldPowerUps[1], undefined, 'Slot 1 [E] is now empty');
+  assert.ok(sim.fireBreathTimer > 0, 'Fire breath power up should be activated');
+
+  // 6. Use remaining Q slot item
+  sim.requestUsePowerUp(0);
+  sim.tick();
+  assert.equal(sim.heldPowerUps.length, 0, 'All power ups consumed, held array should be empty');
+});
+
+test('Sundial watch effect: stacks in time when used in a row, slows enemies by 80%, slows charges and projectiles', () => {
+  const sim = new Simulation({ seed: 1234, professionId: 'warden' });
+  sim.heldPowerUps.length = 0;
+  sim.enemies.length = 0;
+  sim.projectiles.length = 0;
+
+  // 1. Stacking timer: use time_slow twice
+  sim.addHeldPowerUp('time_slow');
+  sim.requestUsePowerUp(0);
+  sim.tick();
+  assert.ok(sim.timeSlowTimer > 3.8 && sim.timeSlowTimer <= 4.0, 'First use sets timer to 4s');
+
+  sim.addHeldPowerUp('time_slow');
+  sim.requestUsePowerUp(0);
+  sim.tick();
+  assert.ok(sim.timeSlowTimer > 7.5 && sim.timeSlowTimer <= 8.0, 'Second use stacks timer by +4s');
+
+  // 2. Slow enemy movement by 80% (speed is 20% = factor 0.2)
+  const enemyNormal = new Simulation({ seed: 1234, professionId: 'warden' });
+  enemyNormal.enemies.length = 0;
+  const eNormal = enemyNormal.spawnEnemy('chaser', 10, 0, false)!;
+  const eSlowed = sim.spawnEnemy('chaser', 10, 0, false)!;
+
+  const normalStartX = eNormal.x;
+  const slowStartX = eSlowed.x;
+
+  enemyNormal.tick();
+  sim.tick();
+
+  const normalMoved = Math.abs(eNormal.x - normalStartX);
+  const slowMoved = Math.abs(eSlowed.x - slowStartX);
+  assert.ok(
+    Math.abs(slowMoved / normalMoved - 0.2) < 0.05,
+    `Enemy movement should be slowed by 80% (0.2x speed, got ${slowMoved / normalMoved})`
+  );
+
+  // 3. Slow charger in 'charge' state by 80% (0.2x speed)
+  const chargerNormal = new Simulation({ seed: 1234, professionId: 'warden' });
+  chargerNormal.enemies.length = 0;
+  const cNormal = chargerNormal.spawnEnemy('dasher', 10, 0, false)!;
+  cNormal.aiState = 'charge';
+  cNormal.telegraphAngle = Math.PI; // charging left
+  cNormal.aiTimer = 1.0;
+
+  const chargerSlow = sim.spawnEnemy('dasher', 10, 0, false)!;
+  chargerSlow.aiState = 'charge';
+  chargerSlow.telegraphAngle = Math.PI;
+  chargerSlow.aiTimer = 1.0;
+
+  const cNormalStartX = cNormal.x;
+  const cSlowStartX = chargerSlow.x;
+
+  chargerNormal.tick();
+  sim.tick();
+
+  const cNormalMoved = Math.abs(cNormal.x - cNormalStartX);
+  const cSlowMoved = Math.abs(chargerSlow.x - cSlowStartX);
+  assert.ok(
+    Math.abs(cSlowMoved / cNormalMoved - 0.2) < 0.05,
+    `Enemy charge speed should be slowed by 80% (0.2x speed, got ${cSlowMoved / cNormalMoved})`
+  );
+
+  // 4. Slow enemy projectiles by 80% (0.2x speed)
+  const projNormal = new Simulation({ seed: 1234, professionId: 'warden' });
+  projNormal.projectiles.length = 0;
+  projNormal.projectiles.push({
+    id: 1,
+    isEnemy: true,
+    projectileKind: 'sunflower_seed',
+    x: 10,
+    y: 0,
+    prevX: 10,
+    prevY: 0,
+    vx: -10,
+    vy: 0,
+    radius: 0.5,
+    damage: 10,
+    lifeTimer: 2.0,
+    color: 0xffffff,
+  });
+
+  sim.projectiles.length = 0;
+  sim.projectiles.push({
+    id: 2,
+    isEnemy: true,
+    projectileKind: 'sunflower_seed',
+    x: 10,
+    y: 0,
+    prevX: 10,
+    prevY: 0,
+    vx: -10,
+    vy: 0,
+    radius: 0.5,
+    damage: 10,
+    lifeTimer: 2.0,
+    color: 0xffffff,
+  });
+
+  projNormal.tick();
+  sim.tick();
+
+  const pNormalMoved = Math.abs(projNormal.projectiles[0]!.x - 10);
+  const pSlowMoved = Math.abs(sim.projectiles[0]!.x - 10);
+  assert.ok(
+    Math.abs(pSlowMoved / pNormalMoved - 0.2) < 0.05,
+    `Enemy projectile speed should be slowed by 80% (0.2x speed, got ${pSlowMoved / pNormalMoved})`
+  );
+});
+
+
+
+
+
+
+
 

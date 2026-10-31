@@ -9,7 +9,7 @@ import React, { useRef, useState } from 'react';
 import { Simulation } from '../../sim/Simulation';
 import type { DraftOfferItem } from '../../sim/systems/cardDraft';
 import { CoinIcon } from '../SvgIcons';
-import { getTarotMetadata, TarotCardBackSvg, TarotIllustrationSvg } from '../TarotCardArt';
+import { getTarotMetadata, TarotCardBackSvg, TarotIllustrationSvg } from '../cards';
 import { useGameShell } from '../context/GameShellContext';
 import { LazyModalDebugCardsButton } from '../debug/LazyDebugComponents';
 import { IS_DEV } from '../debug/devGate';

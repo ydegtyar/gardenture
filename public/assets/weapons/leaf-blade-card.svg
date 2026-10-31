@@ -1,0 +1,374 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 1040" width="720" height="1040">
+  <defs>
+    <!-- Outer Card Frame Gradient (Rare/Celestial weapon frame) -->
+    <linearGradient id="card-outer-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#FFFDF7" />
+      <stop offset="45%" stopColor="#EFF6FF" />
+      <stop offset="100%" stopColor="#DBEAFE" />
+    </linearGradient>
+
+    <!-- Inner Parchment Ground Gradient -->
+    <linearGradient id="card-parchment-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#FFFDF7" />
+      <stop offset="50%" stopColor="#FAF4E4" />
+      <stop offset="100%" stopColor="#F3EAD3" />
+    </linearGradient>
+
+    <!-- Ribbon Banner Gradient -->
+    <linearGradient id="card-ribbon-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#352438" />
+      <stop offset="100%" stopColor="#241827" />
+    </linearGradient>
+
+    <!-- Arched Tarot Window Sky Gradient -->
+    <linearGradient id="window-sky-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#342539" />
+      <stop offset="55%" stopColor="#221827" />
+      <stop offset="100%" stopColor="#150E18" />
+    </linearGradient>
+
+    <!-- Gilded Arch Gold Gradient -->
+    <linearGradient id="window-gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#FFFDF5" />
+      <stop offset="40%" stopColor="#FDE047" />
+      <stop offset="80%" stopColor="#F59E0B" />
+      <stop offset="100%" stopColor="#B45309" />
+    </linearGradient>
+
+    <!-- Soft Pastel Radial Glow Aura -->
+    <radialGradient id="pastel-glow-grad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stopColor="#A8E6CF" stopOpacity="0.45" />
+      <stop offset="60%" stopColor="#7be0a8" stopOpacity="0.18" />
+      <stop offset="100%" stopColor="#150E18" stopOpacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- =================================================================== -->
+  <!-- 1. CARD OUTER FRAME (Rounded 32px, 12px outer padding)              -->
+  <!-- =================================================================== -->
+  <rect
+    x="12"
+    y="12"
+    width="696"
+    height="1016"
+    rx="32"
+    fill="url(#card-outer-grad)"
+    stroke="#7DD3FC"
+    stroke-width="10"
+  />
+
+  <!-- =================================================================== -->
+  <!-- 2. INNER VINTAGE INK TAROT FRAME (Ink outline #2D1E2F, Parchment)   -->
+  <!-- =================================================================== -->
+  <rect
+    x="32"
+    y="32"
+    width="656"
+    height="976"
+    rx="22"
+    fill="url(#card-parchment-grad)"
+    stroke="#2D1E2F"
+    stroke-width="8"
+  />
+
+  <!-- =================================================================== -->
+  <!-- 3. TOP HEADER: Roman Numeral Cartouche, Arcana Rarity & Gem         -->
+  <!-- =================================================================== -->
+  <!-- Roman Numeral Pill [I] -->
+  <rect
+    x="56"
+    y="56"
+    width="54"
+    height="36"
+    rx="8"
+    fill="#2D1E2F"
+  />
+  <text
+    x="83"
+    y="80"
+    fill="#FDFFB6"
+    font-family="Georgia, serif"
+    font-size="18"
+    font-weight="bold"
+    text-anchor="middle"
+    letter-spacing="2"
+  >I</text>
+
+  <!-- Arcana Subtitle & Rarity Gem -->
+  <g transform="translate(636, 74)">
+    <!-- Cyan Diamond Gem -->
+    <polygon
+      points="0,-10 10,0 0,10 -10,0"
+      fill="#38BDF8"
+      stroke="#2D1E2F"
+      stroke-width="4"
+    />
+    <text
+      x="-22"
+      y="6"
+      fill="#5C4760"
+      font-family="system-ui, -apple-system, sans-serif"
+      font-size="16"
+      font-weight="bold"
+      letter-spacing="2"
+      text-anchor="end"
+    >WEAPON</text>
+  </g>
+
+  <!-- Top Divider Line -->
+  <line
+    x1="56"
+    y1="108"
+    x2="664"
+    y2="108"
+    stroke="#2D1E2F"
+    stroke-opacity="0.22"
+    stroke-width="4"
+  />
+
+  <!-- =================================================================== -->
+  <!-- 4. CENTRAL ARCHED TAROT ALCOVE ILLUSTRATION                         -->
+  <!-- =================================================================== -->
+  <g transform="translate(80, 130)">
+    <!-- Arched Vintage Tarot Window (Width: 560, Height: 410) -->
+    <!-- Arch: L 30,410 L 30,175 A 250,160 0 0,1 530,175 L 530,410 Z -->
+    <path
+      d="M 30,410 L 30,175 A 250,155 0 0,1 530,175 L 530,410 Z"
+      fill="url(#window-sky-grad)"
+      stroke="#2D1E2F"
+      stroke-width="9"
+      stroke-linejoin="round"
+    />
+
+    <!-- Ambient Pastel Halo Glow behind weapon -->
+    <circle
+      cx="280"
+      cy="215"
+      r="175"
+      fill="url(#pastel-glow-grad)"
+    />
+
+    <!-- Sacred Geometry Rays behind Subject -->
+    <g stroke="#7be0a8" stroke-width="2.5" opacity="0.24">
+      <line x1="280" y1="50" x2="280" y2="380" />
+      <line x1="90" y1="215" x2="470" y2="215" />
+      <line x1="145" y1="80" x2="415" y2="350" />
+      <line x1="415" y1="80" x2="145" y2="350" />
+    </g>
+
+    <!-- Inner Gilded Dashed Arch -->
+    <path
+      d="M 48,390 L 48,180 A 232,138 0 0,1 512,180 L 512,390"
+      fill="none"
+      stroke="url(#window-gold-grad)"
+      stroke-width="4"
+      stroke-dasharray="12 8"
+      opacity="0.8"
+    />
+
+    <!-- Celestial Concentric Rings -->
+    <circle
+      cx="280"
+      cy="215"
+      r="120"
+      fill="none"
+      stroke="url(#window-gold-grad)"
+      stroke-width="3"
+      opacity="0.45"
+    />
+    <circle
+      cx="280"
+      cy="215"
+      r="90"
+      fill="#A8E6CF"
+      opacity="0.14"
+    />
+    <circle
+      cx="280"
+      cy="215"
+      r="90"
+      fill="none"
+      stroke="#A8E6CF"
+      stroke-width="2.5"
+      stroke-dasharray="6 8"
+      opacity="0.5"
+    />
+
+    <!-- Corner Filigree Leaves & Gold Stars -->
+    <polygon points="105,105 111,118 124,124 111,130 105,143 99,130 86,124 99,118" fill="url(#window-gold-grad)" opacity="0.9" />
+    <polygon points="455,105 461,118 474,124 461,130 455,143 449,130 436,124 449,118" fill="url(#window-gold-grad)" opacity="0.9" />
+
+    <!-- ================================================================= -->
+    <!-- 5. CARD ILLUSTRATION: LEAF BLADE AT SLIGHT DIAGONAL (~28°)        -->
+    <!-- Thick dark plum-navy outline (#2a1f33), flat cel fills            -->
+    <!-- ================================================================= -->
+    <g transform="translate(280, 215) rotate(28) scale(0.68) translate(-512, -512)">
+      <!-- Golden Pommel -->
+      <circle cx="512" cy="740" r="32" fill="#f8d558" stroke="#2a1f33" stroke-width="20" />
+      <circle cx="502" cy="730" r="10" fill="#fffdf0" />
+
+      <!-- Brown Wrapped Grip -->
+      <rect x="484" y="628" width="56" height="88" rx="16" fill="#7a482b" stroke="#2a1f33" stroke-width="20" />
+      <line x1="486" y1="652" x2="538" y2="668" stroke="#4a2612" stroke-width="15" stroke-linecap="round" />
+      <line x1="486" y1="680" x2="538" y2="696" stroke="#4a2612" stroke-width="15" stroke-linecap="round" />
+
+      <!-- Golden Crossguard with Tiny Leaf Gem -->
+      <path
+        d="M 405 628
+           C 438 602 482 612 512 618
+           C 542 612 586 602 619 628
+           C 604 654 558 650 512 648
+           C 466 650 420 654 405 628 Z"
+        fill="#f8d558"
+        stroke="#2a1f33"
+        stroke-width="20"
+        stroke-linejoin="round"
+      />
+      <!-- Tiny Leaf Gem -->
+      <path
+        d="M 512 612 C 522 622 522 630 512 636 C 502 630 502 622 512 612 Z"
+        fill="#7be0a8"
+        stroke="#2a1f33"
+        stroke-width="10"
+      />
+
+      <!-- Leaf Blade (Two-Tone Cel Fills) -->
+      <!-- Lower/Right Shaded Edge (#4fb67f) -->
+      <path
+        d="M 512 250
+           C 572 312 624 388 624 464
+           C 624 540 574 602 512 632
+           Z"
+        fill="#4fb67f"
+        stroke="#2a1f33"
+        stroke-width="22"
+        stroke-linejoin="round"
+      />
+      <!-- Upper/Left Main Mint Fill (#7be0a8) -->
+      <path
+        d="M 512 250
+           C 452 312 400 388 400 464
+           C 400 540 450 602 512 632
+           Z"
+        fill="#7be0a8"
+        stroke="#2a1f33"
+        stroke-width="22"
+        stroke-linejoin="round"
+      />
+
+      <!-- Pale Midrib Highlight Line (#e2f8eb) & Side Veins -->
+      <line x1="512" y1="272" x2="512" y2="616" stroke="#e2f8eb" stroke-width="16" stroke-linecap="round" />
+      <path d="M 512 408 C 530 395 552 388 570 384" stroke="#e2f8eb" stroke-width="13" stroke-linecap="round" />
+      <path d="M 512 490 C 494 476 472 468 454 464" stroke="#e2f8eb" stroke-width="13" stroke-linecap="round" />
+    </g>
+  </g>
+
+  <!-- =================================================================== -->
+  <!-- 6. VINTAGE RIBBON SCROLL TITLE BANNER                                -->
+  <!-- =================================================================== -->
+  <g transform="translate(100, 580)">
+    <!-- Ribbon Box (Width: 520, Height: 94) -->
+    <rect
+      x="0"
+      y="0"
+      width="520"
+      height="94"
+      rx="18"
+      fill="url(#card-ribbon-grad)"
+      stroke="#8C5A3C"
+      stroke-width="6"
+    />
+    <!-- Arcana Subtitle -->
+    <text
+      x="260"
+      y="34"
+      fill="#FDFFB6"
+      opacity="0.9"
+      font-family="system-ui, -apple-system, sans-serif"
+      font-size="14"
+      font-weight="bold"
+      letter-spacing="4"
+      text-anchor="middle"
+    >BLADE OF THE GROVE</text>
+    <!-- Card Title -->
+    <text
+      x="260"
+      y="74"
+      fill="#FFFDF0"
+      font-family="Georgia, serif"
+      font-size="36"
+      font-weight="bold"
+      letter-spacing="1"
+      text-anchor="middle"
+    >Leaf Blade</text>
+  </g>
+
+  <!-- =================================================================== -->
+  <!-- 7. PARCHMENT SCRIPTURE EFFECT DESCRIPTION BOX                       -->
+  <!-- =================================================================== -->
+  <g transform="translate(100, 715)">
+    <text
+      x="260"
+      y="40"
+      fill="#3D2B40"
+      font-family="system-ui, -apple-system, sans-serif"
+      font-size="24"
+      font-weight="600"
+      text-anchor="middle"
+    >Slashes nearby weeds in a</text>
+    <text
+      x="260"
+      y="74"
+      fill="#3D2B40"
+      font-family="system-ui, -apple-system, sans-serif"
+      font-size="24"
+      font-weight="600"
+      text-anchor="middle"
+    >swift emerald cutting arc.</text>
+  </g>
+
+  <!-- =================================================================== -->
+  <!-- 8. BOTTOM FOOTER: Stat / Tag (MELEE) & Level Badge                  -->
+  <!-- =================================================================== -->
+  <line
+    x1="56"
+    y1="910"
+    x2="664"
+    y2="910"
+    stroke="#2D1E2F"
+    stroke-opacity="0.18"
+    stroke-width="4"
+  />
+
+  <g transform="translate(56, 946)">
+    <!-- Stat / Tag: MELEE -->
+    <text
+      x="10"
+      y="18"
+      fill="#5C4760"
+      font-family="system-ui, -apple-system, sans-serif"
+      font-size="22"
+      font-weight="bold"
+      letter-spacing="3"
+    >MELEE</text>
+
+    <!-- Level Badge: Lv 1 -->
+    <rect
+      x="524"
+      y="-8"
+      width="84"
+      height="38"
+      rx="8"
+      fill="#2D1E2F"
+    />
+    <text
+      x="566"
+      y="17"
+      fill="#FDFFB6"
+      font-family="system-ui, monospace"
+      font-size="18"
+      font-weight="bold"
+      text-anchor="middle"
+    >Lv 1</text>
+  </g>
+</svg>

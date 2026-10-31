@@ -16,6 +16,7 @@ import {
   PROFESSIONS,
   STYLE_RANKS,
   TRINKETS,
+  isPersonaRelatedToProfession,
 } from '../../content/data/catalog';
 import type { BiomeId, PowerUpId, ProfessionId } from '../../content/schema/types';
 import { Simulation } from '../../sim/Simulation';
@@ -49,6 +50,8 @@ const ALL_BIOMES: readonly BiomeId[] = [
   'dungeon',
   'sakura_grove',
   'sunlit_oasis',
+  'frostbite_glade',
+  'crimson_ashlands',
 ];
 
 function pickRandomBiome(): BiomeId {
@@ -72,7 +75,7 @@ export interface HudTelemetry {
   maxDashCharges: number;
   dashReadyRatio: number;
   isDashInvisible: boolean;
-  heldPowerUps: PowerUpId[];
+  heldPowerUps: (PowerUpId | null)[];
   activeBuffs: ActiveBuff[];
   weapons: Array<{ id: string; level: number; evolved: boolean }>;
   ownedCards: Record<string, number>;
@@ -448,6 +451,18 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           );
           return;
         }
+        if (ev.weaponTag === 'storm_detonation') {
+          audioRef.current.playHit(false);
+          rendererRef.current?.spawnFloatingDamage(
+            ev.x,
+            ev.y,
+            ev.damage,
+            false,
+            `${Math.round(ev.damage)}`,
+            0x5c8cff
+          );
+          return;
+        }
         audioRef.current.playHit(ev.isCrit);
         rendererRef.current?.spawnFloatingDamage(ev.x, ev.y, ev.damage, ev.isCrit);
         if (ev.isCrit) {
@@ -486,6 +501,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         rendererRef.current?.addTrauma(0.1);
       });
 
+      sim.events.on('PowerUpUsed', (ev) => {
+        audioRef.current.playPowerUpUse(ev.powerUpId);
+      });
+
       sim.events.on('GemCollected', (ev) => {
         audioRef.current.playGemPickup();
         if (ev.kind === 'xp_cluster') {
@@ -503,9 +522,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           ev.x,
           ev.y,
           0,
-          true,
+          false,
           ev.text,
-          ev.color
+          ev.color,
+          ev.scale
         );
       });
 
@@ -660,12 +680,25 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         ? hashStringToSeed(`daily_${todayKey}`)
         : Math.floor(Math.random() * 0x7fffffff) + 1;
 
+      const activePersonaId =
+        isPersonaRelatedToProfession(sd.loadout.personaId, sd.loadout.professionId) &&
+        sd.unlocks.personas.includes(sd.loadout.personaId)
+          ? sd.loadout.personaId
+          : sd.loadout.personaByProfession?.[sd.loadout.professionId] &&
+             sd.unlocks.personas.includes(sd.loadout.personaByProfession[sd.loadout.professionId]!) &&
+             isPersonaRelatedToProfession(
+               sd.loadout.personaByProfession[sd.loadout.professionId]!,
+               sd.loadout.professionId
+             )
+            ? sd.loadout.personaByProfession[sd.loadout.professionId]!
+            : 'adventurer_default';
+
       const sim = new Simulation({
         seed,
         isDailySeed: sd.loadout.isDailySeedMode,
         dailyDateKey: sd.loadout.isDailySeedMode ? todayKey : null,
         difficultyTier: sd.unlocks.maxDifficultyTierByBiome[sd.loadout.biomeId] ?? 1,
-        personaId: sd.loadout.personaId,
+        personaId: activePersonaId,
         professionId: sd.loadout.professionId,
         startingWeaponId: sd.loadout.startingWeaponId,
         equippedTrinkets: sd.loadout.trinketIds,
@@ -896,7 +929,9 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         biomeParam === 'garden' ||
         biomeParam === 'dungeon' ||
         biomeParam === 'sakura_grove' ||
-        biomeParam === 'sunlit_oasis'
+        biomeParam === 'sunlit_oasis' ||
+        biomeParam === 'frostbite_glade' ||
+        biomeParam === 'crimson_ashlands'
       ) {
         loadedSave.loadout.biomeId = biomeParam;
         loadedSave.loadout.biomeExplicitlyChosen = true;
@@ -1289,9 +1324,44 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   const handleSelectLoadout = useCallback(
     (partial: Partial<SaveDataV1['loadout']>) => {
       const sd = saveDataRef.current;
+      const newProfessionId = partial.professionId ?? sd.loadout.professionId;
+      const personaByProf: Partial<Record<ProfessionId, string>> = {
+        ...(sd.loadout.personaByProfession ?? {}),
+      };
+
+      let newPersonaId = partial.personaId !== undefined ? partial.personaId : sd.loadout.personaId;
+
+      if (partial.personaId !== undefined) {
+        if (partial.personaId === 'adventurer_default') {
+          personaByProf[newProfessionId] = 'adventurer_default';
+        } else {
+          const pDef = PERSONAS.find((p) => p.id === partial.personaId);
+          if (pDef) {
+            personaByProf[pDef.professionId] = pDef.id;
+          }
+        }
+      } else if (partial.professionId !== undefined && partial.professionId !== sd.loadout.professionId) {
+        // Switched profession without explicitly passing personaId:
+        // Use this profession's applied persona, or default if none
+        newPersonaId = personaByProf[newProfessionId] ?? 'adventurer_default';
+      }
+
+      // Guard: personaId must always be related to newProfessionId
+      if (newPersonaId && newPersonaId !== 'adventurer_default') {
+        if (!isPersonaRelatedToProfession(newPersonaId, newProfessionId)) {
+          newPersonaId = personaByProf[newProfessionId] ?? 'adventurer_default';
+          if (!isPersonaRelatedToProfession(newPersonaId, newProfessionId)) {
+            newPersonaId = 'adventurer_default';
+          }
+        }
+      }
+
       sd.loadout = {
         ...sd.loadout,
         ...partial,
+        professionId: newProfessionId,
+        personaId: newPersonaId,
+        personaByProfession: personaByProf,
         ...(partial.biomeId !== undefined ? { biomeExplicitlyChosen: true } : {}),
       };
       setSaveData({ ...sd });
@@ -1481,6 +1551,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           if (!sd.unlocks.professions.includes(pDef.professionId)) {
             sd.unlocks.professions.push(pDef.professionId);
           }
+          sd.loadout.personaByProfession = {
+            ...(sd.loadout.personaByProfession ?? {}),
+            [pDef.professionId]: personaId,
+          };
           sd.loadout.personaId = personaId;
           sd.loadout.professionId = pDef.professionId;
           sd.loadout.startingWeaponId =
@@ -1524,6 +1598,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       if (!sd.unlocks.professions.includes(pDef.professionId)) {
         sd.unlocks.professions.push(pDef.professionId);
       }
+      sd.loadout.personaByProfession = {
+        ...(sd.loadout.personaByProfession ?? {}),
+        [pDef.professionId]: personaId,
+      };
       sd.loadout.personaId = personaId;
       sd.loadout.professionId = pDef.professionId;
       sd.loadout.startingWeaponId =
@@ -1753,6 +1831,10 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         if (!sd.unlocks.professions.includes(pDef.professionId)) {
           sd.unlocks.professions.push(pDef.professionId);
         }
+        sd.loadout.personaByProfession = {
+          ...(sd.loadout.personaByProfession ?? {}),
+          [pDef.professionId]: personaId,
+        };
         sd.loadout.personaId = personaId;
         sd.loadout.professionId = pDef.professionId;
         sd.loadout.startingWeaponId =

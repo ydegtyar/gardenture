@@ -6,3 +6,5 @@ export * from './GardenBiomeRenderer';
 export * from './DungeonBiomeRenderer';
 export * from './SakuraGroveBiomeRenderer';
 export * from './SunlitOasisBiomeRenderer';
+export * from './FrostbiteGladeBiomeRenderer';
+export * from './CrimsonAshlandsBiomeRenderer';

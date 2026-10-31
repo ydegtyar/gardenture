@@ -6,3 +6,4 @@ export * from './PetalOrbitRenderer';
 export * from './ChainLightningRenderer';
 export * from './ThornTrailRenderer';
 export * from './SporePopRenderer';
+export { drawSeedTrapHazard } from '../heros/SeekerHeroRenderer';

@@ -119,8 +119,25 @@ export function generateCardDraftOffers(ctx: DraftContext): {
 
   // 3. Filter eligible Cards from the 30-card catalog
   const ownedCardCount = Object.keys(ctx.ownedCards).filter((k) => (ctx.ownedCards[k] ?? 0) > 0).length;
+  const equippedWeaponIds = new Set((ctx.weapons ?? []).map((w) => w.id));
 
   for (const card of CARDS) {
+    if (card.requiresWeaponId && !equippedWeaponIds.has(card.requiresWeaponId)) {
+      continue;
+    }
+    if (card.requiresCardId && (ctx.ownedCards?.[card.requiresCardId] ?? 0) <= 0) {
+      continue;
+    }
+    if (card.id === 'piercing_slash' && !equippedWeaponIds.has('garden_blade')) {
+      continue;
+    }
+    if (card.id === 'sharper_edge' && !equippedWeaponIds.has('garden_blade')) {
+      continue;
+    }
+    if (card.id === 'burning_thorns' && (ctx.ownedCards?.thorn_trail ?? 0) <= 0) {
+      continue;
+    }
+
     const currentLv = ctx.ownedCards[card.id] ?? 0;
     if (card.evolvedName && currentLv === card.maxLevel) {
       candidates.push({

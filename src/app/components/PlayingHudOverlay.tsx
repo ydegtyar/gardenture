@@ -351,12 +351,6 @@ export function PlayingHudOverlay() {
                           className="w-5 h-5 rounded-full border border-dashed border-[#FFFDF0]/20" />
                       )}
                     </div>
-                    <span
-                      className="text-[10px] sm:text-xs font-bold truncate max-w-[68px] sm:max-w-[80px]"
-                      style={canonicalDef ? { color: canonicalDef.accent } : undefined}
-                    >
-                      {pDef ? pDef.name : 'Empty'}
-                    </span>
                   </button>
                 );
               })}

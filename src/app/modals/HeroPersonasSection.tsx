@@ -1,5 +1,5 @@
 import React from 'react';
-import { PERSONAS, PROFESSIONS } from '../../content/data/catalog';
+import { PERSONAS, PROFESSIONS, isPersonaRelatedToProfession } from '../../content/data/catalog';
 import { NO_ADS, PERSONA_NO_ADS_COST_SEEDS } from '../../config/ads';
 import { SeedGemIcon } from '../SvgIcons';
 import {
@@ -454,16 +454,17 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {loadout.personaId !== 'adventurer_default' && (
-            <button
-              type="button"
-              data-testid="reset-default-persona-btn"
-              onClick={() => onSelectLoadout({ personaId: 'adventurer_default' })}
-              className="btn-herbarium-secondary-compact px-2.5 py-1 text-[11px] whitespace-nowrap"
-            >
-              Use Default Hero Look
-            </button>
-          )}
+          {loadout.personaId !== 'adventurer_default' &&
+            isPersonaRelatedToProfession(loadout.personaId, loadout.professionId) && (
+              <button
+                type="button"
+                data-testid="reset-default-persona-btn"
+                onClick={() => onSelectLoadout({ personaId: 'adventurer_default' })}
+                className="btn-herbarium-secondary-compact px-2.5 py-1 text-[11px] whitespace-nowrap"
+              >
+                Use Default Hero Look
+              </button>
+            )}
           {onIncrementAllPersonaAdPips && (
             <LazyPersonaDebugAllButton
               onIncrementAllPersonaAdPips={onIncrementAllPersonaAdPips}
@@ -474,7 +475,11 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {PERSONAS.map((persona) => {
           const unlocked = unlocks.personas.includes(persona.id);
-          const selected = loadout.personaId === persona.id;
+          const isCurrentHero = loadout.professionId === persona.professionId;
+          const isApplied =
+            loadout.personaByProfession?.[persona.professionId] === persona.id ||
+            (isCurrentHero && loadout.personaId === persona.id);
+          const selected = isCurrentHero && isApplied;
           const pips = unlocks.personaAdPips[persona.id] ?? 0;
           const costSeeds =
             persona.unlockCostSeeds > 0 ? persona.unlockCostSeeds : PERSONA_NO_ADS_COST_SEEDS;

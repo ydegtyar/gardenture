@@ -12,6 +12,7 @@ import {
   drawSpecialOrEliteCrestAbove,
   drawFrostTouchFilter,
   drawSpiderWebGlueDebuff,
+  drawThornBriarDebuff,
   drawPoisonDropIcon,
   type EnemyRenderContext,
 } from './enemies';
@@ -132,7 +133,8 @@ export class EnemyRenderer {
         }
       }
 
-      const isFrostTouched = e.slowTimer > 0 && e.webSlowTimer <= 0;
+      const isFrostTouched =
+        e.slowTimer > 0 && e.webSlowTimer <= 0 && (e.thornSlowTimer ?? 0) <= 0;
 
       // Draw animated legs if enemy type has walking legs
       if (behavior.hasLegs ? behavior.hasLegs(e) : true) {
@@ -245,6 +247,8 @@ export class EnemyRenderer {
         sprite.tint = PALETTE.SKY_BLUE;
       } else if (isFrostTouched) {
         sprite.tint = 0xbae6fd;
+      } else if ((e.thornSlowTimer ?? 0) > 0) {
+        sprite.tint = 0xfbcfe8;
       } else if (e.burnTimer > 0) {
         sprite.tint = 0xfdba74;
       } else if (e.poisonTimer > 0) {
@@ -261,6 +265,11 @@ export class EnemyRenderer {
       // Spider-Web Glue slow debuff
       if (e.webSlowTimer > 0) {
         drawSpiderWebGlueDebuff(gOver, renderX, cy, rPx, sim.elapsedSeconds, e.id);
+      }
+
+      // Briar Thorns slow debuff
+      if ((e.thornSlowTimer ?? 0) > 0) {
+        drawThornBriarDebuff(gOver, renderX, cy, rPx, sim.elapsedSeconds, e.id);
       }
 
       // Storm Mark zap sparkles
@@ -369,5 +378,6 @@ export class EnemyRenderer {
   public static drawSpecialOrEliteCrestAbove = drawSpecialOrEliteCrestAbove;
   public static drawFrostTouchFilter = drawFrostTouchFilter;
   public static drawSpiderWebGlueDebuff = drawSpiderWebGlueDebuff;
+  public static drawThornBriarDebuff = drawThornBriarDebuff;
   public static drawPoisonDropIcon = drawPoisonDropIcon;
 }

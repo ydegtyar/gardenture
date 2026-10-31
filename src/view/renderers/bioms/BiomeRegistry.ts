@@ -4,6 +4,8 @@ import { GardenBiomeRenderer } from './GardenBiomeRenderer';
 import { DungeonBiomeRenderer } from './DungeonBiomeRenderer';
 import { SakuraGroveBiomeRenderer } from './SakuraGroveBiomeRenderer';
 import { SunlitOasisBiomeRenderer } from './SunlitOasisBiomeRenderer';
+import { FrostbiteGladeBiomeRenderer } from './FrostbiteGladeBiomeRenderer';
+import { CrimsonAshlandsBiomeRenderer } from './CrimsonAshlandsBiomeRenderer';
 
 /**
  * Strategy Registry mapping Biome IDs to their specialized BiomeRenderer,
@@ -20,6 +22,8 @@ export class BiomeRegistry {
     this.register(new DungeonBiomeRenderer());
     this.register(new SakuraGroveBiomeRenderer());
     this.register(new SunlitOasisBiomeRenderer());
+    this.register(new FrostbiteGladeBiomeRenderer());
+    this.register(new CrimsonAshlandsBiomeRenderer());
   }
 
   public register(renderer: BiomeRenderer): void {

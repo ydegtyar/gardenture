@@ -261,6 +261,48 @@ export function drawSpiderWebGlueDebuff(
 }
 
 /**
+ * Animated Thorn Briar Debuff:
+ * Tangled emerald briar vines with sharp crimson rose thorns around the enemy's feet,
+ * indicating active movement speed slowdown from Thorn Trail.
+ */
+export function drawThornBriarDebuff(
+  g: PIXI.Graphics,
+  ex: number,
+  cy: number,
+  rPx: number,
+  elapsedSeconds: number,
+  enemyId: number
+): void {
+  const vineR = rPx * 1.08;
+  const pulse = 0.94 + 0.06 * Math.sin(elapsedSeconds * 5.0 + enemyId);
+  const rot = Math.sin(elapsedSeconds * 1.8 + enemyId) * 0.15;
+  const baseCy = cy + rPx * 0.52;
+
+  // Tangled briar vine ring under feet
+  g.ellipse(ex, baseCy, vineR * 0.95 * pulse, vineR * 0.42 * pulse)
+    .stroke({ color: 0x064e3b, width: 2.8, alpha: 0.82 });
+  g.ellipse(ex, baseCy, vineR * 0.95 * pulse, vineR * 0.42 * pulse)
+    .stroke({ color: PALETTE.MINT_GREEN, width: 1.4, alpha: 0.9 });
+
+  // 4 sharp crimson thorns jutting out from the entangled vine
+  for (let i = 0; i < 4; i++) {
+    const a = rot + (i * Math.PI) / 2 + 0.38;
+    const cosA = Math.cos(a);
+    const sinA = Math.sin(a);
+    const tx = ex + cosA * (vineR * 0.95 * pulse);
+    const ty = baseCy + sinA * (vineR * 0.42 * pulse);
+    const tipX = tx + cosA * 5.5;
+    const tipY = ty + sinA * 3.8;
+    g.moveTo(tx - sinA * 2.0, ty + cosA * 1.2)
+      .lineTo(tipX, tipY)
+      .lineTo(tx + sinA * 2.0, ty - cosA * 1.2)
+      .closePath()
+      .fill({ color: PALETTE.CRIMSON_WARN, alpha: 0.92 })
+      .stroke({ color: PALETTE.INK_OUTLINE, width: 1.0, alpha: 0.8 });
+  }
+}
+
+/**
  * Animated Poison Teardrop Icon:
  * Synchronized with the 0.5s poison tick cycle.
  */

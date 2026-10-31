@@ -1,10 +1,11 @@
-import { PALETTE, PERSONAS, PROFESSIONS } from '../../../content/data/catalog';
+import type * as PIXI from 'pixi.js';
+import { PALETTE, PERSONAS, PROFESSIONS, isPersonaRelatedToProfession } from '../../../content/data/catalog';
 import { clamp, lerp } from '../../../core/math/vec2';
 import { resolveHeroSpriteKey } from '../../SpriteAtlas';
 import { PPU } from '../EnvironmentRenderer';
 import { drawAegisShieldAura, drawCharacterLegs, drawHeroAngelWings } from './common';
-import type { HeroProfessionRenderer, HeroRenderContext } from './types';
-import { drawHeroHalberd, drawHeroSword } from './weapons';
+import type { HeroProfessionRenderer, HeroRenderContext, PersonaRenderer } from './types';
+import { drawHeroHalberd, drawHeroSword, attachGardenBladeToHero } from './weapons';
 import { personaRegistry } from './PersonaRegistry';
 
 /**
@@ -41,7 +42,8 @@ export abstract class BaseHeroProfessionRenderer implements HeroProfessionRender
       (sim.deathSequenceTimer > 0 ? 1.65 - sim.deathSequenceTimer : 0);
     const walkPhase = animTime * 14;
 
-    const activePersonaRenderer = sim.personaId ? personaRegistry.get(sim.personaId) : undefined;
+    const isPersonaRelated = isPersonaRelatedToProfession(sim.personaId, sim.professionId);
+    const activePersonaRenderer = isPersonaRelated && sim.personaId ? personaRegistry.get(sim.personaId) : undefined;
     const isLevitatingThunderGod = Boolean(activePersonaRenderer?.isLevitating);
 
     const bobY = isLevitatingThunderGod
@@ -171,7 +173,7 @@ export abstract class BaseHeroProfessionRenderer implements HeroProfessionRender
     }
 
     const customPersona =
-      sim.personaId && sim.personaId !== 'adventurer_default'
+      isPersonaRelated && sim.personaId && sim.personaId !== 'adventurer_default'
         ? PERSONAS.find((p) => p.id === sim.personaId)
         : undefined;
 
@@ -265,9 +267,9 @@ export abstract class BaseHeroProfessionRenderer implements HeroProfessionRender
         !isLevitatingThunderGod &&
         customPersona.id !== 'herbalist_frieren_strange'
       ) {
-        const eyeY = cy - 4.5;
-        const leftEyeX = hx - 4.2 * flipX;
-        const rightEyeX = hx + 4.2 * flipX;
+        const eyeY = cy - 12.1;
+        const leftEyeX = hx - 3.4 * flipX;
+        const rightEyeX = hx + 3.4 * flipX;
         const eyePulse = 0.78 + 0.22 * Math.sin(sim.elapsedSeconds * 9);
         gOver
           .circle(leftEyeX, eyeY, 2.2)
@@ -294,35 +296,85 @@ export abstract class BaseHeroProfessionRenderer implements HeroProfessionRender
       }
     }
 
-    // Draw attached weapons (Garden Blade / Arbalete)
-    if (!isDyingSequence) {
-      const swordWpn = sim.weapons.find((w) => w.id === 'garden_blade');
-      if (swordWpn) {
-        drawHeroSword(
-          gOver,
-          hx,
-          cy,
-          displayFacingAngle,
-          swordWpn,
-          sim.elapsedSeconds,
-          bodyColor,
-          accentColor
-        );
-      }
-      const spearWpn = sim.weapons.find((w) => w.id === 'thorn_spear');
-      if (spearWpn) {
-        const isAttacking = spearWpn.phase !== 'ready';
-        drawHeroHalberd(
-          isAttacking ? gOver : gUnder,
-          hx,
-          cy,
-          isAttacking ? spearWpn.lockedAngle : displayFacingAngle,
-          spearWpn,
-          sim.elapsedSeconds,
-          !isAttacking,
-          flipX
-        );
-      }
+    if (!customPersona && !isDyingSequence) {
+      this.drawProfessionEyes(gOver, hx, cy, flipX, sim.elapsedSeconds);
     }
+
+    // Draw attached weapons (Garden Blade / Arbalete) using the reusable attachment mechanic
+    if (!isDyingSequence) {
+      this.drawAttachedWeapons(
+        ctx,
+        hx,
+        cy,
+        flipX,
+        displayFacingAngle,
+        bodyColor,
+        accentColor,
+        activePersonaRenderer
+      );
+    }
+  }
+
+  /**
+   * Hook for drawing weapons attached to the hero.
+   * Can be overridden by specialized hero profession renderers (e.g. HerbalistHeroRenderer).
+   */
+  protected drawAttachedWeapons(
+    ctx: HeroRenderContext,
+    hx: number,
+    cy: number,
+    flipX: number,
+    displayFacingAngle: number,
+    bodyColor: number,
+    accentColor: number,
+    activePersonaRenderer?: PersonaRenderer
+  ): void {
+    const { heroWeaponGraphic: gOver, heroUnderGraphic: gUnder, sim } = ctx;
+    const shouldSuppressDefault =
+      activePersonaRenderer?.suppressDefaultWeapon || activePersonaRenderer?.hasDefaultWeapon === false;
+    const customSocket =
+      activePersonaRenderer?.weaponSocket ?? (shouldSuppressDefault ? { drawDefaultWeapon: undefined } : undefined);
+
+    attachGardenBladeToHero({
+      gOver,
+      hx,
+      cy,
+      displayFacingAngle,
+      flipX,
+      elapsedSeconds: sim.elapsedSeconds,
+      sim,
+      professionId: sim.professionId,
+      personaId: sim.personaId,
+      bodyColor,
+      accentColor,
+      customSocket,
+    });
+    const spearWpn = sim.weapons.find((w) => w.id === 'thorn_spear');
+    if (spearWpn) {
+      const isAttacking = spearWpn.phase !== 'ready';
+      drawHeroHalberd(
+        isAttacking ? gOver : gUnder,
+        hx,
+        cy,
+        isAttacking ? spearWpn.lockedAngle : displayFacingAngle,
+        spearWpn,
+        sim.elapsedSeconds,
+        !isAttacking,
+        flipX
+      );
+    }
+  }
+
+  /**
+   * Hook for specialized hero profession renderers to draw profession-specific eye effects.
+   */
+  protected drawProfessionEyes(
+    _gOver: PIXI.Graphics,
+    _hx: number,
+    _cy: number,
+    _flipX: number,
+    _elapsedSeconds: number
+  ): void {
+    // Override in specialized hero profession renderers
   }
 }

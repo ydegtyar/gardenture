@@ -12,8 +12,10 @@ import {
   drawPiercingSlashProjectile,
   drawPetalOrbitEffect,
   drawChainLightningEffect,
+  drawLightningStrikeEffect,
   drawThornTrailHazard,
   drawSporePopGasCloud,
+  drawSeedTrapHazard,
 } from './weapons';
 import {
   pickupRegistry,
@@ -26,6 +28,8 @@ import {
   drawLuckyCloverStepEffect,
   drawHeroHealPulseEffect,
 } from './items';
+import { getGardenBladeTipPosition } from './heros/weapons';
+import { getStormcallerHatTipPosition } from './heros/StormcallerHeroRenderer';
 
 /**
  * Renders Ground Hazards, Pickups, Orbiting Petals, Weapon Visual Effects,
@@ -64,6 +68,17 @@ export class WeaponEffectsRenderer {
           h.id,
           sim.elapsedSeconds
         );
+      } else if (h.kind === 'seed_trap') {
+        drawSeedTrapHazard(
+          decalGraphic,
+          hx,
+          hy,
+          rPx,
+          fade,
+          h.id,
+          sim.elapsedSeconds,
+          h.lifeTimer
+        );
       } else {
         decalGraphic
           .circle(hx, hy, rPx)
@@ -80,7 +95,6 @@ export class WeaponEffectsRenderer {
     pickupSpritePool?: PIXI.Sprite[]
   ): void {
     const g = pickupGraphic;
-    const bob = Math.sin(sim.elapsedSeconds * 5) * 2.5;
     let usedSprites = 0;
 
     const acquireSprite =
@@ -102,7 +116,7 @@ export class WeaponEffectsRenderer {
 
     for (const p of sim.pickups) {
       const px = p.x * PPU;
-      const py = p.y * PPU + bob;
+      const py = p.y * PPU;
 
       // Strategy pattern: dispatch via pickupRegistry without if/else ladders
       const renderer = pickupRegistry.findForPickup(p);
@@ -233,7 +247,36 @@ export class WeaponEffectsRenderer {
           sim.elapsedSeconds
         );
       } else if (fx.kind === 'chain_bolt') {
-        drawChainLightningEffect(g, fx, fade);
+        let originX = hx;
+        let originY = hy;
+
+        if (sim.professionId === 'stormcaller') {
+          // Stormcaller always casts chain lightning from the tip of the hat, even if Garden Blade is equipped
+          const facingCos = Math.cos(sim.heroFacingAngle);
+          const flipX = facingCos < -0.15 ? -1 : 1;
+          const hatTip = getStormcallerHatTipPosition(
+            hx,
+            hy,
+            flipX,
+            sim.elapsedSeconds
+          );
+          originX = hatTip.x;
+          originY = hatTip.y;
+        } else {
+          const bladeTip = getGardenBladeTipPosition(
+            sim,
+            hx,
+            hy,
+            sim.heroFacingAngle,
+            sim.elapsedSeconds
+          );
+          if (bladeTip) {
+            originX = bladeTip.x;
+            originY = bladeTip.y;
+          }
+        }
+
+        drawChainLightningEffect(g, fx, fade, originX, originY);
       } else if (fx.kind === 'dash_ghost') {
         const gx = fx.x * PPU;
         const gy = fx.y * PPU;
@@ -284,47 +327,7 @@ export class WeaponEffectsRenderer {
           .closePath()
           .fill({ color: fx.color, alpha: 0.38 * fade });
       } else if (fx.kind === 'lightning_strike') {
-        const tx = fx.x * PPU;
-        const ty = fx.y * PPU;
-        const skyY = ty - 240;
-
-        const z1x = tx - 16;
-        const z1y = ty - 170;
-        const z2x = tx + 18;
-        const z2y = ty - 105;
-        const z3x = tx - 10;
-        const z3y = ty - 45;
-
-        g.moveTo(tx + 6, skyY)
-          .lineTo(z1x, z1y)
-          .lineTo(z2x, z2y)
-          .lineTo(z3x, z3y)
-          .lineTo(tx, ty)
-          .stroke({
-            color: PALETTE.SKY_BLUE,
-            width: 14 * fade,
-            alpha: 0.65 * fade,
-            cap: 'round',
-            join: 'round',
-          });
-
-        g.moveTo(tx + 6, skyY)
-          .lineTo(z1x, z1y)
-          .lineTo(z2x, z2y)
-          .lineTo(z3x, z3y)
-          .lineTo(tx, ty)
-          .stroke({
-            color: PALETTE.CREAM_WHITE,
-            width: 5 * fade,
-            alpha: 0.98 * fade,
-            cap: 'round',
-            join: 'round',
-          });
-
-        const blastR = fx.radius * PPU * (0.35 + 0.65 * progress);
-        g.circle(tx, ty, blastR)
-          .fill({ color: PALETTE.SKY_BLUE, alpha: 0.28 * fade })
-          .stroke({ color: PALETTE.BUTTER_YELLOW, width: 3.5 * fade, alpha: 0.9 * fade });
+        drawLightningStrikeEffect(g, fx, fade);
       }
     }
   }

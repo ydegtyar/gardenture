@@ -8,6 +8,31 @@ import {
   drawHeroHalberd,
   drawAegisShieldAura,
   drawHeroAngelWings,
+  HerbalistCharacter,
+  HERBALIST_PALETTE,
+  HERBALIST_PALETTE_NUM,
+  HERBALIST_PARTS_LIST,
+  attachGardenBladeToHero,
+  drawAttachedGardenBlade,
+  getHeroWeaponSocket,
+  HERO_WEAPON_SOCKETS,
+} from './heros';
+
+export {
+  HerbalistCharacter,
+  HERBALIST_PALETTE,
+  HERBALIST_PALETTE_NUM,
+  HERBALIST_PARTS_LIST,
+  attachGardenBladeToHero,
+  drawAttachedGardenBlade,
+  getHeroWeaponSocket,
+  HERO_WEAPON_SOCKETS,
+};
+export type {
+  HerbalistAnimationState,
+  HeroWeaponSocket,
+  SwordWeaponState,
+  GardenBladeAttachmentContext,
 } from './heros';
 
 /**
@@ -42,4 +67,10 @@ export class HeroRenderer {
   public static drawHeroHalberd = drawHeroHalberd;
   public static drawAegisShieldAura = drawAegisShieldAura;
   public static drawHeroAngelWings = drawHeroAngelWings;
+  public static attachGardenBladeToHero = attachGardenBladeToHero;
+  public static drawAttachedGardenBlade = drawAttachedGardenBlade;
+  public static getHeroWeaponSocket = getHeroWeaponSocket;
+  public static createHerbalistCharacter(): HerbalistCharacter {
+    return new HerbalistCharacter();
+  }
 }

@@ -59,3 +59,6 @@ export function drawGardenBladeEffect(
       });
   }
 }
+
+/** Convenience alias for Leaf Blade slash effect */
+export const drawLeafBladeEffect = drawGardenBladeEffect;

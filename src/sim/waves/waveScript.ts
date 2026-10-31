@@ -1,0 +1,60 @@
+import type { WavePhaseDef } from '../../content/schema/types';
+
+export const WAVE_SCRIPT: WavePhaseDef[] = [
+  {
+    startSec: 0,
+    endSec: 20,
+    budgetPerSec: 2.4,
+    activeCap: 25,
+    allowedArchetypes: ['chaser'],
+    eliteChance: 0.0,
+  },
+  {
+    startSec: 20,
+    endSec: 45,
+    budgetPerSec: 3.4,
+    activeCap: 40,
+    allowedArchetypes: ['chaser', 'splitter'],
+    eliteChance: 0.02,
+  },
+  {
+    startSec: 45,
+    endSec: 75,
+    budgetPerSec: 4.8,
+    activeCap: 65,
+    allowedArchetypes: ['chaser', 'dasher', 'splitter'],
+    eliteChance: 0.04,
+  },
+  {
+    startSec: 75,
+    endSec: 105,
+    budgetPerSec: 6.2,
+    activeCap: 90,
+    allowedArchetypes: ['chaser', 'dasher', 'spitter'],
+    eliteChance: 0.06,
+  },
+  {
+    startSec: 105,
+    endSec: 150,
+    budgetPerSec: 8.0,
+    activeCap: 120,
+    allowedArchetypes: ['chaser', 'dasher', 'spitter', 'splitter', 'shielded'],
+    eliteChance: 0.08,
+  },
+  {
+    startSec: 150,
+    endSec: 225,
+    budgetPerSec: 10.0,
+    activeCap: 150,
+    allowedArchetypes: ['chaser', 'dasher', 'spitter', 'brute', 'splitter', 'shielded'],
+    eliteChance: 0.1,
+  },
+  {
+    startSec: 225,
+    endSec: 360,
+    budgetPerSec: 2.8,
+    activeCap: 55,
+    allowedArchetypes: ['chaser', 'dasher', 'spitter', 'brute', 'splitter', 'shielded'],
+    eliteChance: 0.06,
+  },
+];

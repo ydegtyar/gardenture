@@ -103,7 +103,7 @@ export const MenuHtmlUi: React.FC<Props> = ({
             className="w-full mb-3 px-4 py-2 rounded-xl bg-[#261A2C]/95 border border-[#98E2B6]/70 text-xs font-bold text-[#FFFDF0] shadow-[0_12px_24px_rgba(5,2,10,0.8)] flex flex-wrap items-center justify-between gap-2"
           >
             <span className="text-[#98E2B6] uppercase tracking-wider text-[11px]">
-              Run Ended · Rewards
+              Last run:
             </span>
             <span className="font-mono-tabular text-[#FFF0A8] flex items-center gap-2">
               <span>+{data.lastRunRewards.coinsEarned} Coins</span>
@@ -211,5 +211,3 @@ export const MenuHtmlUi: React.FC<Props> = ({
     </main>
   );
 };
-
-export default MenuHtmlUi;

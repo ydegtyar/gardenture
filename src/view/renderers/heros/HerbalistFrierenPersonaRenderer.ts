@@ -1,5 +1,6 @@
 import type * as PIXI from 'pixi.js';
 import type { PersonaRenderer, PersonaRenderContext } from './types';
+import type { HeroWeaponSocket } from './GardenBladeAttachment';
 
 export interface HitenJadeCondensationFacetSample {
   dx: number;
@@ -320,6 +321,24 @@ function drawVaporPuffAndWisp(
  */
 export class HerbalistFrierenPersonaRenderer implements PersonaRenderer {
   public readonly id = 'herbalist_frieren_strange';
+
+  /**
+   * Hiten Jade does not use a wooden staff; her hands channel living mist-spring dew.
+   * The Herbalist's default wooden stick with hand is suppressed completely.
+   */
+  public readonly suppressDefaultWeapon = true;
+  public readonly hasDefaultWeapon = false;
+
+  /**
+   * Weapon socket configuration when Hiten Jade equips the Garden Blade card.
+   * Matches her frost-trimmed cerulean robe and porcelain skin.
+   */
+  public readonly weaponSocket: Partial<HeroWeaponSocket> = {
+    sleeveColor: 0x0284c7, // Cerulean blue dress-robe
+    cuffColor: 0xf8fafc,   // Snowy frost white cuff
+    handColor: 0xffe4d6,   // Soft porcelain peach skin
+    drawDefaultWeapon: undefined,
+  };
 
   public drawAura(ctx: PersonaRenderContext): void {
     const { gUnder, gOver, hx, cy, groundY, elapsedSeconds, heroVx, heroVy } = ctx;

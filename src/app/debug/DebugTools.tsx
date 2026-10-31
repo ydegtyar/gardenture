@@ -12,7 +12,7 @@ import { PowerUpAbilityIcon } from '../SvgIcons';
 export interface DebugCardModalProps {
   weapons: ReadonlyArray<{ id: string; level: number; evolved: boolean }>;
   ownedCards: Readonly<Record<string, number>>;
-  heldPowerUps?: ReadonlyArray<PowerUpId>;
+  heldPowerUps?: ReadonlyArray<PowerUpId | null>;
   onSetCardLevel: (cardId: string, level: number) => void;
   onSetWeaponLevel: (weaponId: string, level: number, evolved: boolean) => void;
   onSpawnPowerUpDrop?: (powerUpId: PowerUpId) => void;

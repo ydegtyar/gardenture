@@ -41,6 +41,7 @@ export interface SaveDataV1 {
   loadout: {
     personaId: string;
     professionId: ProfessionId;
+    personaByProfession?: Partial<Record<ProfessionId, string>>;
     startingWeaponId: string;
     trinketIds: string[];
     curseIds: string[];
@@ -218,12 +219,15 @@ export function createDefaultSaveData(): SaveDataV1 {
         dungeon: 1,
         sakura_grove: 1,
         sunlit_oasis: 1,
+        frostbite_glade: 1,
+        crimson_ashlands: 1,
       },
       personaAdPips: {},
     },
     loadout: {
       personaId: 'adventurer_default',
       professionId: 'warden',
+      personaByProfession: {},
       startingWeaponId: 'garden_blade',
       trinketIds: ['aegis_leaf'],
       curseIds: [],
@@ -292,8 +296,12 @@ export function createDefaultSaveData(): SaveDataV1 {
   };
 }
 
-export function parseSavePayload(raw: string): SaveDataV1 | null {
-  if (!raw || raw.trim().length < 2) return null;
+export function parseSavePayload(raw: string | SaveDataV1 | null | undefined): SaveDataV1 | null {
+  if (!raw) return null;
+  if (typeof raw === 'object') {
+    return raw as SaveDataV1;
+  }
+  if (typeof raw !== 'string' || raw.trim().length < 2) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<SaveDataV1>;
     if (!parsed || parsed.schemaVersion !== 1) return null;
@@ -344,7 +352,13 @@ export function parseSavePayload(raw: string): SaveDataV1 | null {
           ...(parsed.unlocks?.personaAdPips ?? {}),
         },
       },
-      loadout: { ...defaults.loadout, ...parsed.loadout },
+      loadout: {
+        ...defaults.loadout,
+        ...parsed.loadout,
+        personaByProfession: {
+          ...(parsed.loadout?.personaByProfession ?? {}),
+        },
+      },
       bestScores: {
         ...defaults.bestScores,
         ...parsed.bestScores,
@@ -373,9 +387,9 @@ function mergeUniqueStrings<T extends string>(a: readonly T[], b: readonly T[]):
  *   highest `personaAdPips` per persona, and highest `bestScores.allTime` so progress is never lost.
  */
 export function reconcileSaveData(
-  cloudRaw: string,
-  localRaw: string
-): { state: SaveDataV1; source: 'cloud' | 'local' | 'merged' | 'default' } {
+  cloudRaw: string | SaveDataV1 | null | undefined,
+  localRaw: string | SaveDataV1 | null | undefined
+): { state: SaveDataV1; data: SaveDataV1; source: 'cloud' | 'local' | 'merged' | 'default' } {
   const cloudState = parseSavePayload(cloudRaw);
   const localState = parseSavePayload(localRaw);
 
@@ -447,6 +461,13 @@ export function reconcileSaveData(
     resolved = {
       ...primary,
       updatedAtEpochMs: Math.max(primary.updatedAtEpochMs, secondary.updatedAtEpochMs),
+      loadout: {
+        ...primary.loadout,
+        personaByProfession: {
+          ...(secondary.loadout?.personaByProfession ?? {}),
+          ...(primary.loadout?.personaByProfession ?? {}),
+        },
+      },
       currencies: {
         ...primary.currencies,
         coins:
@@ -516,7 +537,7 @@ export function reconcileSaveData(
     resolved.currencies.lastAdResetUtcDate = today;
   }
 
-  return { state: resolved, source };
+  return { state: resolved, data: resolved, source };
 }
 
 export class SaveManager {

@@ -196,6 +196,35 @@ export class GameAudioMixer {
     osc.stop(now + 0.065);
   }
 
+  public playPowerUpUse(powerUpId?: string): void {
+    if (!this.canPlaySfx() || !this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const pitchJitter = 0.96 + Math.random() * 0.08;
+
+    // Harmonious ascending chime chord (E5, B5, G#6) with magic resonance
+    const notes = [
+      { freq: 659.25 * pitchJitter, start: 0, duration: 0.18, gain: 0.28 },
+      { freq: 987.77 * pitchJitter, start: 0.045, duration: 0.22, gain: 0.25 },
+      { freq: 1661.22 * pitchJitter, start: 0.09, duration: 0.28, gain: 0.22 },
+    ];
+
+    for (const note of notes) {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(note.freq, now + note.start);
+      osc.frequency.exponentialRampToValueAtTime(note.freq * 1.08, now + note.start + note.duration);
+
+      gain.gain.setValueAtTime(note.gain, now + note.start);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + note.start + note.duration);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(now + note.start);
+      osc.stop(now + note.start + note.duration + 0.01);
+    }
+  }
+
   public playLevelUpOrRankUp(isRankUp: boolean): void {
     if (!this.ctx || !this.sfxGain || !this.isOutputActive()) return;
     const notes = isRankUp ? [440, 554.37, 659.25, 880] : [392, 493.88, 587.33, 783.99];

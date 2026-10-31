@@ -3,6 +3,8 @@
  * Layer 2 (content): Pure TypeScript interfaces for data tables.
  */
 
+import type React from 'react';
+
 export type ProfessionId = 'warden' | 'seeker' | 'herbalist' | 'stormcaller';
 export type WeaponShape = 'arc' | 'line' | 'circle' | 'projectile' | 'orbit' | 'chain';
 export type CardType = 'stat' | 'behavior' | 'synergy' | 'risk_reward' | 'weapon' | 'evolution';
@@ -101,8 +103,17 @@ export interface CardDef {
   maxLevel: number;
   tags: string[];
   requiresTag?: string;
+  requiresWeaponId?: string;
+  requiresCardId?: string;
   shortDesc: string;
   iconColor: string;
+  iconKey?: string;
+  iconComponent?: React.ComponentType<{
+    size?: number;
+    className?: string;
+    glowColor?: string;
+    title?: string;
+  }>;
   statBonusesPerLevel?: {
     damageAdd?: number;
     attackSpeedAdd?: number;
@@ -216,7 +227,13 @@ export interface CurseDef {
   levels: readonly [CurseLevelDef, CurseLevelDef, CurseLevelDef];
 }
 
-export type BiomeId = 'garden' | 'dungeon' | 'sakura_grove' | 'sunlit_oasis';
+export type BiomeId =
+  | 'garden'
+  | 'dungeon'
+  | 'sakura_grove'
+  | 'sunlit_oasis'
+  | 'frostbite_glade'
+  | 'crimson_ashlands';
 
 export interface ThemePackDef {
   id: BiomeId;

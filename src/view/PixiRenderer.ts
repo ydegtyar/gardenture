@@ -161,7 +161,11 @@ export class PixiGameRenderer {
             ? 0x231729
             : biomeId === 'sunlit_oasis'
               ? 0x262114
-              : PALETTE.DEEP_SLATE,
+              : biomeId === 'frostbite_glade'
+                ? 0x101a26
+                : biomeId === 'crimson_ashlands'
+                  ? 0x1c0f13
+                  : PALETTE.DEEP_SLATE,
       antialias: true,
       resolution: Math.min(window.devicePixelRatio || 1, 2),
       autoDensity: true,
@@ -308,7 +312,11 @@ export class PixiGameRenderer {
             ? 0x231729
             : biomeId === 'sunlit_oasis'
               ? 0x262114
-              : PALETTE.DEEP_SLATE;
+              : biomeId === 'frostbite_glade'
+                ? 0x101a26
+                : biomeId === 'crimson_ashlands'
+                  ? 0x1c0f13
+                  : PALETTE.DEEP_SLATE;
     }
   }
 
@@ -401,10 +409,10 @@ export class PixiGameRenderer {
     slot.textObj.text = sanitizedText;
     slot.textObj.style.fill =
       customColor ?? (isCrit ? PALETTE.BUTTER_YELLOW : PALETTE.CREAM_WHITE);
-    slot.textObj.style.fontSize = isCrit
-      ? 23
-      : customScale
-        ? Math.max(11, Math.round(18 * customScale))
+    slot.textObj.style.fontSize = customScale
+      ? Math.max(11, Math.round(18 * customScale))
+      : isCrit
+        ? 23
         : 18;
     slot.textObj.scale.set(customScale ?? (isCrit ? 1.25 : 1.0));
     slot.textObj.alpha = 1;

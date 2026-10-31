@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { Simulation } from '../../../sim/Simulation';
 import type { SpriteKey } from '../../SpriteAtlas';
+import type { HeroWeaponSocket } from './GardenBladeAttachment';
 
 export interface PersonaRenderContext {
   gUnder: PIXI.Graphics;
@@ -19,6 +20,12 @@ export interface PersonaRenderContext {
 export interface PersonaRenderer {
   readonly id: string;
   readonly isLevitating?: boolean;
+  /** Whether this persona skin suppresses the profession's default weapon (e.g. Herbalist's wooden stick) */
+  readonly suppressDefaultWeapon?: boolean;
+  /** Whether this persona has a default resting weapon */
+  readonly hasDefaultWeapon?: boolean;
+  /** Custom weapon socket overrides for this persona skin (e.g. Garden Blade attachment sleeve/cuff colors) */
+  readonly weaponSocket?: Partial<HeroWeaponSocket>;
   drawAura(ctx: PersonaRenderContext): void;
 }
 

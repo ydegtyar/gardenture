@@ -50,13 +50,17 @@ export function drawThornTrailHazard(
         cap: 'round',
       });
 
-    // Sharp crimson/rose thorns jutting along each vine
-    for (let t = -1; t <= 1; t += 2) {
-      const tx = hx + cosA * (span * 0.42 * t);
-      const ty = hy + sinA * (span * 0.42 * t);
-      const thornDir = t * (v % 2 === 0 ? 1 : -1);
-      const tipX = tx + perpX * 6.5 * thornDir + cosA * 2.5 * t;
-      const tipY = ty + perpY * 6.5 * thornDir + sinA * 2.5 * t;
+    // Sharp crimson/rose thorns jutting along each vine (3 thorns per vine with 1 extra thorn added)
+    const thornOffsets = [-0.58, 0.05, 0.62];
+    for (let i = 0; i < thornOffsets.length; i++) {
+      const t = thornOffsets[i];
+      const tx = hx + cosA * (span * t);
+      const ty = hy + sinA * (span * t);
+      // Alternate sides along the vine for realistic briar growth
+      const side = (i % 2 === 0 ? 1 : -1) * (v % 2 === 0 ? 1 : -1);
+      const forwardLean = i === 1 ? (v % 2 === 0 ? 1.4 : -1.4) : (t > 0 ? 2.5 : -2.5);
+      const tipX = tx + perpX * 6.5 * side + cosA * forwardLean;
+      const tipY = ty + perpY * 6.5 * side + sinA * forwardLean;
       g.moveTo(tx - cosA * 2.2, ty - sinA * 2.2)
         .lineTo(tipX, tipY)
         .lineTo(tx + cosA * 2.2, ty + sinA * 2.2)

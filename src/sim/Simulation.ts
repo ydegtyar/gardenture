@@ -11,6 +11,7 @@ import {
   clamp,
   dist,
   distSq,
+  lerp,
 } from '../core/math/vec2';
 import { RNGStreams, type RNGStreamsState } from '../core/rng/rng';
 import { TICK_S } from '../core/time/clock';
@@ -28,6 +29,7 @@ import {
   WAVE_SCRIPT,
   WEAPONS,
   getXpRequiredForLevel,
+  isPersonaRelatedToProfession,
 } from '../content/data/catalog';
 import type {
   EnemyArchetypeId,
@@ -49,6 +51,8 @@ import {
   stepStyleRank,
 } from './rules/formulas';
 import { type DraftOfferItem, generateCardDraftOffers } from './systems/cardDraft';
+import { CHAIN_LIGHTNING_CONFIG } from '../content/data/chainLightningConfig';
+import { findChainLightningTargets } from './weapons/chainLightning';
 
 export interface SimEnemy {
   id: number;
@@ -102,6 +106,10 @@ export interface SimEnemy {
   telegraphTargetY: number;
   telegraphDuration: number;
 
+  // Golden Wheat Fox specialized AI
+  foxRunMode?: 'flee_hero' | 'seek_powerful';
+  foxTargetEnemyId?: number;
+
   // Status effects & feedback
   hitFlashTimer: number;
   burnTimer: number;
@@ -110,6 +118,7 @@ export interface SimEnemy {
   poisonDps: number;
   slowTimer: number;
   webSlowTimer: number; // > 0 when snared in sticky spider-web glue from Petal Orbit
+  thornSlowTimer: number; // > 0 when snared in briar thorns from Thorn Trail
   freezeTimer: number;
   stormMarkTimer: number; // > 0 when marked with storm debuff from lightning
   koTimer: number; // > 0 when dying in brief KO topple
@@ -211,6 +220,7 @@ export interface SimVisualEffect {
   timer: number;
   maxTimer: number;
   isEcho?: boolean;
+  isBloom?: boolean;
 }
 
 export interface WeaponRuntimeState {
@@ -245,7 +255,7 @@ export interface MidRunCheckpointV1 {
   readonly level: number;
   readonly weapons: Array<{ id: string; level: number; evolved: boolean }>;
   readonly cards: Record<string, number>;
-  readonly heldPowerUps: PowerUpId[];
+  readonly heldPowerUps: (PowerUpId | null)[];
   readonly equippedTrinkets: string[];
   readonly trinketLevels?: Record<string, number>;
   readonly activeCurses: string[];
@@ -363,7 +373,9 @@ export class Simulation {
   // Build & Inventory
   public weapons: WeaponRuntimeState[] = [];
   public cards: Record<string, number> = {};
-  public heldPowerUps: PowerUpId[] = [];
+  public heldPowerUps: (PowerUpId | null)[] = [];
+  public powerUpSlotAge: [number, number] = [0, 0];
+  public powerUpCounter = 0;
   public equippedTrinkets: string[] = [];
   public trinketLevels: Record<string, number> = {};
   public activeCurses: string[] = [];
@@ -423,6 +435,9 @@ export class Simulation {
   public static readonly FINAL_BOSS_ARENA_RADIUS_P2_U = 12.0;
   public static readonly FINAL_BOSS_ARENA_RADIUS_P3_U = 10.5;
   public static readonly FINAL_BOSS_SPAWN_SEC = 225;
+  public static readonly FINAL_BOSS_BASE_HP = 1500;
+  public static readonly DASH_DISTANCE_U = 3.2;
+  public static readonly DASH_DURATION_S = 0.14;
   public finalBossSpawned = false;
   public finalBossId: number | null = null;
   public arenaActive = true; // Active from the start of the run and slowly collapses toward the Final Boss arena
@@ -490,7 +505,7 @@ export class Simulation {
 
     // Apply starting trinket bonuses
     if (this.equippedTrinkets.includes('aegis_leaf') || this.equippedTrinkets.includes('leaf_brooch')) {
-      this.heldPowerUps.push('shield');
+      this.addHeldPowerUp('shield');
     }
     if (this.equippedTrinkets.includes('clover_charm')) {
       const cloverLv = clamp(Math.floor(this.trinketLevels.clover_charm ?? 1), 1, 3);
@@ -571,14 +586,49 @@ export class Simulation {
     this.pendingPowerUpSlot = slotIndex;
   }
 
+  public normalizeHeldPowerUps(): void {
+    const s0 = this.heldPowerUps[0] ?? null;
+    const s1 = this.heldPowerUps[1] ?? null;
+    if (!s0 && !s1) {
+      this.heldPowerUps = [];
+    } else if (s0 && !s1) {
+      this.heldPowerUps = [s0];
+    } else if (!s0 && s1) {
+      this.heldPowerUps = [null, s1];
+    } else if (s0 && s1) {
+      this.heldPowerUps = [s0, s1];
+    }
+  }
+
+  public addHeldPowerUp(powerUpId: PowerUpId): number {
+    if (!this.heldPowerUps[0]) {
+      this.heldPowerUps[0] = powerUpId;
+      this.powerUpSlotAge[0] = ++this.powerUpCounter;
+      this.normalizeHeldPowerUps();
+      return 0;
+    }
+    if (!this.heldPowerUps[1]) {
+      this.heldPowerUps[1] = powerUpId;
+      this.powerUpSlotAge[1] = ++this.powerUpCounter;
+      this.normalizeHeldPowerUps();
+      return 1;
+    }
+    // Both slots occupied: replace oldest slot in place (Spec Section 12)
+    const replaceIndex = this.powerUpSlotAge[0] <= this.powerUpSlotAge[1] ? 0 : 1;
+    this.heldPowerUps[replaceIndex] = powerUpId;
+    this.powerUpSlotAge[replaceIndex] = ++this.powerUpCounter;
+    this.normalizeHeldPowerUps();
+    return replaceIndex;
+  }
+
   private executeDash(angle: number): void {
     this.dashCharges = Math.max(0, this.dashCharges - 1);
     if (this.dashCooldownTimer <= 0) {
       this.dashCooldownTimer = this.stats.dashCooldown;
     }
-    this.dashTimer = 0.14; // Spec Section 4: 0.14 s duration, 2.6 u distance
-    // Grant invisibility frames (i-frames) for the 0.14s dash + 0.12s post-dash phase window (0.32s for Stormcaller)
-    const iframeDuration = this.professionId === 'stormcaller' ? 0.32 : 0.26;
+    this.dashTimer = Simulation.DASH_DURATION_S; // 0.14 s duration, 3.2 u distance
+    // Grant invisibility frames (i-frames) for the 0.14s dash + 0.18s post-dash phase window (0.38s for Stormcaller)
+    const iframeDuration = this.professionId === 'stormcaller' ? 0.38 : 0.32;
     this.dashIframeTimer = Math.max(this.dashIframeTimer, iframeDuration);
     this.invulnTimer = Math.max(this.invulnTimer, iframeDuration);
     this.dashDirX = Math.cos(angle);
@@ -687,8 +737,8 @@ export class Simulation {
     this.events.emit('HeroDashed', {
       startX: this.heroX,
       startY: this.heroY,
-      endX: this.heroX + this.dashDirX * 2.6,
-      endY: this.heroY + this.dashDirY * 2.6,
+      endX: this.heroX + this.dashDirX * Simulation.DASH_DISTANCE_U,
+      endY: this.heroY + this.dashDirY * Simulation.DASH_DISTANCE_U,
       professionId: this.professionId,
     });
   }
@@ -727,6 +777,13 @@ export class Simulation {
 
     if (offer.kind === 'weapon_new' || offer.kind === 'weapon_upgrade') {
       this.addOrUpgradeWeapon(offer.targetId);
+      if (offer.targetId === 'garden_blade') {
+        const w = this.weapons.find((item) => item.id === 'garden_blade');
+        if (w) {
+          w.cooldownTimer = 0;
+          w.phase = 'ready';
+        }
+      }
     } else if (offer.kind === 'weapon_evolution') {
       const w = this.weapons.find((item) => item.id === offer.targetId);
       if (w) {
@@ -915,13 +972,10 @@ export class Simulation {
   }
 
   public debugGivePowerUp(powerUpId: PowerUpId = 'fire_breath'): void {
-    if (this.heldPowerUps.length >= 2) {
-      this.heldPowerUps.shift();
-    }
-    this.heldPowerUps.push(powerUpId);
+    const slotIndex = this.addHeldPowerUp(powerUpId);
     this.events.emit('PowerUpPicked', {
       powerUpId,
-      slotIndex: this.heldPowerUps.length - 1,
+      slotIndex,
     });
   }
 
@@ -1404,8 +1458,11 @@ export class Simulation {
     if (this.pendingPowerUpSlot !== null) {
       const slot = this.pendingPowerUpSlot;
       this.pendingPowerUpSlot = null;
-      if (slot >= 0 && slot < this.heldPowerUps.length) {
-        const pId = this.heldPowerUps.splice(slot, 1)[0]!;
+      if (slot >= 0 && slot < 2 && this.heldPowerUps[slot]) {
+        const pId = this.heldPowerUps[slot]!;
+        this.heldPowerUps[slot] = null;
+        this.powerUpSlotAge[slot] = 0;
+        this.normalizeHeldPowerUps();
         this.activatePowerUp(pId);
       }
     }
@@ -1449,7 +1506,7 @@ export class Simulation {
     // Movement vs Active Dash
     if (this.dashTimer > 0) {
       this.dashTimer = Math.max(0, this.dashTimer - dt);
-      const dashSpeed = 2.6 / 0.14; // 18.57 u/s
+      const dashSpeed = Simulation.DASH_DISTANCE_U / Simulation.DASH_DURATION_S; // 3.2 / 0.14 = 22.86 u/s
       this.heroVx = this.dashDirX * dashSpeed;
       this.heroVy = this.dashDirY * dashSpeed;
       this.heroX += this.heroVx * dt;
@@ -1522,6 +1579,10 @@ export class Simulation {
 
       // End of dash: Warden Thorn Burst & Shockwave / Ember Guard arrival bursts
       if (this.dashTimer <= 0) {
+        // Reset high dash velocity to movement intent velocity so hero does not slide after dash
+        this.heroVx = this.moveIntentX * this.stats.moveSpeed;
+        this.heroVy = this.moveIntentY * this.stats.moveSpeed;
+
         if (this.professionId === 'warden') {
           const radius = 1.5 * this.stats.areaMult;
           this.damageEnemiesInCircle(
@@ -1681,12 +1742,14 @@ export class Simulation {
 
     // Permanent Arcana Persona Skin step trail (e.g. Zagreus × Naruto Hellfire footsteps, Void-ODM steps, Alchemy runes)
     // Note: Thander Rein ('stormcaller_gojo_killua') levitates and has no ground footstep trail!
+    const isPersonaRelated = isPersonaRelatedToProfession(this.personaId, this.professionId);
     const activePersona =
+      isPersonaRelated &&
       this.personaId &&
       this.personaId !== 'adventurer_default' &&
       this.personaId !== 'stormcaller_gojo_killua' &&
       this.personaId !== 'herbalist_frieren_strange'
-        ? PERSONAS.find((p) => p.id === this.personaId)
+        ? PERSONAS.find((p) => p.id === this.personaId && p.professionId === this.professionId)
         : undefined;
     if (activePersona) {
       if (movedDist > 0.001) {
@@ -1795,7 +1858,7 @@ export class Simulation {
         }
       }
     } else if (powerUpId === 'time_slow') {
-      this.timeSlowTimer = 4.0;
+      this.timeSlowTimer += 4.0;
     } else if (powerUpId === 'heal_potion') {
       this.healBuffTimer = 1.05;
       // Heal 4 times by +5 HP each with a small delay (first +5 HP immediately, then 3 pulses every 0.25s)
@@ -1813,7 +1876,7 @@ export class Simulation {
   }
 
   private updateEnemiesMovementAndAI(dt: number): void {
-    const timeSlowFactor = this.timeSlowTimer > 0 ? 0.4 : 1.0;
+    const timeSlowFactor = this.timeSlowTimer > 0 ? 0.2 : 1.0;
     const speedScale = calculateEnemySpeedScaling(this.elapsedSeconds) * this.stats.enemySpeedMult;
 
     // Limit concurrent active enemy telegraphs (crowd token pool <= 5) so waves remain readable
@@ -1871,6 +1934,7 @@ export class Simulation {
       if (e.stormMarkTimer > 0) e.stormMarkTimer = Math.max(0, e.stormMarkTimer - dt);
       if (e.slowTimer > 0) e.slowTimer = Math.max(0, e.slowTimer - dt);
       if (e.webSlowTimer > 0) e.webSlowTimer = Math.max(0, e.webSlowTimer - dt);
+      if (e.thornSlowTimer > 0) e.thornSlowTimer = Math.max(0, e.thornSlowTimer - dt);
       if (e.freezeTimer > 0) {
         e.freezeTimer = Math.max(0, e.freezeTimer - dt);
         if (!e.isArenaFlower && !e.isHeroGrave) continue;
@@ -1922,6 +1986,21 @@ export class Simulation {
         continue;
       }
 
+      let inThornTrail = false;
+      for (const h of this.hazards) {
+        if (h.kind === 'thorn_trail') {
+          const hDx = e.x - h.x;
+          const hDy = e.y - h.y;
+          const hDist = Math.hypot(hDx, hDy);
+          if (hDist <= h.radius + e.radius) {
+            inThornTrail = true;
+            e.thornSlowTimer = Math.max(e.thornSlowTimer, 0.6);
+            e.slowTimer = Math.max(e.slowTimer, 0.6);
+            break;
+          }
+        }
+      }
+
       const petalWpn = this.weapons.find((w) => w.id === 'petal_orbit');
       const webSlowFactor =
         e.webSlowTimer > 0
@@ -1930,7 +2009,8 @@ export class Simulation {
             : clamp(0.7 - (petalWpn?.level ?? 1) * 0.015, 0.58, 0.7)
           : 1.0;
       const frostSlowFactor = e.slowTimer > 0 ? 0.65 : 1.0;
-      const slowFactor = Math.min(webSlowFactor, frostSlowFactor);
+      const thornSlowFactor = inThornTrail || e.thornSlowTimer > 0 ? 0.5 : 1.0;
+      const slowFactor = Math.min(webSlowFactor, frostSlowFactor, thornSlowFactor);
       const bossFreezeFactor = e.freezeTimer > 0 ? 0.4 : 1.0;
       const moveSpeed = e.speed * speedScale * timeSlowFactor * slowFactor * bossFreezeFactor;
       // While Hero is in dash invisibility frames, enemies cannot update their tracking angle to the hero
@@ -1961,10 +2041,191 @@ export class Simulation {
 
       // Archetype AI State Machines
       if (e.isSpecial && e.specialId === 'golden_beast') {
-        // Flees from hero
-        e.facingAngle = angleToHero + Math.PI;
+        // Golden Wheat Fox specialized AI:
+        // 1. Slightly decreased speed (speedOverride 2.25)
+        // 2. Sometimes changes run direction toward the most powerful enemy on the map instead of fleeing from hero
+        // 3. Avoids running into the outer thorn circle arena boundary and ground thorn hazards
+
+        if (!e.foxRunMode) {
+          e.foxRunMode = 'flee_hero';
+          e.aiTimer = 2.5 + this.rng.combat.range(0, 1.5);
+        }
+
+        e.aiTimer -= dt;
+
+        const powerfulEnemy = this.findMostPowerfulEnemy(e.id);
+
+        if (e.aiTimer <= 0) {
+          const seekChance = e.foxRunMode === 'flee_hero' ? 0.45 : 0.35;
+          if (powerfulEnemy && this.rng.combat.next() < seekChance) {
+            e.foxRunMode = 'seek_powerful';
+            e.foxTargetEnemyId = powerfulEnemy.id;
+            e.aiTimer = 2.0 + this.rng.combat.range(0, 1.5);
+          } else {
+            e.foxRunMode = 'flee_hero';
+            e.foxTargetEnemyId = undefined;
+            e.aiTimer = 2.5 + this.rng.combat.range(0, 2.0);
+          }
+        }
+
+        // Validate target enemy in seek_powerful mode
+        let targetAlly: SimEnemy | null = null;
+        if (e.foxRunMode === 'seek_powerful') {
+          if (powerfulEnemy) {
+            targetAlly =
+              this.enemies.find(
+                (en) =>
+                  en.id === e.foxTargetEnemyId &&
+                  en.hp > 0 &&
+                  en.koTimer <= 0 &&
+                  !en.isArenaFlower &&
+                  !en.isHeroGrave
+              ) ?? powerfulEnemy;
+
+            // If fox has reached the powerful protector, switch back to fleeing/sheltering around it
+            const distToAlly = Math.hypot(targetAlly.x - e.x, targetAlly.y - e.y);
+            if (distToAlly <= targetAlly.radius + e.radius + 1.2) {
+              e.foxRunMode = 'flee_hero';
+              e.foxTargetEnemyId = undefined;
+              e.aiTimer = 2.0 + this.rng.combat.range(0, 1.5);
+              targetAlly = null;
+            }
+          } else {
+            e.foxRunMode = 'flee_hero';
+            e.foxTargetEnemyId = undefined;
+          }
+        }
+
+        let baseDirX = 0;
+        let baseDirY = 0;
+
+        if (targetAlly) {
+          // Run toward most powerful enemy on map
+          const toAllyX = targetAlly.x - e.x;
+          const toAllyY = targetAlly.y - e.y;
+          const distAlly = Math.hypot(toAllyX, toAllyY);
+          if (distAlly > 0.001) {
+            baseDirX = toAllyX / distAlly;
+            baseDirY = toAllyY / distAlly;
+          }
+          // If hero is dangerously close (cutting off the path), steer around hero
+          if (!heroInvisible && dHero < 3.0 && dHero > 0.001) {
+            const heroAvoidWeight = ((3.0 - dHero) / 3.0) * 1.4;
+            baseDirX += (-dxHero / dHero) * heroAvoidWeight;
+            baseDirY += (-dyHero / dHero) * heroAvoidWeight;
+          }
+        } else {
+          // Flee from hero
+          if (dHero > 0.001) {
+            baseDirX = -dxHero / dHero;
+            baseDirY = -dyHero / dHero;
+          } else {
+            baseDirX = Math.cos(e.facingAngle);
+            baseDirY = Math.sin(e.facingAngle);
+          }
+        }
+
+        const baseLen = Math.hypot(baseDirX, baseDirY);
+        if (baseLen > 0.001) {
+          baseDirX /= baseLen;
+          baseDirY /= baseLen;
+        }
+
+        let thornAvoidX = 0;
+        let thornAvoidY = 0;
+
+        // 1. Avoid outer thorn circle arena boundary
+        if (this.arenaActive && this.arenaRadiusU > 0) {
+          const toCenterX = this.arenaCenterX - e.x;
+          const toCenterY = this.arenaCenterY - e.y;
+          const distCenter = Math.hypot(toCenterX, toCenterY);
+          const thornWarningBuffer = 4.2;
+          const distFromThornWall = this.arenaRadiusU - distCenter;
+
+          if (distFromThornWall < thornWarningBuffer && distCenter > 0.001) {
+            const inwardNx = toCenterX / distCenter;
+            const inwardNy = toCenterY / distCenter;
+            const factor = clamp(
+              (thornWarningBuffer - distFromThornWall) / thornWarningBuffer,
+              0,
+              1
+            );
+            const inwardWeight = factor * 3.5;
+            thornAvoidX += inwardNx * inwardWeight;
+            thornAvoidY += inwardNy * inwardWeight;
+
+            // Deflect tangentially along the thorn circle wall so the fox does not get stuck/pinched
+            const dot = baseDirX * inwardNx + baseDirY * inwardNy;
+            if (dot < 0.2) {
+              const tan1X = -inwardNy;
+              const tan1Y = inwardNx;
+              const tan2X = inwardNy;
+              const tan2Y = -inwardNx;
+              const dot1 = baseDirX * tan1X + baseDirY * tan1Y;
+              const dot2 = baseDirX * tan2X + baseDirY * tan2Y;
+              const chosenTanX = dot1 >= dot2 ? tan1X : tan2X;
+              const chosenTanY = dot1 >= dot2 ? tan1Y : tan2Y;
+              const tanWeight = factor * 2.8;
+              thornAvoidX += chosenTanX * tanWeight;
+              thornAvoidY += chosenTanY * tanWeight;
+            }
+          }
+        }
+
+        // 2. Avoid ground thorn trail hazards (e.g. from Hero dash)
+        for (const h of this.hazards) {
+          if (h.kind === 'thorn_trail') {
+            const hDx = e.x - h.x;
+            const hDy = e.y - h.y;
+            const hDist = Math.hypot(hDx, hDy);
+            const avoidDist = h.radius + e.radius + 1.4;
+            if (hDist < avoidDist && hDist > 0.001) {
+              const hFactor = (avoidDist - hDist) / avoidDist;
+              // Direct repulsion away from hazard center
+              thornAvoidX += (hDx / hDist) * hFactor * 2.5;
+              thornAvoidY += (hDy / hDist) * hFactor * 2.5;
+
+              // Tangential deflection to steer cleanly around the hazard
+              const toHazNx = -hDx / hDist;
+              const toHazNy = -hDy / hDist;
+              const dotApproach = baseDirX * toHazNx + baseDirY * toHazNy;
+              if (dotApproach > 0.1) {
+                const perpX = -toHazNy;
+                const perpY = toHazNx;
+                const sign = (baseDirX * perpX + baseDirY * perpY) >= 0 ? 1 : -1;
+                thornAvoidX += perpX * sign * hFactor * 2.2;
+                thornAvoidY += perpY * sign * hFactor * 2.2;
+              }
+            }
+          }
+        }
+
+        let finalDirX = baseDirX + thornAvoidX;
+        let finalDirY = baseDirY + thornAvoidY;
+        const finalLen = Math.hypot(finalDirX, finalDirY);
+        if (finalLen > 0.001) {
+          finalDirX /= finalLen;
+          finalDirY /= finalLen;
+        } else {
+          finalDirX = Math.cos(e.facingAngle);
+          finalDirY = Math.sin(e.facingAngle);
+        }
+
+        e.facingAngle = Math.atan2(finalDirY, finalDirX);
         e.x += Math.cos(e.facingAngle) * moveSpeed * dt;
         e.y += Math.sin(e.facingAngle) * moveSpeed * dt;
+
+        // Hard boundary clamp: strictly keep Golden Wheat Fox inside the safe arena, never in the thorn area
+        if (this.arenaActive && this.arenaRadiusU > 0) {
+          const cDx = e.x - this.arenaCenterX;
+          const cDy = e.y - this.arenaCenterY;
+          const cDist = Math.hypot(cDx, cDy);
+          const maxFoxDist = Math.max(1.0, this.arenaRadiusU - e.radius - 0.25);
+          if (cDist > maxFoxDist && cDist > 0.001) {
+            e.x = this.arenaCenterX + (cDx / cDist) * maxFoxDist;
+            e.y = this.arenaCenterY + (cDy / cDist) * maxFoxDist;
+          }
+        }
       } else if (e.isSpecial && e.specialId === 'bloom_giant') {
         // Golden Sunflower: randomly chooses between 3 telegraphed attack modes:
         // 1. 'sunflower_charge' (yellow charging arrow + slide charge)
@@ -2633,15 +2894,17 @@ export class Simulation {
   }
 
   private updateProjectiles(dt: number): void {
+    const enemyProjSlowFactor = this.timeSlowTimer > 0 ? 0.2 : 1.0;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
       const p = this.projectiles[i];
       if (!p) continue;
+      const projDt = p.isEnemy ? dt * enemyProjSlowFactor : dt;
       p.prevX = p.x;
       p.prevY = p.y;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.lifeTimer -= dt;
+      p.x += p.vx * projDt;
+      p.y += p.vy * projDt;
+      p.lifeTimer -= projDt;
 
       if (p.lifeTimer <= 0) {
         if (p.explodesOnExpire) {
@@ -2703,32 +2966,56 @@ export class Simulation {
           this.applyDamageToEnemy(enemy, p.damage, p.isCrit, 0.35, p.weaponTags);
           if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
 
-          // Chain Bloom synergy card: projectiles chain to 1 nearby enemy for 60% damage
+          // Chain Bloom synergy card: projectiles chain to nearby enemies using Chain Lightning approach (bolder effect)
           const chainBloomLv = this.cards.chain_bloom ?? 0;
           if (chainBloomLv > 0) {
-            const chainTarget = this.findNearestEnemy(enemy.x, enemy.y, 2.8, p.hitEnemyIds);
-            if (chainTarget) {
+            const bloomSteps = findChainLightningTargets(
+              enemy.x,
+              enemy.y,
+              this.enemies,
+              {
+                range: 3.2,
+                chainRange: 3.0,
+                maxChains: 1 + (chainBloomLv >= 4 ? 2 : chainBloomLv >= 2 ? 1 : 0),
+              },
+              this.rng.combat,
+              undefined,
+              p.hitEnemyIds
+            );
+
+            const bloomDamage = p.damage * (0.5 + 0.1 * chainBloomLv);
+            const staggerSec = CHAIN_LIGHTNING_CONFIG.staggerMs / 1000;
+            const lifetimeSec = 0.22;
+
+            for (let b = 0; b < bloomSteps.length; b++) {
+              const step = bloomSteps[b]!;
+              p.hitEnemyIds.add(step.targetId);
+
               this.applyDamageToEnemy(
-                chainTarget,
-                p.damage * (0.5 + 0.1 * chainBloomLv),
+                step.enemy,
+                bloomDamage * Math.pow(0.85, b),
                 false,
-                0.2,
+                0.25,
                 ['projectile', 'lightning']
               );
-              if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+              if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) break;
+
+              const delay = b * staggerSec;
+              const totalDuration = lifetimeSec + delay;
               this.visualEffects.push({
                 id: this.nextEntityId++,
                 kind: 'chain_bolt',
-                x: enemy.x,
-                y: enemy.y,
-                targetX: chainTarget.x,
-                targetY: chainTarget.y,
-                angle: 0,
-                radius: 0.2,
+                x: step.fromX,
+                y: step.fromY,
+                targetX: step.toX,
+                targetY: step.toY,
+                angle: delay,
+                radius: 0.35,
                 arcRad: 0,
-                color: PALETTE.SKY_BLUE,
-                timer: 0.16,
-                maxTimer: 0.16,
+                color: CHAIN_LIGHTNING_CONFIG.bloom.colors.midGlow,
+                timer: totalDuration,
+                maxTimer: totalDuration,
+                isBloom: true,
               });
             }
           }
@@ -2817,6 +3104,170 @@ export class Simulation {
     return effectiveReach * effectiveArea;
   }
 
+  /**
+   * Computes effective stats for Garden Blade (Damage, Reach/Range, Arc Deg/Rad, Area, Cooldown),
+   * applying smooth improvements on each level up as well as Hero stat multipliers.
+   */
+  public getGardenBladeStats(
+    level?: number,
+    evolved?: boolean
+  ): {
+    damage: number;
+    reach: number;
+    arcDeg: number;
+    arcRad: number;
+    areaMult: number;
+    cooldown: number;
+  } {
+    const def = WEAPONS.garden_blade;
+    const w = this.weapons.find((item) => item.id === 'garden_blade');
+    const lvl = clamp(Math.floor(level ?? w?.level ?? 1), 1, 8);
+    const isEvolved = evolved ?? w?.evolved ?? false;
+
+    // Damage: +28% per level up to Lv 7, +40% capstone boost at Lv 8, +40% when evolved
+    const dmgGrowth = BALANCE_CONFIG.GARDEN_BLADE_DAMAGE_GROWTH_PER_LEVEL ?? 0.28;
+    const lvMult = 1 + (lvl - 1) * dmgGrowth + (lvl >= 8 ? 0.20 : 0) + (isEvolved ? 0.40 : 0);
+    const damage = (def?.baseDamage ?? 14) * lvMult * this.stats.damageMult;
+
+    // Range (Reach): +0.12 u on each level up, +0.30 u when evolved
+    const reachGrowth = BALANCE_CONFIG.GARDEN_BLADE_REACH_GROWTH_PER_LEVEL ?? 0.12;
+    const reachBonus = (lvl - 1) * reachGrowth + (isEvolved ? 0.30 : 0);
+    const reach = ((def?.baseReach ?? 1.85) + reachBonus) * this.stats.reachMult;
+
+    // Area: Arc spread widens +8% per level, area multiplier grows +8% per level
+    const arcGrowth = BALANCE_CONFIG.GARDEN_BLADE_ARC_GROWTH_PER_LEVEL ?? 0.08;
+    const arcDeg = Math.min(
+      320,
+      (def?.baseArcDeg ?? 115) *
+        (1 + (lvl - 1) * arcGrowth + (isEvolved ? 0.15 : 0)) *
+        this.stats.areaMult
+    );
+    const arcRad = (arcDeg * Math.PI) / 180;
+
+    const areaGrowth = BALANCE_CONFIG.GARDEN_BLADE_AREA_GROWTH_PER_LEVEL ?? 0.08;
+    const areaMult = this.stats.areaMult * (1 + (lvl - 1) * areaGrowth + (isEvolved ? 0.20 : 0));
+
+    // Cooldown: 0.85s base, reduced at Lv 4 (~0.72s) and Lv 7 (~0.63s), -15% evolved
+    const baseCd =
+      (def?.baseCooldown ?? 0.85) *
+      (lvl >= 7 ? 0.74 : lvl >= 4 ? 0.85 : 1.0) *
+      (isEvolved ? 0.85 : 1.0);
+    const cooldown = Math.max(0.18, baseCd / this.stats.attackSpeedMult);
+
+    return { damage, reach, arcDeg, arcRad, areaMult, cooldown };
+  }
+
+  /**
+   * Calculates the tip (edge) position of the equipped Garden Blade in simulation world coordinates.
+   * Returns null if Garden Blade is not equipped on the hero.
+   */
+  public getGardenBladeTipWorld(): { x: number; y: number } | null {
+    let bladeWpn = this.weapons.find((w) => w.id === 'garden_blade');
+    if (!bladeWpn && (this.cards.garden_blade ?? 0) > 0) {
+      bladeWpn = {
+        id: 'garden_blade',
+        level: this.cards.garden_blade,
+        evolved: false,
+        phase: 'ready',
+        phaseTimer: 0,
+        cooldownTimer: 0,
+        swingCounter: 0,
+        lockedAngle: 0,
+        lockedTargetX: 0,
+        lockedTargetY: 0,
+        orbitAngle: 0,
+        orbitHitCooldowns: new Map(),
+      };
+    }
+    if (!bladeWpn) return null;
+
+    const facingAngle = this.heroFacingAngle ?? 0;
+    const flipX = Math.cos(facingAngle) < -0.15 ? -1 : 1;
+    const isAttacking = bladeWpn.phase !== 'ready';
+    const swingDir = (bladeWpn.swingCounter ?? 0) % 2 === 0 ? 1 : -1;
+
+    // Socket offsets in world units (standard PPU = 24)
+    const shoulderX = this.heroX + (9.0 / 24) * flipX;
+    const shoulderY = this.heroY + 1.0 / 24;
+
+    let handX: number;
+    let handY: number;
+    let bladeAngle: number;
+
+    if (isAttacking) {
+      let localAngleOffset = swingDir * -0.58;
+      let reach = 12.5 / 24;
+
+      if (bladeWpn.phase === 'windup') {
+        const p = clamp(1 - bladeWpn.phaseTimer / 0.06, 0, 1);
+        localAngleOffset = lerp(swingDir * -0.58, swingDir * -1.28, p);
+        reach = lerp(12.5 / 24, 9.0 / 24, p);
+      } else if (bladeWpn.phase === 'active') {
+        const p = clamp(1 - bladeWpn.phaseTimer / 0.08, 0, 1);
+        const easeOut = 1 - Math.pow(1 - p, 2);
+        localAngleOffset = lerp(swingDir * -1.28, swingDir * 1.28, easeOut);
+        reach = 14.5 / 24;
+      } else if (bladeWpn.phase === 'recovery') {
+        const p = clamp(1 - bladeWpn.phaseTimer / 0.05, 0, 1);
+        localAngleOffset = lerp(swingDir * 1.28, -swingDir * -0.58, p);
+        reach = lerp(14.5 / 24, 12.5 / 24, p);
+      }
+
+      const swingAngle = facingAngle + localAngleOffset;
+      handX = shoulderX + Math.cos(swingAngle) * reach;
+      handY = shoulderY + Math.sin(swingAngle) * reach;
+      bladeAngle = swingAngle;
+    } else {
+      const breathSway = Math.sin(this.elapsedSeconds * 3.5);
+      handX = this.heroX + (12.0 / 24) * flipX + (Math.cos(this.elapsedSeconds * 3.5) * 0.3) / 24;
+      handY = this.heroY + (5.5 / 24) + (breathSway * 0.5) / 24;
+      bladeAngle = 0.65 * flipX + breathSway * 0.05;
+    }
+
+    const bladeLen = (20 + Math.min(8, bladeWpn.level) * 1.1 + (bladeWpn.evolved ? 5 : 0)) / 24;
+    return {
+      x: handX + Math.cos(bladeAngle) * bladeLen,
+      y: handY + Math.sin(bladeAngle) * bladeLen,
+    };
+  }
+
+  /**
+   * Calculates the tip position of Stormcaller's hat in simulation world coordinates.
+   * Stormcaller always casts chain lightning from the tip of the hat, even if Garden Blade is equipped.
+   */
+  public getStormcallerHatTipWorld(): { x: number; y: number } {
+    const facingAngle = this.heroFacingAngle ?? 0;
+    const flipX = Math.cos(facingAngle) < -0.15 ? -1 : 1;
+    return {
+      x: this.heroX + (1.0 / 24) * flipX,
+      y: this.heroY - 27.0 / 24,
+    };
+  }
+
+  /**
+   * Calculates the eye positions of Stormcaller in simulation world coordinates.
+   */
+  public getStormcallerEyesWorld(): { leftEyeX: number; rightEyeX: number; eyeY: number } {
+    const facingAngle = this.heroFacingAngle ?? 0;
+    const flipX = Math.cos(facingAngle) < -0.15 ? -1 : 1;
+    const isSkin =
+      this.professionId === 'stormcaller' && this.personaId === 'stormcaller_gojo_killua';
+    const spreadX = (isSkin ? 3.85 : 3.2) / 24;
+    const offsetY = (isSkin ? -12.5 : -12.1) / 24;
+    return {
+      leftEyeX: this.heroX - spreadX * flipX,
+      rightEyeX: this.heroX + spreadX * flipX,
+      eyeY: this.heroY + offsetY,
+    };
+  }
+
+  /**
+   * Checks whether the current persona skin is validly applied to the active hero.
+   */
+  public isPersonaSkinApplied(): boolean {
+    return isPersonaRelatedToProfession(this.personaId, this.professionId);
+  }
+
   private updateWeapons(dt: number): void {
     // Update bonus orbiting petals from Petal Storm card if Hero doesn't own Petal Orbit
     const petalStormLv = this.cards.petal_storm ?? 0;
@@ -2837,16 +3288,29 @@ export class Simulation {
       const def = WEAPONS[w.id];
       if (!def) continue;
 
-      const lvMult = 1 + (w.level - 1) * 0.18 + (w.evolved ? 0.35 : 0);
-      const effectiveDamage = def.baseDamage * lvMult * this.stats.damageMult;
-      const effectiveReach =
-        (def.baseReach + (w.level >= 6 ? 0.35 : 0)) * this.stats.reachMult;
-      const effectiveArea = this.stats.areaMult * (w.level >= 3 ? 1.18 : 1.0);
-      const baseCd =
-        def.baseCooldown *
-        (w.level >= 7 ? 0.78 : w.level >= 4 ? 0.88 : 1.0) *
-        (w.evolved ? 0.85 : 1.0);
-      const effectiveCooldown = Math.max(0.18, baseCd / this.stats.attackSpeedMult);
+      let effectiveDamage: number;
+      let effectiveReach: number;
+      let effectiveArea: number;
+      let effectiveCooldown: number;
+
+      if (w.id === 'garden_blade') {
+        const bladeStats = this.getGardenBladeStats(w.level, w.evolved);
+        effectiveDamage = bladeStats.damage;
+        effectiveReach = bladeStats.reach;
+        effectiveArea = bladeStats.areaMult;
+        effectiveCooldown = bladeStats.cooldown;
+      } else {
+        const lvMult = 1 + (w.level - 1) * 0.18 + (w.evolved ? 0.35 : 0);
+        effectiveDamage = def.baseDamage * lvMult * this.stats.damageMult;
+        effectiveReach =
+          (def.baseReach + (w.level >= 6 ? 0.35 : 0)) * this.stats.reachMult;
+        effectiveArea = this.stats.areaMult * (w.level >= 3 ? 1.18 : 1.0);
+        const baseCd =
+          def.baseCooldown *
+          (w.level >= 7 ? 0.78 : w.level >= 4 ? 0.88 : 1.0) *
+          (w.evolved ? 0.85 : 1.0);
+        effectiveCooldown = Math.max(0.18, baseCd / this.stats.attackSpeedMult);
+      }
 
       if (def.shape === 'orbit') {
         this.stepOrbitingPetals(
@@ -2990,8 +3454,10 @@ export class Simulation {
     const attackAngle = w.lockedAngle + echoAngleOffset;
 
     if (shape === 'arc') {
-      const arcDeg = (def.baseArcDeg ?? 115) * (w.level >= 3 ? 1.2 : 1.0);
-      const arcRad = (arcDeg * Math.PI) / 180;
+      const arcRad =
+        w.id === 'garden_blade'
+          ? this.getGardenBladeStats(w.level, w.evolved).arcRad
+          : (((def.baseArcDeg ?? 115) * (w.level >= 3 ? 1.2 : 1.0)) * Math.PI) / 180;
       this.damageEnemiesInArc(
         this.heroX,
         this.heroY,
@@ -3221,42 +3687,73 @@ export class Simulation {
         });
       }
     } else if (shape === 'chain') {
-      const bounces =
-        (def.baseCount ?? 3) +
+      const maxChains =
+        CHAIN_LIGHTNING_CONFIG.maxChains +
         (w.level >= 6 ? 2 : w.level >= 3 ? 1 : 0) +
         (w.evolved ? 2 : 0);
-      const hitIds = new Set<number>();
-      let currX = this.heroX;
-      let currY = this.heroY;
+      const reachMult = this.stats.reachMult;
+      const range = CHAIN_LIGHTNING_CONFIG.range * reachMult;
+      const chainRange = CHAIN_LIGHTNING_CONFIG.chainRange * reachMult;
+      let startX = this.heroX;
+      let startY = this.heroY;
 
-      for (let b = 0; b < bounces; b++) {
-        const nextTarget = this.findNearestEnemy(currX, currY, reach, hitIds);
-        if (!nextTarget) break;
-        hitIds.add(nextTarget.id);
+      if (this.professionId === 'stormcaller') {
+        // Stormcaller always casts chain lightning from the tip of the hat, even if Garden Blade is equipped
+        const hatTip = this.getStormcallerHatTipWorld();
+        startX = hatTip.x;
+        startY = hatTip.y;
+      } else {
+        const bladeTip = this.getGardenBladeTipWorld();
+        if (bladeTip) {
+          startX = bladeTip.x;
+          startY = bladeTip.y;
+        }
+      }
+
+      const steps = findChainLightningTargets(
+        startX,
+        startY,
+        this.enemies,
+        {
+          range,
+          chainRange,
+          maxChains,
+        },
+        this.rng.combat
+      );
+
+      const staggerSec = CHAIN_LIGHTNING_CONFIG.staggerMs / 1000;
+      const lifetimeSec = isEcho ? 0.28 : CHAIN_LIGHTNING_CONFIG.lifetimeMs / 1000;
+
+      for (let b = 0; b < steps.length; b++) {
+        const step = steps[b]!;
         this.applyDamageToEnemy(
-          nextTarget,
-          damage * Math.pow(0.9, b),
+          step.enemy,
+          damage * Math.pow(CHAIN_LIGHTNING_CONFIG.damageFalloff, b),
           isCrit || w.evolved,
           def.baseKnockback,
           [...def.tags, 'lightning']
         );
+        if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) break;
+
+        const delay = b * staggerSec;
+        const totalDuration = lifetimeSec + delay;
+        const isInitialBolt = b === 0;
         this.visualEffects.push({
           id: this.nextEntityId++,
           kind: 'chain_bolt',
-          x: currX,
-          y: currY,
-          targetX: nextTarget.x,
-          targetY: nextTarget.y,
-          angle: 0,
+          x: isInitialBolt ? startX : step.fromX,
+          y: isInitialBolt ? startY : step.fromY,
+          targetX: step.toX,
+          targetY: step.toY,
+          angle: delay,
           radius: 0.2,
           arcRad: 0,
           color,
-          timer: isEcho ? 0.22 : 0.16,
-          maxTimer: isEcho ? 0.22 : 0.16,
+          timer: totalDuration,
+          maxTimer: totalDuration,
           isEcho,
         });
-        currX = nextTarget.x;
-        currY = nextTarget.y;
       }
     }
 
@@ -3489,7 +3986,7 @@ export class Simulation {
 
     // Apply Synergy Status Effects
     const burningThornsLv = this.cards.burning_thorns ?? 0;
-    if (burningThornsLv > 0 && tags.includes('pierce')) {
+    if (burningThornsLv > 0 && (tags.includes('pierce') || tags.includes('thorn_trail'))) {
       enemy.burnTimer = 3.0;
       enemy.burnDps = 4 * burningThornsLv;
     }
@@ -3497,6 +3994,11 @@ export class Simulation {
     const frostTouchLv = this.cards.frost_touch ?? 0;
     if (frostTouchLv > 0 && (tags.includes('impact') || tags.includes('area'))) {
       enemy.slowTimer = 1.8;
+    }
+
+    if (tags.includes('thorn_trail')) {
+      enemy.thornSlowTimer = Math.max(enemy.thornSlowTimer, 0.8);
+      enemy.slowTimer = Math.max(enemy.slowTimer, 0.8);
     }
 
     // Spore Pop poison status: applies low-DPS poison over 4.0s
@@ -3593,8 +4095,8 @@ export class Simulation {
     // Detonation damage increases with each card received across the run.
     if (hadStormMark) {
       const cardCount = this.getEffectiveCardsReceived();
-      const baseShock = 20;
-      const bonusPerCard = 8;
+      const baseShock = BALANCE_CONFIG.STORM_DETONATION_BASE_DAMAGE;
+      const bonusPerCard = BALANCE_CONFIG.STORM_DETONATION_BONUS_PER_CARD;
       const detonationDamage = (baseShock + cardCount * bonusPerCard) * this.stats.damageMult;
 
       this.visualEffects.push({
@@ -3607,23 +4109,15 @@ export class Simulation {
         angle: -Math.PI / 2,
         radius: 1.35 * this.stats.areaMult,
         arcRad: 0,
-        color: PALETTE.SKY_BLUE,
+        color: CHAIN_LIGHTNING_CONFIG.strike.colors.midGlow,
         timer: 0.28,
         maxTimer: 0.28,
-      });
-
-      this.events.emit('FloatingText', {
-        x: enemy.x,
-        y: enemy.y - 0.75,
-        text: `${Math.round(detonationDamage)}`,
-        color: PALETTE.SKY_BLUE,
-        scale: 1.25,
       });
 
       this.applyDamageToEnemy(
         enemy,
         detonationDamage,
-        isCrit || this.rng.combat.chance(this.stats.critChance),
+        false,
         0.4,
         ['storm_detonation', 'lightning', 'area']
       );
@@ -4082,7 +4576,11 @@ export class Simulation {
       if (h.tickTimer <= 0) {
         h.tickTimer = 0.45;
         const hTags =
-          h.kind === 'spore_cloud' ? ['spore_proc', 'area', 'nature'] : ['area', 'nature'];
+          h.kind === 'spore_cloud'
+            ? ['spore_proc', 'area', 'nature']
+            : h.kind === 'thorn_trail'
+              ? ['thorn_trail', 'area', 'nature']
+              : ['area', 'nature'];
         this.damageEnemiesInCircle(h.x, h.y, h.radius, h.damage, 0.15, hTags);
         if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
       }
@@ -4144,10 +4642,7 @@ export class Simulation {
       this.healHero(p.value);
     } else if (p.kind === 'heal_potion') {
       const healId: PowerUpId = 'heal_potion';
-      if (this.heldPowerUps.length >= 2) {
-        this.heldPowerUps.shift(); // Replace oldest if holding 2
-      }
-      this.heldPowerUps.push(healId);
+      const slotIndex = this.addHeldPowerUp(healId);
       this.visualEffects.push({
         id: this.nextEntityId++,
         kind: 'circle_blast',
@@ -4164,13 +4659,10 @@ export class Simulation {
       });
       this.events.emit('PowerUpPicked', {
         powerUpId: healId,
-        slotIndex: this.heldPowerUps.length - 1,
+        slotIndex,
       });
     } else if (p.kind === 'power_up' && p.powerUpId) {
-      if (this.heldPowerUps.length >= 2) {
-        this.heldPowerUps.shift(); // Replace oldest if holding 2 (Spec Section 12)
-      }
-      this.heldPowerUps.push(p.powerUpId);
+      const slotIndex = this.addHeldPowerUp(p.powerUpId);
       const tintMap: Record<PowerUpId, number> = {
         shield: 0x4fd1b5,
         freeze: 0x6fa8ff,
@@ -4196,7 +4688,7 @@ export class Simulation {
       });
       this.events.emit('PowerUpPicked', {
         powerUpId: p.powerUpId,
-        slotIndex: this.heldPowerUps.length - 1,
+        slotIndex,
       });
     } else if (p.kind === 'chest') {
       this.healHero(20);
@@ -4380,12 +4872,30 @@ export class Simulation {
     // Passive Dodge from Swift Boots level up: chance to dodge any incoming damage
     if (this.stats.dodgeChance > 0 && this.rng.combat.chance(this.stats.dodgeChance)) {
       this.invulnTimer = 0.25;
+      const isValidAttacker = (e?: SimEnemy | null): e is SimEnemy =>
+        Boolean(e && e.hp > 0 && e.koTimer <= 0 && !e.isArenaFlower && !e.isHeroGrave);
+
+      let missedEnemy: SimEnemy | null = null;
+      if (isValidAttacker(attacker)) {
+        missedEnemy = attacker;
+      } else {
+        const nearest = this.findNearestEnemy(this.heroX, this.heroY, 5.0, new Set());
+        if (isValidAttacker(nearest)) {
+          missedEnemy = nearest;
+        }
+      }
+
+      const fxX = missedEnemy ? missedEnemy.x : this.heroX;
+      const fxY = missedEnemy
+        ? missedEnemy.y - Math.max(0.65, (missedEnemy.radius ?? 0.4) + 0.3)
+        : this.heroY - 0.65;
+
       this.events.emit('FloatingText', {
-        x: this.heroX,
-        y: this.heroY - 0.65,
-        text: 'DODGE!',
+        x: fxX,
+        y: fxY,
+        text: 'miss',
         color: PALETTE.MINT_GREEN,
-        scale: 0.68,
+        scale: 0.55,
       });
       return;
     }
@@ -4495,12 +5005,21 @@ export class Simulation {
 
     // Passive Dodge from Swift Boots level up can also dodge thorn damage
     if (this.stats.dodgeChance > 0 && this.rng.combat.chance(this.stats.dodgeChance)) {
+      const isValidEnemy = (e?: SimEnemy | null): e is SimEnemy =>
+        Boolean(e && e.hp > 0 && e.koTimer <= 0 && !e.isArenaFlower && !e.isHeroGrave);
+      const nearest = this.findNearestEnemy(this.heroX, this.heroY, 5.0, new Set());
+      const missedEnemy = isValidEnemy(nearest) ? nearest : null;
+      const fxX = missedEnemy ? missedEnemy.x : this.heroX;
+      const fxY = missedEnemy
+        ? missedEnemy.y - Math.max(0.65, (missedEnemy.radius ?? 0.4) + 0.3)
+        : this.heroY - 0.65;
+
       this.events.emit('FloatingText', {
-        x: this.heroX,
-        y: this.heroY - 0.65,
-        text: 'DODGE!',
+        x: fxX,
+        y: fxY,
+        text: 'miss',
         color: PALETTE.MINT_GREEN,
-        scale: 0.68,
+        scale: 0.55,
       });
       return;
     }
@@ -4772,6 +5291,7 @@ export class Simulation {
       poisonDps: 0,
       slowTimer: 0,
       webSlowTimer: 0,
+      thornSlowTimer: 0,
       freezeTimer: 0,
       stormMarkTimer: 0,
       koTimer: 0,
@@ -4812,6 +5332,10 @@ export class Simulation {
     e.color = chosen.color;
     e.despawnTimer = chosen.id === 'golden_beast' ? 35.0 : 90.0;
     e.xpValue = 8;
+    if (chosen.id === 'golden_beast') {
+      e.foxRunMode = 'flee_hero';
+      e.aiTimer = 2.5 + this.rng.combat.range(0, 1.5);
+    }
     if (chosen.id === 'bloom_giant') {
       e.aiTimer = 0.25;
       e.bossAttackMode = 'sunflower_charge';
@@ -4823,6 +5347,46 @@ export class Simulation {
       archetypeId: chosen.baseArchetype,
     });
     return e;
+  }
+
+  /**
+   * Finds the most powerful combat enemy on the field (excluding the caller,
+   * dead/dying enemies, other golden wheat foxes, and non-combat objects like flowers/graves).
+   */
+  public findMostPowerfulEnemy(excludeEnemyId?: number): SimEnemy | null {
+    let mostPowerful: SimEnemy | null = null;
+    let highestPower = -1;
+    const caller =
+      typeof excludeEnemyId === 'number'
+        ? this.enemies.find((en) => en.id === excludeEnemyId)
+        : undefined;
+
+    for (const other of this.enemies) {
+      if (typeof excludeEnemyId === 'number' && other.id === excludeEnemyId) continue;
+      if (other.hp <= 0 || other.koTimer > 0) continue;
+      if (other.isArenaFlower || other.isHeroGrave) continue;
+      if (other.isSpecial && other.specialId === 'golden_beast') continue;
+
+      let power = other.maxHp;
+      if (other.isFinalBoss) power += 10000;
+      else if (other.isMiniBoss) power += 5000;
+      else if (other.isSpecial) power += 2500;
+      else if (other.isElite) power += 1000;
+      power += other.contactDamage * 10;
+
+      if (power > highestPower) {
+        highestPower = power;
+        mostPowerful = other;
+      } else if (power === highestPower && mostPowerful && caller) {
+        const dOld = Math.hypot(mostPowerful.x - caller.x, mostPowerful.y - caller.y);
+        const dNew = Math.hypot(other.x - caller.x, other.y - caller.y);
+        if (dNew < dOld) {
+          mostPowerful = other;
+        }
+      }
+    }
+
+    return mostPowerful;
   }
 
   /**
@@ -4871,6 +5435,7 @@ export class Simulation {
       poisonDps: 0,
       slowTimer: 0,
       webSlowTimer: 0,
+      thornSlowTimer: 0,
       freezeTimer: 0,
       stormMarkTimer: 0,
       koTimer: 0,
@@ -4927,6 +5492,7 @@ export class Simulation {
       poisonDps: 0,
       slowTimer: 0,
       webSlowTimer: 0,
+      thornSlowTimer: 0,
       freezeTimer: 0,
       stormMarkTimer: 0,
       koTimer: 0,
@@ -5131,7 +5697,7 @@ export class Simulation {
       e.bossPhase = 1;
       e.bossAttackMode = 'boss_p1_vine_whip';
       e.aiTimer = 0.85;
-      e.hp = Math.round(1350 * (0.6 + 0.4 * scale));
+      e.hp = Math.round(Simulation.FINAL_BOSS_BASE_HP * (0.6 + 0.4 * scale));
       e.maxHp = e.hp;
       e.radius = 1.15;
       e.color = PALETTE.BLUSH_ROSE;
@@ -5162,6 +5728,22 @@ export class Simulation {
   private updateVisualEffects(dt: number): void {
     for (let i = this.visualEffects.length - 1; i >= 0; i--) {
       const fx = this.visualEffects[i]!;
+      if (fx.kind === 'chain_bolt' && fx.angle === 0 && !fx.isBloom) {
+        if (this.professionId === 'stormcaller') {
+          const hatTip = this.getStormcallerHatTipWorld();
+          fx.x = hatTip.x;
+          fx.y = hatTip.y;
+        } else {
+          const bladeTip = this.getGardenBladeTipWorld();
+          if (bladeTip) {
+            fx.x = bladeTip.x;
+            fx.y = bladeTip.y;
+          } else {
+            fx.x = this.heroX;
+            fx.y = this.heroY;
+          }
+        }
+      }
       fx.timer -= dt;
       if (fx.timer <= 0) {
         this.visualEffects.splice(i, 1);
@@ -5335,6 +5917,8 @@ export class Simulation {
     sim.level = cp.level;
     sim.xpToNext = getXpRequiredForLevel(cp.level);
     sim.heldPowerUps = [...cp.heldPowerUps];
+    sim.powerUpSlotAge = [sim.heldPowerUps[0] ? 1 : 0, sim.heldPowerUps[1] ? 2 : 0];
+    sim.powerUpCounter = 2;
     sim.rankIndex = cp.rankIndex;
     sim.stylePoints = cp.stylePoints;
     sim.currentStreak = cp.currentStreak;
@@ -5347,7 +5931,7 @@ export class Simulation {
     sim.directorBankedBudget = cp.directorBankedBudget;
     sim.miniBossDefeated = cp.miniBossDefeated;
     sim.miniBossSpawned = cp.elapsedTicks * TICK_S >= 90;
-    sim.finalBossSpawned = cp.elapsedTicks * TICK_S >= 195;
+    sim.finalBossSpawned = cp.elapsedTicks * TICK_S >= Simulation.FINAL_BOSS_SPAWN_SEC;
     if (sim.finalBossSpawned && !sim.runEnded) {
       sim.spawnBoss(true);
     }

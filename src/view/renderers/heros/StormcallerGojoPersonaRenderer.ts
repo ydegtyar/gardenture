@@ -1,5 +1,6 @@
 import { clamp } from '../../../core/math/vec2';
 import type { PersonaRenderer, PersonaRenderContext } from './types';
+import { getStormcallerEyePositions } from './stormcallerCoordinates';
 
 /**
  * Thander Rein persona aura renderer:
@@ -29,9 +30,7 @@ export class StormcallerGojoPersonaRenderer implements PersonaRenderer {
       heroVy,
     } = ctx;
 
-    const eyeY = cy - 4.5;
-    const leftEyeX = hx - 4.2 * flipX;
-    const rightEyeX = hx + 4.2 * flipX;
+    const { leftEyeX, rightEyeX, eyeY } = getStormcallerEyePositions(hx, cy, flipX, true);
     const eyePulse = 0.78 + 0.22 * Math.sin(elapsedSeconds * 9);
 
     // THANDER REIN:

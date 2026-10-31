@@ -37,7 +37,7 @@ import {
   getMonstersDroppingPowerUp,
 } from '../../game/data/monsters';
 import { CoinIcon, SeedGemIcon } from '../SvgIcons';
-import { getTarotMetadata, TarotIllustrationSvg } from '../TarotCardArt';
+import { getTarotMetadata, TarotIllustrationSvg } from '../cards';
 import { useGameShell } from '../context/GameShellContext';
 import { NO_ADS } from '../../config/ads';
 import {
@@ -57,7 +57,7 @@ import {
   SigilCard,
   TrinketStoreCard,
 } from '../components/StoreItemCard';
-import { TrinketRelicArt } from '../components/TrinketRelicArt';
+import { TrinketRelicArt } from '../trinkets';
 import { calculateCurseRewardMultiplier } from '../../sim/rules/formulas';
 import { YouTubeSdkPanel } from './YouTubeSdkPanel';
 import { cn } from '../../utils/cn';
@@ -236,9 +236,15 @@ export function LoadoutAndStoreModal() {
                     const prof = PROFESSIONS[profId]!;
                     const isUnlocked = unlocks.professions.includes(profId);
                     const isSelected = loadout.professionId === profId;
+                    const isPersonaAppliedForProf =
+                      loadout.personaByProfession?.[profId] !== undefined
+                        ? loadout.personaByProfession[profId]
+                        : loadout.professionId === profId
+                          ? loadout.personaId
+                          : undefined;
                     const activeProfPersona = PERSONAS.find(
                       (p) =>
-                        p.id === loadout.personaId &&
+                        p.id === isPersonaAppliedForProf &&
                         p.professionId === profId &&
                         unlocks.personas.includes(p.id)
                     );
@@ -338,7 +344,16 @@ export function LoadoutAndStoreModal() {
                     03. BIOME THEME PACK
                   </h3>
                   <div className="grid grid-cols-2 gap-2 min-w-0">
-                    {(['garden', 'dungeon', 'sakura_grove', 'sunlit_oasis'] as const).map((bId) => {
+                    {(
+                      [
+                        'garden',
+                        'dungeon',
+                        'sakura_grove',
+                        'sunlit_oasis',
+                        'frostbite_glade',
+                        'crimson_ashlands',
+                      ] as const
+                    ).map((bId) => {
                       const t = THEME_PACKS[bId];
                       const active = loadout.biomeId === bId;
                       return (
@@ -1060,7 +1075,14 @@ export function LoadoutAndStoreModal() {
         {/* Footer Start CTA */}
         <div className="px-6 py-4 bg-[#1E1520] border-t border-[#FFFDF0]/10 flex items-center justify-between">
           <span className="text-xs text-[#FFFDF0]/75">
-            Active: {PROFESSIONS[loadout.professionId]?.name} · {PERSONAS.find((p) => p.id === loadout.personaId)?.name ?? 'Seedling Wanderer'} · {THEME_PACKS[loadout.biomeId].name}
+            Active: {PROFESSIONS[loadout.professionId]?.name} ·{' '}
+            {PERSONAS.find(
+              (p) =>
+                p.id === loadout.personaId &&
+                p.professionId === loadout.professionId &&
+                unlocks.personas.includes(p.id)
+            )?.name ?? 'Seedling Wanderer'}{' '}
+            · {THEME_PACKS[loadout.biomeId].name}
           </span>
           <button
             type="button"

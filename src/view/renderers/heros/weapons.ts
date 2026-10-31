@@ -1,10 +1,28 @@
 import * as PIXI from 'pixi.js';
 import { PALETTE, WEAPONS } from '../../../content/data/catalog';
 import { clamp, lerp } from '../../../core/math/vec2';
+import {
+  drawAttachedGardenBlade,
+  attachGardenBladeToHero,
+  getHeroWeaponSocket,
+  getGardenBladeTipPosition,
+  HERO_WEAPON_SOCKETS,
+} from './GardenBladeAttachment';
+import type { HeroWeaponSocket, SwordWeaponState, GardenBladeAttachmentContext } from './GardenBladeAttachment';
+
+export {
+  drawAttachedGardenBlade,
+  attachGardenBladeToHero,
+  getHeroWeaponSocket,
+  getGardenBladeTipPosition,
+  HERO_WEAPON_SOCKETS,
+};
+export type { HeroWeaponSocket, SwordWeaponState, GardenBladeAttachmentContext };
 
 /**
  * Draws an articulated hero arm (shoulder -> elbow -> gloved hand) properly attached
  * to the hero's shoulder, gripping the Garden Blade / Verdant Edge.
+ * Reusable across hero renderers via HeroWeaponSocket.
  */
 export function drawHeroSword(
   g: PIXI.Graphics,
@@ -20,106 +38,32 @@ export function drawHeroSword(
   },
   elapsedSeconds: number,
   sleeveColor: number,
-  cuffColor: number
+  cuffColor: number,
+  customSocket?: Partial<HeroWeaponSocket>,
+  flipX = 1
 ): void {
-  const def = WEAPONS.garden_blade;
-  const bladeColor = swordWpn.evolved
-    ? (def?.evolvedColor ?? PALETTE.GOLD_STAR)
-    : (def?.color ?? PALETTE.MINT_GREEN);
-  const swingDir = swordWpn.swingCounter % 2 === 0 ? 1 : -1;
+  const socket: HeroWeaponSocket = {
+    handRestX: customSocket?.handRestX ?? customSocket?.socketX ?? 12.0,
+    handRestY: customSocket?.handRestY ?? customSocket?.socketY ?? 5.5,
+    socketX: customSocket?.socketX ?? customSocket?.handRestX ?? 12.0,
+    socketY: customSocket?.socketY ?? customSocket?.handRestY ?? 5.5,
+    shoulderX: customSocket?.shoulderX ?? 8.5,
+    shoulderY: customSocket?.shoulderY ?? 1.0,
+    sleeveColor,
+    cuffColor,
+    handColor: customSocket?.handColor ?? PALETTE.CREAM_WHITE,
+  };
 
-  let localAngleOffset = swingDir * -0.58 + Math.sin(elapsedSeconds * 4.5) * 0.06;
-  let reachOffset = 13;
-
-  if (swordWpn.phase === 'windup') {
-    const t = clamp(1 - swordWpn.phaseTimer / 0.06, 0, 1);
-    localAngleOffset = lerp(swingDir * -0.58, swingDir * -1.28, t);
-    reachOffset = lerp(13, 10, t);
-  } else if (swordWpn.phase === 'active') {
-    const t = clamp(1 - swordWpn.phaseTimer / 0.08, 0, 1);
-    const easeOut = 1 - Math.pow(1 - t, 2);
-    localAngleOffset = lerp(swingDir * -1.28, swingDir * 1.28, easeOut);
-    reachOffset = 17;
-  } else if (swordWpn.phase === 'recovery') {
-    const t = clamp(1 - swordWpn.phaseTimer / 0.05, 0, 1);
-    localAngleOffset = lerp(swingDir * 1.28, -swingDir * -0.58, t);
-    reachOffset = lerp(17, 13, t);
-  }
-
-  const totalAngle = facingAngle + localAngleOffset;
-
-  // Articulated hero arm connecting the hero's right shoulder to the sword grip
-  const shoulderAngle = facingAngle + 0.52;
-  const shoulderX = hx + Math.cos(shoulderAngle) * 9.5;
-  const shoulderY = cy - 2 + Math.sin(shoulderAngle) * 7.5;
-
-  const handX =
-    hx + Math.cos(totalAngle) * reachOffset - Math.sin(totalAngle) * 2.5;
-  const handY =
-    cy + Math.sin(totalAngle) * reachOffset + Math.cos(totalAngle) * 2.5;
-
-  const midX = (shoulderX + handX) * 0.5 + Math.cos(totalAngle + 0.9) * 3.5;
-  const midY = (shoulderY + handY) * 0.5 + Math.sin(totalAngle + 0.9) * 3.5;
-
-  // Upper sleeve + forearm with bold ink outline
-  g.moveTo(shoulderX, shoulderY)
-    .lineTo(midX, midY)
-    .lineTo(handX, handY)
-    .stroke({ color: PALETTE.INK_OUTLINE, width: 7.5, cap: 'round', join: 'round' });
-  g.moveTo(shoulderX, shoulderY)
-    .lineTo(midX, midY)
-    .stroke({ color: sleeveColor, width: 4.5, cap: 'round' });
-  g.moveTo(midX, midY)
-    .lineTo(handX, handY)
-    .stroke({ color: cuffColor, width: 4.0, cap: 'round' });
-
-  const m = new PIXI.Matrix();
-  m.rotate(totalAngle);
-  m.translate(hx, cy);
-  g.setTransform(m);
-
-  const bladeLen = 22 + Math.min(8, swordWpn.level) * 1.1 + (swordWpn.evolved ? 5 : 0);
-  const bladeHalfW = swordWpn.evolved ? 4.8 : 3.8;
-
-  // Pommel & leather-wrapped hilt
-  g.circle(reachOffset - 5.5, 2.5, 3.0)
-    .fill({ color: PALETTE.BUTTER_YELLOW })
-    .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
-
-  g.moveTo(reachOffset - 4, 2.5)
-    .lineTo(reachOffset + 2, 2.5)
-    .stroke({ color: 0x78350f, width: 4, cap: 'round' });
-
-  // Leaf-shaped crossguard
-  g.moveTo(reachOffset + 1, -4.5)
-    .lineTo(reachOffset + 3.5, 2.5)
-    .lineTo(reachOffset + 1, 9.5)
-    .lineTo(reachOffset - 1, 2.5)
-    .closePath()
-    .fill({ color: PALETTE.BUTTER_YELLOW })
-    .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
-
-  // Tapered botanical broadsword blade
-  g.moveTo(reachOffset + 2.5, 2.5 - bladeHalfW)
-    .lineTo(reachOffset + bladeLen - 5, 2.5 - bladeHalfW * 0.65)
-    .lineTo(reachOffset + bladeLen, 2.5)
-    .lineTo(reachOffset + bladeLen - 5, 2.5 + bladeHalfW * 0.65)
-    .lineTo(reachOffset + 2.5, 2.5 + bladeHalfW)
-    .closePath()
-    .fill({ color: bladeColor })
-    .stroke({ color: PALETTE.INK_OUTLINE, width: 2.5 });
-
-  // Central fuller highlight
-  g.moveTo(reachOffset + 4, 2.5)
-    .lineTo(reachOffset + bladeLen - 3, 2.5)
-    .stroke({ color: PALETTE.CREAM_WHITE, width: 1.5, alpha: 0.85 });
-
-  // Gloved hero hand gripping the hilt
-  g.circle(reachOffset - 1.2, 2.5, 3.8)
-    .fill({ color: PALETTE.CREAM_WHITE })
-    .stroke({ color: PALETTE.INK_OUTLINE, width: 2.2 });
-
-  g.setTransform(new PIXI.Matrix());
+  drawAttachedGardenBlade(
+    g,
+    hx,
+    cy,
+    facingAngle,
+    swordWpn,
+    elapsedSeconds,
+    socket,
+    flipX
+  );
 }
 
 /**

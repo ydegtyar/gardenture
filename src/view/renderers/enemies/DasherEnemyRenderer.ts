@@ -93,13 +93,6 @@ export class DasherEnemyRenderer implements EnemyBehaviorRenderer {
         color: progress > 0.82 ? PALETTE.BUTTER_YELLOW : PALETTE.CRIMSON_WARN,
         alpha: 0.95,
       });
-
-    // Target lock reticle at destination
-    g.circle(tx, ty, 9 * (1.2 - progress * 0.35)).stroke({
-      color: PALETTE.BUTTER_YELLOW,
-      width: 2,
-      alpha: 0.85,
-    });
   }
 
   public modifyTransform(

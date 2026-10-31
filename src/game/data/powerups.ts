@@ -79,7 +79,7 @@ export const POWERUPS: Record<PowerUpId, PowerUpDef> = {
     simId: 'time_slow',
     name: 'Sundial Watch',
     durationSec: 4,
-    description: 'Slows all enemy movement by 60% for 4s',
+    description: 'Slows enemies, charges & enemy projectiles by 80% for 4s (stacks duration)',
     accent: '#B9A6FF',
     tint: 0xb9a6ff,
     frame: 'sundial-watch',

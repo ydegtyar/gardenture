@@ -9,6 +9,7 @@
 
 import { Rectangle, Texture } from 'pixi.js';
 import type { EnemyArchetypeId, ProfessionId, SpecialMonsterId } from '../content/schema/types';
+import { isPersonaRelatedToProfession } from '../content/data/catalog';
 
 export type SpriteKey =
   | 'hero_warden'
@@ -498,66 +499,244 @@ function paintHeroSeeker(ctx: CanvasRenderingContext2D, includeStaticLegs = true
 }
 
 function paintHeroHerbalist(ctx: CanvasRenderingContext2D, includeStaticLegs = true): void {
-  // 2.4 Herbalist: Wide-brim straw hat with blooming pastel pink daisy,
-  // sage green apron over cream tunic, glowing mint potion pouch, botanical pestle
+  // 2.4 Herbalist: Chunky chibi support hero
+  // Wide straw hat (pale yellow rim, golden dome, green ribbon, pink daisy with yellow center),
+  // peach face under brim with short brown hair at sides, blush, cute eyes with highlights,
+  // green tunic rounded block with lighter green center panel and white curved shoulder trims,
+  // peach hands holding floating mint orb on left and short wooden staff on right,
+  // brown rounded boots, detached floating mint leaves and sparkles.
+
+  // 1. Boots (if static portrait legs included)
   if (includeStaticLegs) {
-    for (const dx of [-20, 20]) {
+    for (const dx of [-22, 22]) {
       ctx.beginPath();
-      ctx.roundRect(128 + dx - 12, 186, 24, 24, 10);
-      fillAndStroke(ctx, '#9C6B46', 6);
+      ctx.roundRect(128 + dx - 14, 186, 28, 22, 10);
+      fillAndStroke(ctx, '#78350F', 6.5);
+      // Soft bottom shade
+      ctx.beginPath();
+      ctx.roundRect(128 + dx - 11, 196, 22, 8, 4);
+      ctx.fillStyle = 'rgba(42, 26, 46, 0.35)';
+      ctx.fill();
     }
   }
 
-  // Cream tunic + Sage Green botanical apron
-  ctx.beginPath();
-  ctx.roundRect(86, 116, 84, 72, 22);
-  fillAndStroke(ctx, '#FFFDF0', 7.5);
-
-  ctx.beginPath();
-  ctx.roundRect(98, 128, 60, 60, 14);
-  fillAndStroke(ctx, '#88D49E', 6.5);
-
-  // Glowing mint potion flask on hip + wooden pestle in right hand
-  drawCelCircle(ctx, 84, 162, 18, '#A8E6CF', '#6BB384', '#FFFDF0', 5.5);
-  ctx.save();
-  ctx.translate(182, 148);
-  ctx.rotate(0.45);
-  ctx.beginPath();
-  ctx.roundRect(-8, -32, 16, 56, 8);
-  fillAndStroke(ctx, '#D9A066', 6);
-  ctx.restore();
-
-  // Head
-  drawCelCircle(ctx, 128, 94, 34, '#FFD3B6', '#F3B692', '#FFFDF0', 6.5);
-  drawCuteEye(ctx, 114, 96, 6.5, PLUM, 0);
-  drawCuteEye(ctx, 142, 96, 6.5, PLUM, 0);
-
-  // Wide-brimmed buttercream straw sun-hat
-  ctx.beginPath();
-  ctx.ellipse(128, 66, 74, 28, -0.06, 0, Math.PI * 2);
-  fillAndStroke(ctx, '#FDFFB6', 7.5);
-
-  // Hat crown & sage ribbon
-  ctx.beginPath();
-  ctx.arc(128, 62, 38, Math.PI, 0);
-  ctx.closePath();
-  fillAndStroke(ctx, '#FDE68A', 6.5);
-  ctx.beginPath();
-  ctx.roundRect(90, 56, 76, 11, 5);
-  fillAndStroke(ctx, '#88D49E', 5);
-
-  // Blooming pastel pink daisy on hat brim
-  const fx = 162;
-  const fy = 52;
-  for (let i = 0; i < 6; i++) {
-    const a = (i * Math.PI) / 3;
+  // 2. Short wooden staff (rendered in static portrait; in-game uses reusable attachGardenBladeToHero)
+  if (includeStaticLegs) {
+    ctx.save();
+    ctx.translate(190, 150);
+    ctx.rotate(0.26);
     ctx.beginPath();
-    ctx.arc(fx + Math.cos(a) * 11, fy + Math.sin(a) * 11, 8, 0, Math.PI * 2);
-    fillAndStroke(ctx, '#FFAAA6', 4.5);
+    ctx.roundRect(-9, -40, 18, 86, 9);
+    fillAndStroke(ctx, '#B45309', 7);
+    // Soft shade edge
+    ctx.beginPath();
+    ctx.roundRect(-6, 22, 12, 20, 6);
+    ctx.fillStyle = '#78350F';
+    ctx.fill();
+    ctx.restore();
   }
+
+  // 3. Green tunic rounded block (torso)
   ctx.beginPath();
-  ctx.arc(fx, fy, 7, 0, Math.PI * 2);
-  fillAndStroke(ctx, '#FDFFB6', 4.5);
+  ctx.roundRect(82, 114, 92, 74, 24);
+  fillAndStroke(ctx, '#22C55E', 7.5);
+
+  // Soft bottom shade tone on tunic (three-tone shading)
+  ctx.beginPath();
+  ctx.roundRect(86, 168, 84, 18, 10);
+  ctx.fillStyle = '#16A34A';
+  ctx.fill();
+
+  // Lighter green center panel (no thin inner outlines)
+  ctx.beginPath();
+  ctx.roundRect(102, 120, 52, 58, 14);
+  ctx.fillStyle = '#86EFAC';
+  ctx.fill();
+
+  // White curved shoulder trims
+  // Left shoulder trim
+  ctx.beginPath();
+  ctx.moveTo(82, 134);
+  ctx.quadraticCurveTo(94, 116, 112, 118);
+  ctx.lineTo(112, 128);
+  ctx.quadraticCurveTo(96, 126, 82, 144);
+  ctx.closePath();
+  fillAndStroke(ctx, '#FFFDF0', 4.5);
+
+  // Right shoulder trim
+  ctx.beginPath();
+  ctx.moveTo(174, 134);
+  ctx.quadraticCurveTo(162, 116, 144, 118);
+  ctx.lineTo(144, 128);
+  ctx.quadraticCurveTo(160, 126, 174, 144);
+  ctx.closePath();
+  fillAndStroke(ctx, '#FFFDF0', 4.5);
+
+  // 4. Small peach hands
+  // Left hand near orb (always present)
+  ctx.beginPath();
+  ctx.arc(80, 152, 11, 0, Math.PI * 2);
+  fillAndStroke(ctx, '#FED7AA', 5.5);
+
+  // Right hand holding staff (static portrait mode; in-game uses attachGardenBladeToHero)
+  if (includeStaticLegs) {
+    ctx.beginPath();
+    ctx.arc(176, 148, 11, 0, Math.PI * 2);
+    fillAndStroke(ctx, '#FED7AA', 5.5);
+  }
+
+  // 5. Floating mint glass orb (viewer's left)
+  // Soft outer glow ring
+  ctx.beginPath();
+  ctx.arc(58, 150, 32, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(94, 234, 212, 0.22)';
+  ctx.fill();
+
+  // Main mint orb
+  ctx.beginPath();
+  ctx.arc(58, 150, 22, 0, Math.PI * 2);
+  fillAndStroke(ctx, '#5EEAD4', 7);
+
+  // White specular shine
+  ctx.beginPath();
+  ctx.arc(50, 142, 6.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+
+  // 6. Head & Face under brim
+  // Short brown hair tufts showing at sides
+  ctx.beginPath();
+  ctx.ellipse(86, 92, 14, 22, 0, 0, Math.PI * 2);
+  fillAndStroke(ctx, '#78350F', 7);
+  ctx.beginPath();
+  ctx.ellipse(170, 92, 14, 22, 0, 0, Math.PI * 2);
+  fillAndStroke(ctx, '#78350F', 7);
+
+  // Peach skin face (diameter ~90px at 256)
+  ctx.beginPath();
+  ctx.arc(128, 92, 45, 0, Math.PI * 2);
+  fillAndStroke(ctx, '#FED7AA', 7.5);
+
+  // Soft shadow under hat brim over upper face
+  ctx.beginPath();
+  ctx.moveTo(83, 90);
+  ctx.arc(128, 92, 45, Math.PI, 0);
+  ctx.quadraticCurveTo(128, 106, 83, 90);
+  ctx.closePath();
+  ctx.fillStyle = '#FBB696';
+  ctx.fill();
+
+  // Rosy cheeks blush
+  ctx.fillStyle = '#F472B6';
+  ctx.beginPath();
+  ctx.ellipse(106, 105, 9, 5.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(150, 105, 9, 5.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cute dark eyes with white specular highlight
+  drawCuteEye(ctx, 112, 94, 6.5, PLUM, 0);
+  drawCuteEye(ctx, 144, 94, 6.5, PLUM, 0);
+
+  // Brows
+  ctx.beginPath();
+  ctx.moveTo(104, 82);
+  ctx.lineTo(118, 82);
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = PLUM;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(138, 82);
+  ctx.lineTo(152, 82);
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = PLUM;
+  ctx.stroke();
+
+  // 7. Wide straw sun-hat
+  // Golden dome (rounded cloche silhouette atop rim)
+  ctx.beginPath();
+  ctx.moveTo(82, 62);
+  ctx.quadraticCurveTo(86, 26, 100, 16);
+  ctx.quadraticCurveTo(128, 10, 156, 16);
+  ctx.quadraticCurveTo(170, 26, 174, 62);
+  ctx.closePath();
+  fillAndStroke(ctx, '#F59E0B', 7);
+
+  // Golden dome warm shadow edge along base
+  ctx.beginPath();
+  ctx.moveTo(84, 62);
+  ctx.quadraticCurveTo(128, 70, 172, 62);
+  ctx.quadraticCurveTo(128, 56, 84, 62);
+  ctx.closePath();
+  ctx.fillStyle = '#D97706';
+  ctx.fill();
+
+  // Subtle sun highlight on upper dome
+  ctx.beginPath();
+  ctx.moveTo(104, 18);
+  ctx.quadraticCurveTo(128, 14, 148, 18);
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#FEF08A';
+  ctx.stroke();
+
+  // Wide straw brim (horizontal ellipse 186x58px)
+  ctx.beginPath();
+  ctx.ellipse(128, 64, 93, 29, 0, 0, Math.PI * 2);
+  fillAndStroke(ctx, '#FEF08A', 7.5);
+
+  // Soft shade on bottom rim curvature
+  ctx.beginPath();
+  ctx.moveTo(38, 64);
+  ctx.quadraticCurveTo(128, 92, 218, 64);
+  ctx.quadraticCurveTo(128, 80, 38, 64);
+  ctx.closePath();
+  ctx.fillStyle = '#FDE047';
+  ctx.fill();
+
+  // 3D perspective curved green ribbon band wrapping the dome base
+  ctx.beginPath();
+  ctx.moveTo(82, 60);
+  ctx.quadraticCurveTo(128, 70, 174, 60);
+  ctx.lineTo(174, 46);
+  ctx.quadraticCurveTo(128, 56, 82, 46);
+  ctx.closePath();
+  fillAndStroke(ctx, '#10B981', 6);
+
+  // Ribbon top highlight line
+  ctx.beginPath();
+  ctx.moveTo(86, 48);
+  ctx.quadraticCurveTo(128, 58, 170, 48);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#6EE7B7';
+  ctx.stroke();
+
+  // Blooming pink daisy flower with yellow center on right side of band
+  const fx = 166;
+  const fy = 50;
+
+  // Tiny leaf sprig peeking behind flower
+  drawLeafShape(ctx, fx - 14, fy - 6, -0.6, 16, 8, '#10B981', '#6EE7B7', 3);
+
+  // 5 plump rounded pink petals
+  for (let i = 0; i < 5; i++) {
+    const a = (i * Math.PI * 2) / 5 - 0.28;
+    ctx.beginPath();
+    ctx.arc(fx + Math.cos(a) * 12, fy + Math.sin(a) * 12, 9.5, 0, Math.PI * 2);
+    fillAndStroke(ctx, '#F472B6', 4.5);
+  }
+  // Golden pollen center
+  ctx.beginPath();
+  ctx.arc(fx, fy, 7.5, 0, Math.PI * 2);
+  fillAndStroke(ctx, '#FEF08A', 4.5);
+
+  // 8. Detached floating mint leaves and sparkles
+  drawLeafShape(ctx, 46, 92, -0.4, 26, 12, '#5EEAD4', '#FFFDF0', 4.5);
+  drawLeafShape(ctx, 206, 110, 0.5, 24, 11, '#5EEAD4', '#FFFDF0', 4.5);
+  drawStarGlint(ctx, 50, 186, 9);
+  drawStarGlint(ctx, 208, 66, 9);
 }
 
 function paintHeroStormcaller(ctx: CanvasRenderingContext2D, includeStaticLegs = true): void {
@@ -1749,9 +1928,11 @@ export function resolveHeroSpriteKey(
   professionId: ProfessionId,
   personaId?: string | null
 ): SpriteKey {
-  const skinKey = resolvePersonaSkinSpriteKey(personaId);
-  if (skinKey) {
-    return skinKey;
+  if (personaId && isPersonaRelatedToProfession(personaId, professionId)) {
+    const skinKey = resolvePersonaSkinSpriteKey(personaId);
+    if (skinKey) {
+      return skinKey;
+    }
   }
   switch (professionId) {
     case 'warden':

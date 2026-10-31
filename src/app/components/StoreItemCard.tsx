@@ -6,7 +6,7 @@ import {
   TrinketCornerFiligreeSvg,
   TrinketLevelCrestBadge,
   TrinketRelicArt,
-} from './TrinketRelicArt';
+} from '../trinkets';
 
 /**
  * Centralized theme tokens for Store ItemCards (`trinket` brown-gold and `curse` black-red).
