@@ -1,9 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { POWER_UPS, STYLE_RANKS } from '../../content/data/catalog';
 import { getPowerUpDef } from '../../game/data/powerups';
 import { Simulation } from '../../sim/Simulation';
 import {
-  HeartSocketIcon,
   MuteSvgIcon,
   PauseSvgIcon,
   PowerUpAbilityIcon,
@@ -11,7 +10,9 @@ import {
 } from '../SvgIcons';
 import { ActiveBuffs } from './ActiveBuffs';
 import { useGameShell } from '../context/GameShellContext';
+import { IS_DEV } from '../debug/devGate';
 import { LazyHudDebugButton } from '../debug/LazyDebugComponents';
+import { BotanicalHealthBar } from '../../ui/healthbar/BotanicalHealthBar';
 import { cn } from '../../utils/cn';
 
 /**
@@ -20,8 +21,8 @@ import { cn } from '../../utils/cn';
 export function PlayingHudOverlay() {
   const {
     shellState,
+    isMenuTransitioning,
     hud,
-    trailingHpRatio,
     rankAura,
     userMuted,
     toggleMute,
@@ -31,27 +32,9 @@ export function PlayingHudOverlay() {
     usePowerUpSlot,
   } = useGameShell();
 
-  const [heartPulse, setHeartPulse] = useState<'damage' | 'heal' | null>(null);
-  const prevHpRef = useRef(hud.hp);
-
-  useEffect(() => {
-    if (hud.hp < prevHpRef.current) {
-      setHeartPulse('damage');
-      const timer = window.setTimeout(() => setHeartPulse(null), 380);
-      prevHpRef.current = hud.hp;
-      return () => window.clearTimeout(timer);
-    } else if (hud.hp > prevHpRef.current) {
-      setHeartPulse('heal');
-      const timer = window.setTimeout(() => setHeartPulse(null), 380);
-      prevHpRef.current = hud.hp;
-      return () => window.clearTimeout(timer);
-    }
-  }, [hud.hp]);
-
   if (shellState === 'title') return null;
 
   const currentRankDef = STYLE_RANKS[hud.rankIndex] ?? STYLE_RANKS[0]!;
-  const hpRatio = Math.max(0, Math.min(1, hud.hp / Math.max(1, hud.maxHp)));
   const xpRatio = Math.max(0, Math.min(1, hud.xp / Math.max(1, hud.xpToNext)));
   const bossProgressRatio = Math.max(
     0,
@@ -63,7 +46,10 @@ export function PlayingHudOverlay() {
       {/* FULL-SCREEN TOP XP BAR WITH CENTERED, ALWAYS-READABLE LEVEL INDICATOR (Fixed Gradient, Clipped by Fill) */}
       <div
         data-testid="hud-xp-bar"
-        className="fixed top-0 inset-x-0 z-20 pointer-events-none h-[18px] sm:h-5 bg-[#2B1F2D]/95 border-b-2 border-[#A8E6CF]/35 shadow-md relative overflow-hidden flex items-center justify-center"
+        className={cn(
+          'fixed top-0 inset-x-0 pointer-events-none h-[18px] sm:h-5 bg-[#2B1F2D]/95 border-b-2 border-[#A8E6CF]/35 shadow-md relative overflow-hidden flex items-center justify-center',
+          isMenuTransitioning ? 'z-10' : 'z-20'
+        )}
       >
         <div
           data-testid="hud-xp-fill"
@@ -86,83 +72,15 @@ export function PlayingHudOverlay() {
         className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5 pt-6 sm:pt-7 pb-5 sm:pb-6">
         {/* TOP PERIMETER ROW: 3 Compact Corner Clusters */}
         <div className="flex items-start justify-between gap-1.5 sm:gap-3 w-full">
-          {/* Cluster 1 (Top-Left): Botanical Thermometer Vitality Indicator + Segmented Dash Cooldown (Outer Container Box Removed) */}
-          <div className="w-40 sm:w-64 shrink-0 flex flex-col gap-1.5 pointer-events-none">
-            {/* Thermometer Health Bar: Heart Bulb at Start + Glass Tube with Theme Gradient (No VITALITY text, no black tick dashes) */}
-            <div
-              data-testid="hud-vitality-thermometer"
-              className="relative flex items-center w-full"
-            >
-              {/* At low HP, semi-transparent pulsing background that makes health bar borders clearly visible */}
-              {hpRatio <= 0.3 && (
-                <div
-                  data-testid="hud-low-hp-glow"
-                  className="absolute -inset-1 rounded-full bg-[#F43F5E]/20 border border-[#F43F5E]/60 animate-pulse pointer-events-none shadow-[0_0_12px_rgba(244,63,94,0.4)]"
-                />
-              )}
-
-              {/* Thermometer Heart Reservoir Bulb at Start (Container remains static; only the inner heart icon pulses) */}
-              <div
-                data-testid="hud-thermometer-bulb"
-                className="relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 border-2 border-[#2D1E2F] shadow-[0_2px_8px_rgba(0,0,0,0.65)] bg-gradient-to-br from-[#FFAAA6] via-[#F43F5E] to-[#9F1239]"
-              >
-                {/* Glass bulb specular highlight */}
-                <div
-                  className="absolute top-1 left-1.5 w-2.5 h-1.5 rounded-full bg-[#FFFDF0]/45 -rotate-12 pointer-events-none" />
-                <HeartSocketIcon
-                  state={hpRatio > 0.5 ? 'full' : hpRatio > 0.25 ? 'damaged' : 'empty'}
-                  pulse={heartPulse}
-                  className={cn(
-                    'w-5 h-5 shrink-0 origin-center transition-transform duration-200',
-                    heartPulse === 'damage'
-                      ? 'scale-125 drop-shadow-[0_0_6px_#FFFDF0]'
-                      : heartPulse === 'heal'
-                        ? 'scale-125 drop-shadow-[0_0_6px_#88D49E]'
-                        : hpRatio <= 0.3
-                          ? 'animate-pulse'
-                          : 'scale-100'
-                  )}
-                />
-              </div>
-
-              {/* Thermometer Capillary Glass Tube (Border radius applied to grayed backdrop, black dashes removed) */}
-              <div
-                data-testid="hud-thermometer-tube"
-                className="relative -ml-2 flex-1 h-4 sm:h-5 rounded-full bg-[#140D16] border-2 border-[#2D1E2F] overflow-hidden shadow-inner flex items-center"
-              >
-                {/* Delayed Trailing Damage Ghost Mercury */}
-                <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-[#FFD3B6]/65 transition-all duration-300"
-                  style={{ width: `${Math.round(trailingHpRatio * 100)}%` }}
-                />
-
-                {/* Active Theme-Gradient Botanical Mercury Fill */}
-                <div
-                  data-testid="hud-thermometer-fill"
-                  className={cn(
-                    'absolute inset-y-0 left-0 rounded-full transition-all duration-100',
-                    hpRatio <= 0.3
-                      ? 'bg-gradient-to-r from-[#9F1239] via-[#F43F5E] to-[#FB7185] shadow-[0_0_10px_#F43F5E]'
-                      : 'bg-gradient-to-r from-[#F43F5E] via-[#FBBF24] to-[#88D49E] shadow-[0_0_10px_rgba(136,212,158,0.55)]'
-                  )}
-                  style={{ width: `${Math.round(hpRatio * 100)}%` }}
-                />
-
-                {/* Optional Shield Ward Overlay Shimmer */}
-                {hud.shieldHp > 0 && (
-                  <div
-                    data-testid="hud-thermometer-shield"
-                    className="absolute inset-y-0 left-0 rounded-full border-r-2 border-[#FFFDF0] bg-gradient-to-r from-[#38BDF8]/35 to-[#A0C4FF]/65 transition-all duration-100"
-                    style={{
-                      width: `${Math.min(100, Math.round((hud.shieldHp / Math.max(1, hud.maxHp)) * 100))}%`,
-                    }}
-                  />
-                )}
-
-                {/* Glass Tube Top Specular Reflection */}
-                <div
-                  className="absolute top-0.5 inset-x-1 h-1 rounded-full bg-gradient-to-r from-[#FFFDF0]/35 via-[#FFFDF0]/20 to-transparent pointer-events-none" />
-              </div>
+          {/* Cluster 1 (Top-Left): AAA Botanical Tarot Health Bar + Segmented Dash Cooldown + Dev-Only Demo Controls */}
+          <div className="w-64 sm:w-[340px] shrink-0 flex flex-col gap-1.5 pointer-events-none">
+            <div data-testid="hud-vitality-thermometer" className="w-full">
+              <BotanicalHealthBar
+                hp={hud.hp}
+                maxHp={hud.maxHp}
+                shield={hud.shieldHp}
+                showDemoControls={IS_DEV}
+              />
             </div>
 
             {/* Full-Width Segmented Dash Cooldown Line (splits into smaller parts as dash count increases) */}
@@ -362,7 +280,10 @@ export function PlayingHudOverlay() {
       {/* FULL-SCREEN BOTTOM PROGRESS BAR: Time to Final Boss Spawn (Fixed Gradient, Clipped by Fill) */}
       <div
         data-testid="hud-boss-progress-bar"
-        className="fixed bottom-0 inset-x-0 z-20 pointer-events-none h-2.5 sm:h-3 bg-[#18111A]/92 border-t border-[#2D1E2F] shadow-sm flex items-center overflow-hidden"
+        className={cn(
+          'fixed bottom-0 inset-x-0 pointer-events-none h-2.5 sm:h-3 bg-[#18111A]/92 border-t border-[#2D1E2F] shadow-sm flex items-center overflow-hidden',
+          isMenuTransitioning ? 'z-10' : 'z-20'
+        )}
       >
         <div
           data-testid="hud-boss-progress-fill"

@@ -3860,8 +3860,12 @@ test('Sundial watch effect: stacks in time when used in a row, slows enemies by 
     vy: 0,
     radius: 0.5,
     damage: 10,
+    isCrit: false,
+    pierceRemaining: 0,
     lifeTimer: 2.0,
     color: 0xffffff,
+    weaponTags: [],
+    hitEnemyIds: new Set(),
   });
 
   sim.projectiles.length = 0;
@@ -3877,8 +3881,12 @@ test('Sundial watch effect: stacks in time when used in a row, slows enemies by 
     vy: 0,
     radius: 0.5,
     damage: 10,
+    isCrit: false,
+    pierceRemaining: 0,
     lifeTimer: 2.0,
     color: 0xffffff,
+    weaponTags: [],
+    hitEnemyIds: new Set(),
   });
 
   projNormal.tick();
@@ -3891,6 +3899,93 @@ test('Sundial watch effect: stacks in time when used in a row, slows enemies by 
     `Enemy projectile speed should be slowed by 80% (0.2x speed, got ${pSlowMoved / pNormalMoved})`
   );
 });
+
+test('Revive lifecycle: lethal hit halts mid-tick card drafts, revive clears stale drafts without ambushing player, and post-revive card picks never freeze simulation', () => {
+  const sim = new Simulation({ seed: 4242, professionId: 'warden' });
+  sim.enemies.length = 0;
+
+  // 1. Simulate close-quarters combat where XP gems queued drafts before lethal hit
+  const attacker = sim.spawnEnemy('brute', sim.heroX + 0.5, sim.heroY, false)!;
+  attacker.contactDamage = 500;
+  sim.queuedCardDraftCount = 2;
+  sim.pickups.push({
+    id: 9991,
+    kind: 'xp_gem',
+    x: sim.heroX,
+    y: sim.heroY,
+    value: 50,
+    magnetized: true,
+    pullSpeed: 10,
+  });
+
+  let lethalIntercepted = false;
+  let levelUpDuringDeath = false;
+  sim.events.on('LethalHitIntercepted', (ev) => {
+    if (ev.reason === 'rescue_offer') {
+      lethalIntercepted = true;
+    }
+  });
+  sim.events.on('LevelUp', () => {
+    if (sim.awaitingReviveDecision || sim.currentHp <= 0) {
+      levelUpDuringDeath = true;
+    }
+  });
+
+  // Step 1 tick: enemy deals lethal contact damage -> tick halts immediately before pickups/weapons can trigger LevelUp
+  sim.invulnTimer = 0;
+  sim.cardPickInvisTimer = 0;
+  sim.tick();
+
+  assert.equal(lethalIntercepted, true, 'Lethal hit should emit rescue_offer');
+  assert.equal(sim.awaitingReviveDecision, true);
+  assert.equal(sim.currentHp, 0);
+  assert.equal(levelUpDuringDeath, false, 'LevelUp must never fire while hero is dead / awaiting revive');
+  assert.equal(sim.isHeroSafeForCardDraft(), false, 'Dead hero awaiting revive is never safe for card draft');
+  assert.equal(sim.pendingCardOffers.length, 0, 'No pending card offers should exist while awaiting revive');
+
+  // Ticking while awaitingReviveDecision === true must not advance elapsedTicks or trigger queued drafts
+  const ticksAtDeath = sim.elapsedTicks;
+  attacker.hp = 0;
+  attacker.koTimer = 0.2;
+  sim.tick();
+  assert.equal(sim.elapsedTicks, ticksAtDeath);
+  assert.equal(sim.pendingCardOffers.length, 0);
+
+  // 2. Revive player -> restores 50% HP, clears awaitingReviveDecision, does not ambush with stale card draft
+  const overlappingEnemy = sim.spawnEnemy('chaser', sim.heroX, sim.heroY, false)!;
+  sim.applyPlayerRevive({ isAdRevive: true });
+  assert.equal(sim.awaitingReviveDecision, false);
+  assert.equal(sim.reviveUsed, true);
+  assert.ok(sim.currentHp >= Math.floor(sim.maxHp * 0.5));
+  assert.equal(sim.pendingCardOffers.length, 0, 'Revive must not immediately pop stale card draft modal');
+  assert.equal(sim.queuedCardDraftCount, 0, 'Revive must clear stale pre-death queued drafts');
+  assert.ok(
+    Math.hypot(overlappingEnemy.x - sim.heroX, overlappingEnemy.y - sim.heroY) > 2.0,
+    'Overlapping enemy at d=0 must still be knocked back on revive'
+  );
+
+  // 3. Subsequent level-up after revive opens card draft, and picking ANY card advances simulation without getting stuck
+  sim.enemies.length = 0;
+  sim.pickups.length = 0;
+  for (let idx = 0; idx < 3; idx++) {
+    sim.triggerLevelUpCardDraft();
+    assert.equal(sim.pendingCardOffers.length, 3, 'Post-revive level-up should offer 3 cards');
+    const pickedOffer = sim.pendingCardOffers[idx]!;
+    const applied = sim.applyCardOffer(pickedOffer.offerId);
+    assert.equal(applied, true, `Picking card index ${idx} (${pickedOffer.offerId}) after revive must succeed`);
+    assert.equal(sim.pendingCardOffers.length, 0, 'pendingCardOffers must be empty after picking a card');
+    assert.equal(sim.awaitingReviveDecision, false);
+
+    const beforeTick = sim.elapsedTicks;
+    sim.tick();
+    assert.equal(
+      sim.elapsedTicks,
+      beforeTick + 1,
+      `Simulation must continue ticking after picking card index ${idx} post-revive`
+    );
+  }
+});
+
 
 
 

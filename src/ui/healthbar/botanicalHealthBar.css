@@ -1,0 +1,374 @@
+/* ==========================================================================
+   AAA Roguelite Botanical Health Bar Component (HTML / CSS / Vanilla JS)
+   ========================================================================== */
+
+:root {
+  --hp-pct: 100%;
+  --ghost-pct: 100%;
+  --shield-pct: 0%;
+
+  --hp-color-start: #ff2a55;
+  --hp-color-mid: #fbbf24;
+  --hp-color-end: #5eff8f;
+
+  --hp-critical-start: #4a0414;
+  --hp-critical-mid: #990022;
+  --hp-critical-end: #ff1e42;
+
+  --ghost-color-start: #fffbeb;
+  --ghost-color-end: #fde047;
+
+  --shield-color-start: #e2e8f0;
+  --shield-color-end: #38bdf8;
+}
+
+/* 1. Container (.hud-healthbar)
+   Remains completely static during heartbeat animations (transform: none).
+   Uses healthbar-frame.png as a top-layer overlay (pointer-events: none). */
+.hud-healthbar {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 640 / 108;
+  user-select: none;
+  -webkit-user-select: none;
+  transform: none;
+  contain: layout style;
+}
+
+/* Static PNG Frame Overlay (Clean antique gold frame, zero green leaves near heart socket) */
+.hud-healthbar::after,
+.hud-healthbar .healthbar-frame-overlay {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background-image: url("/healthbar-frame.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: none;
+}
+
+/* 2. Meter Track (.hp-track)
+   Positioned behind the slim PNG frame cutout (x:100..610 of 640, y:39..69 of 108) */
+.hp-track {
+  position: absolute;
+  left: 15.625%;
+  top: 36.111%;
+  width: 79.6875%;
+  height: 27.778%;
+  border-radius: 9999px;
+  overflow: hidden;
+  z-index: 1;
+  background: linear-gradient(180deg, #0b060d 0%, #19101c 55%, #0e0811 100%);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.85), inset 0 -1px 3px rgba(255, 246, 196, 0.12);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  transform: none;
+}
+
+/* Layers inside .hp-track */
+
+/* Layer 1: .hp-ghost-fill — Delayed white/yellow catch-up bar for damage delta */
+.hp-ghost-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--ghost-pct, 100%);
+  height: 100%;
+  border-radius: inherit;
+  z-index: 1;
+  background: linear-gradient(90deg, var(--ghost-color-start) 0%, var(--ghost-color-end) 100%);
+  box-shadow: 0 0 10px rgba(253, 224, 71, 0.65);
+  transition: width 0.6s ease-out 0.2s;
+  will-change: width;
+}
+
+/* Layer 2: .hp-main-fill — Liquid gradient (#ff2a55 to #5eff8f) + animated shimmer overlay */
+.hp-main-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--hp-pct, 100%);
+  height: 100%;
+  border-radius: inherit;
+  z-index: 2;
+  background: linear-gradient(
+    90deg,
+    var(--hp-color-start) 0%,
+    var(--hp-color-mid) 48%,
+    var(--hp-color-end) 100%
+  );
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.38), inset 0 -2px 4px rgba(0, 0, 0, 0.45);
+  transition: width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.25s ease;
+  overflow: hidden;
+  will-change: width;
+}
+
+/* Continuous liquid shimmer overlay inside .hp-main-fill */
+.hp-main-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.28) 45%,
+    rgba(255, 255, 255, 0.48) 50%,
+    rgba(255, 255, 255, 0.28) 55%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: hp-liquid-shimmer 3.2s linear infinite;
+  pointer-events: none;
+}
+
+/* Clean bright pulse wave across .hp-main-fill during heal (strictly NO floating leaf or spore particles) */
+.hp-main-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.85) 50%,
+    transparent 100%
+  );
+  transform: translateX(-120%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Layer 3: .shield-fill — Overlaid bar representing armor/shield, crystalline silver/cyan gradient + diagonal glass sheen */
+.shield-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--shield-pct, 0%);
+  height: 100%;
+  border-radius: inherit;
+  z-index: 3;
+  background-image:
+    url("/shield-overlay.png"),
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.38) 0px,
+      rgba(255, 255, 255, 0.38) 10px,
+      rgba(226, 232, 240, 0.08) 10px,
+      rgba(226, 232, 240, 0.08) 22px
+    ),
+    linear-gradient(90deg, var(--shield-color-start) 0%, var(--shield-color-end) 100%);
+  background-size: 180px 100%, 100% 100%, 100% 100%;
+  background-blend-mode: screen, overlay, normal;
+  opacity: 0.76;
+  border-right: 2px solid #ffffff;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.8), inset 0 1px 3px rgba(255, 255, 255, 0.75);
+  transition: width 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
+  will-change: width, opacity;
+  pointer-events: none;
+}
+
+.shield-fill[data-empty="true"] {
+  border-right-width: 0;
+  box-shadow: none;
+}
+
+/* 3. Heart Socket (.heart-icon)
+   Socket center in healthbar-frame.png (640x108) is at x=64 (10%) and y=54 (50%).
+   Smaller heart size (height: 52%, width: 8.775%) fits comfortably inside the inner socket cavity
+   and is aligned dead-center at (10% X, 50% Y): left = 10% - 8.775%/2 = 5.6125%, top = 50% - 52%/2 = 24%. */
+.heart-icon {
+  position: absolute;
+  left: 5.6125%;
+  top: 24%;
+  width: 8.775%;
+  height: 52%;
+  z-index: 4;
+  background-image: url("/heart-emblem.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.65));
+  transition: filter 0.25s ease;
+  pointer-events: none;
+  will-change: transform, filter;
+}
+
+/* ==========================================================================
+   Visual States & Animations (AAA Game Feel)
+   ========================================================================== */
+
+@keyframes hp-liquid-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* --- A. Shield Active State (.has-shield) & Shield Break (.shield-shatter) --- */
+.hud-healthbar.has-shield .hp-track {
+  box-shadow: 0 0 12px #38bdf8, inset 0 0 8px #e2e8f0;
+}
+
+.hud-healthbar.has-shield .heart-icon {
+  filter: grayscale(100%) brightness(1.35) contrast(1.4) drop-shadow(0 0 8px #e2e8f0);
+}
+
+@keyframes shield-shatter-track {
+  0% {
+    box-shadow: 0 0 26px #ffffff, 0 0 40px #38bdf8, inset 0 0 20px #ffffff;
+    filter: brightness(1.9) contrast(1.3);
+  }
+  45% {
+    box-shadow: 0 0 18px #38bdf8, inset 0 0 12px #e2e8f0;
+    filter: brightness(1.4);
+  }
+  100% {
+    box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.85);
+    filter: brightness(1);
+  }
+}
+
+@keyframes shield-shatter-heart {
+  0% {
+    filter: grayscale(100%) brightness(2.2) contrast(1.6) drop-shadow(0 0 18px #ffffff) drop-shadow(0 0 26px #38bdf8);
+  }
+  100% {
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.65));
+  }
+}
+
+.hud-healthbar.shield-shatter .hp-track {
+  animation: shield-shatter-track 300ms ease-out forwards;
+}
+
+.hud-healthbar.shield-shatter .heart-icon {
+  animation: shield-shatter-heart 300ms ease-out forwards;
+}
+
+/* --- B. Damage Taken (.is-damaged / triggerDamage) ---
+   Heart Only: Pulse/recoil animation applied strictly to .heart-icon.
+   Container (.hud-healthbar) and .hp-track remain completely static (no shake). */
+@keyframes heart-damage-pulse {
+  0% {
+    transform: scale(1);
+    filter: brightness(2.6) saturate(0.25) drop-shadow(0 0 16px #ffffff) drop-shadow(0 0 22px #ff2a55);
+  }
+  30% {
+    transform: scale(0.8);
+    filter: brightness(1.9) contrast(1.5) drop-shadow(0 0 14px #ff2a55);
+  }
+  70% {
+    transform: scale(1.16);
+    filter: brightness(1.3) drop-shadow(0 0 10px #ff2a55);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.hud-healthbar.is-damaged .heart-icon {
+  animation: heart-damage-pulse 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* --- C. Healing State (.is-healing / triggerHeal) ---
+   Heart Only: Double-thump heartbeat keyframe applied strictly to .heart-icon
+   (scale(1) -> scale(1.25) -> scale(1.05) -> scale(1.3) -> scale(1) over 600ms)
+   with soft emerald glow (drop-shadow(0 0 12px #4ade80)).
+   Container (.hud-healthbar) and .hp-track remain completely static! */
+@keyframes heart-heal-double-thump {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 4px #4ade80);
+  }
+  22% {
+    transform: scale(1.25);
+    filter: brightness(1.2) drop-shadow(0 0 12px #4ade80);
+  }
+  44% {
+    transform: scale(1.05);
+    filter: brightness(1.08) drop-shadow(0 0 8px #4ade80);
+  }
+  68% {
+    transform: scale(1.3);
+    filter: brightness(1.28) drop-shadow(0 0 14px #4ade80);
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.65));
+  }
+}
+
+@keyframes hp-heal-pulse-wave {
+  0% {
+    transform: translateX(-110%);
+    opacity: 0.95;
+  }
+  75% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(115%);
+    opacity: 0;
+  }
+}
+
+.hud-healthbar.is-healing .heart-icon {
+  animation: heart-heal-double-thump 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.hud-healthbar.is-healing .hp-main-fill::after {
+  animation: hp-heal-pulse-wave 550ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* --- D. Low Health Status (< 25% HP, .is-critical) ---
+   Continuous, rapid heartbeat loop (0.65s infinite) applied strictly to .heart-icon (transform: scale()),
+   keeping the bar container completely still.
+   Subtle red inner glow on .hp-track (box-shadow: inset 0 0 10px #ff0033) and shift .hp-main-fill to deep crimson. */
+@keyframes heart-critical-loop {
+  0%, 100% {
+    transform: scale(1);
+  }
+  18% {
+    transform: scale(1.22);
+  }
+  34% {
+    transform: scale(1.04);
+  }
+  52% {
+    transform: scale(1.28);
+  }
+  78% {
+    transform: scale(1);
+  }
+}
+
+.hud-healthbar.is-critical .hp-track {
+  box-shadow: inset 0 0 10px #ff0033;
+}
+
+.hud-healthbar.is-critical.has-shield .hp-track {
+  box-shadow: 0 0 12px #38bdf8, inset 0 0 10px #ff0033;
+}
+
+.hud-healthbar.is-critical .hp-main-fill {
+  background: linear-gradient(
+    90deg,
+    var(--hp-critical-start) 0%,
+    var(--hp-critical-mid) 50%,
+    var(--hp-critical-end) 100%
+  );
+  box-shadow: 0 0 10px rgba(255, 0, 51, 0.65), inset 0 1px 2px rgba(255, 180, 195, 0.35);
+}
+
+.hud-healthbar.is-critical:not(.is-damaged):not(.is-healing) .heart-icon {
+  animation: heart-critical-loop 0.65s cubic-bezier(0.25, 0.9, 0.35, 1) infinite;
+}
+
+/* Respect reduced motion while preserving color & state indicators */
+@media (prefers-reduced-motion: reduce) {
+  .hp-main-fill::before {
+    animation: none;
+  }
+}

@@ -1,0 +1,328 @@
+/**
+ * @file ornate.tokens.css
+ * Design tokens, gold gradient stops, parchment textures, rarity hues, and 3D flip/button styles
+ * for the shared Gardenture Ornate UI Kit (`src/ui/ornate/`).
+ */
+
+:root {
+  /* --------------------------------------------------------------------------
+     1. Polished Antique Gold Gradient Stops (#fff1b0 -> #e8b84e -> #9a6418 -> #d9a441)
+     -------------------------------------------------------------------------- */
+  --ornate-gold-stop-1: #fff1b0;
+  --ornate-gold-stop-2: #e8b84e;
+  --ornate-gold-stop-3: #9a6418;
+  --ornate-gold-stop-4: #d9a441;
+
+  --ornate-gold-gradient: linear-gradient(
+    145deg,
+    var(--ornate-gold-stop-1) 0%,
+    var(--ornate-gold-stop-2) 34%,
+    var(--ornate-gold-stop-3) 72%,
+    var(--ornate-gold-stop-4) 100%
+  );
+
+  --ornate-gold-border-gradient: linear-gradient(
+    180deg,
+    var(--ornate-gold-stop-1) 0%,
+    var(--ornate-gold-stop-2) 42%,
+    var(--ornate-gold-stop-3) 82%,
+    var(--ornate-gold-stop-4) 100%
+  );
+
+  --ornate-gold-bevel-dark: #4a2d08;
+  --ornate-gold-bevel-light: rgba(255, 248, 214, 0.72);
+
+  /* --------------------------------------------------------------------------
+     2. Parchment Surface & Paper Grain Palette
+     -------------------------------------------------------------------------- */
+  --ornate-parchment-top: #fdf8eb;
+  --ornate-parchment-mid: #f5ebd4;
+  --ornate-parchment-bot: #e8d8b7;
+  --ornate-parchment-edge: #d8c298;
+  --ornate-parchment-ink: #251824;
+  --ornate-parchment-subink: #473245;
+  --ornate-parchment-muted: #664c62;
+  --ornate-parchment-divider: rgba(58, 36, 48, 0.22);
+
+  --ornate-parchment-surface:
+    radial-gradient(ellipse at 50% 20%, rgba(255, 253, 245, 0.65) 0%, rgba(226, 204, 164, 0.25) 100%),
+    repeating-linear-gradient(
+      32deg,
+      rgba(120, 86, 44, 0.022) 0px,
+      rgba(120, 86, 44, 0.022) 2px,
+      transparent 2px,
+      transparent 5px
+    ),
+    linear-gradient(
+      180deg,
+      var(--ornate-parchment-top) 0%,
+      var(--ornate-parchment-mid) 56%,
+      var(--ornate-parchment-bot) 100%
+    );
+
+  /* --------------------------------------------------------------------------
+     3. Forest Greens, Deep Teal & Night Plum Palette
+     -------------------------------------------------------------------------- */
+  --ornate-forest-light: #72eaad;
+  --ornate-forest-mid: #2fb36e;
+  --ornate-forest-deep: #165e39;
+  --ornate-forest-ink: #0b2416;
+
+  --ornate-teal-light: #5cd6c0;
+  --ornate-teal-mid: #1c443d;
+  --ornate-teal-deep: #0f2622;
+
+  --ornate-plum-night: #120b18;
+  --ornate-forest-night: #0b1612;
+  --ornate-dark-top: #312339;
+  --ornate-dark-mid: #23192a;
+  --ornate-dark-bot: #191120;
+
+  --ornate-danger-top: #521d28;
+  --ornate-danger-bot: #2b0e15;
+  --ornate-danger-border: #c94a61;
+
+  /* --------------------------------------------------------------------------
+     4. Rarity Accent Colors (Uncommon = Green, Rare = Blue, Epic = Purple, Legendary = Gold)
+     -------------------------------------------------------------------------- */
+  --ornate-rarity-common: #a89984;
+  --ornate-rarity-common-glow: rgba(168, 153, 132, 0.28);
+
+  --ornate-rarity-uncommon: #34d399;
+  --ornate-rarity-uncommon-glow: rgba(52, 211, 153, 0.44);
+
+  --ornate-rarity-rare: #38bdf8;
+  --ornate-rarity-rare-glow: rgba(56, 189, 248, 0.48);
+
+  --ornate-rarity-epic: #c084fc;
+  --ornate-rarity-epic-glow: rgba(192, 132, 252, 0.52);
+
+  --ornate-rarity-legendary: #fbbf24;
+  --ornate-rarity-legendary-glow: rgba(251, 191, 36, 0.62);
+
+  /* --------------------------------------------------------------------------
+     5. Radii, Shadow Recipes, Typography & Animation Timings
+     -------------------------------------------------------------------------- */
+  --ornate-radius-card: 18px;
+  --ornate-radius-card-inner: 13px;
+  --ornate-radius-btn: 14px;
+  --ornate-radius-pill: 9999px;
+
+  --ornate-shadow-card:
+    0 18px 38px rgba(4, 2, 8, 0.78),
+    0 6px 14px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 248, 214, 0.65);
+
+  --ornate-shadow-btn:
+    0 12px 24px rgba(5, 2, 10, 0.82),
+    0 4px 10px rgba(0, 0, 0, 0.72),
+    inset 0 1.5px 0 rgba(255, 252, 232, 0.48);
+
+  --ornate-font-display: 'Fraunces', Georgia, serif;
+  --ornate-font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --ornate-font-mono: 'JetBrains Mono', monospace;
+
+  --ornate-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ornate-backdrop-fade-ms: 200ms;
+  --ornate-flip-reveal-ms: 550ms;
+  --ornate-flip-stagger-ms: 180ms;
+  --ornate-flip-back-ms: 350ms;
+  --ornate-flip-back-stagger-ms: 120ms;
+}
+
+/* ============================================================================
+   Parchment Card Surface & Ornate Frame Utilities
+   ============================================================================ */
+.ornate-parchment-surface {
+  background: var(--ornate-parchment-surface);
+  color: var(--ornate-parchment-ink);
+  box-shadow:
+    inset 0 0 22px rgba(138, 96, 42, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.ornate-gold-frame {
+  background: var(--ornate-gold-border-gradient);
+  box-shadow: var(--ornate-shadow-card);
+  border: 2px solid #fff1b0;
+}
+
+/* ============================================================================
+   Draft Backdrop (Blurred Paused Arena + Fallback + Fireflies)
+   ============================================================================ */
+.ornate-draft-backdrop {
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(16, 38, 29, 0.48) 0%, rgba(15, 11, 22, 0.74) 68%, rgba(6, 4, 10, 0.9) 100%),
+    linear-gradient(180deg, rgba(13, 28, 22, 0.62) 0%, rgba(24, 15, 31, 0.68) 100%);
+  backdrop-filter: blur(6px) saturate(0.85);
+  -webkit-backdrop-filter: blur(6px) saturate(0.85);
+  transition: opacity var(--ornate-backdrop-fade-ms) ease-out;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ornate-draft-backdrop {
+    background:
+      radial-gradient(ellipse at 50% 42%, rgba(18, 38, 30, 0.9) 0%, rgba(14, 10, 20, 0.96) 100%);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ornate-draft-backdrop {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background:
+      radial-gradient(ellipse at 50% 42%, rgba(18, 38, 30, 0.94) 0%, rgba(12, 9, 18, 0.98) 100%);
+  }
+}
+
+@keyframes ornate-firefly-drift {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(0.85);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translate3d(var(--ff-dx, 18px), var(--ff-dy, -26px), 0) scale(1.18);
+    opacity: 0.92;
+  }
+}
+
+.ornate-firefly-mote {
+  animation: ornate-firefly-drift var(--ff-dur, 4.6s) ease-in-out infinite;
+  animation-delay: var(--ff-delay, 0s);
+  will-change: transform, opacity;
+}
+
+/* ============================================================================
+   Draft Card 3D Flip & Midpoint Sparkle Light Sweep
+   ============================================================================ */
+.ornate-draft-perspective {
+  perspective: 1200px;
+}
+
+.ornate-draft-flipper {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.ornate-draft-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.ornate-draft-face-back {
+  transform: rotateY(180deg) translateZ(1px);
+}
+
+@media (max-width: 899px) {
+  .ornate-draft-face-back {
+    transform: rotateX(180deg) translateZ(1px);
+  }
+}
+
+@keyframes ornate-card-sheen-sweep {
+  0% {
+    transform: translateX(-130%) skewX(-22deg);
+    opacity: 0;
+  }
+  45% {
+    opacity: 0.72;
+  }
+  100% {
+    transform: translateX(220%) skewX(-22deg);
+    opacity: 0;
+  }
+}
+
+.ornate-card-sheen-active {
+  animation: ornate-card-sheen-sweep 560ms var(--ornate-ease-out) forwards;
+}
+
+/* ============================================================================
+   Desktop (>= 900px) vs Mobile (<= 899px) Strict Equal-Height Grid
+   ============================================================================ */
+.ornate-draft-stage {
+  width: 100%;
+  max-width: 1100px;
+  max-height: 92vh;
+  margin: auto;
+}
+
+.ornate-draft-cards-grid {
+  display: grid;
+  width: 100%;
+  align-items: stretch;
+}
+
+@media (max-width: 899px) {
+  .ornate-draft-cards-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 10px;
+  }
+}
+
+@media (min-width: 900px) {
+  .ornate-draft-cards-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    gap: clamp(20px, 2.4vw, 32px);
+  }
+}
+
+/* Desktop vertical card internal 6-row grid so all 3 cards align horizontally */
+@media (max-width: 899px) {
+  .ornate-card-desktop-grid,
+  .ornate-only-desktop {
+    display: none !important;
+  }
+
+  .ornate-card-mobile-grid {
+    display: grid;
+    grid-template-columns: clamp(88px, 26%, 116px) minmax(0, 1fr);
+    column-gap: 10px;
+    height: 100%;
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .ornate-only-mobile {
+    display: flex;
+  }
+}
+
+@media (min-width: 900px) {
+  .ornate-card-mobile-grid,
+  .ornate-only-mobile {
+    display: none !important;
+  }
+
+  .ornate-card-desktop-grid {
+    display: grid;
+    grid-template-rows: 28px 148px minmax(20px, auto) 44px minmax(54px, 1fr) 36px;
+    row-gap: 7px;
+    height: 100%;
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .ornate-only-desktop {
+    display: flex;
+  }
+}
+
+.ornate-card-mobile-right {
+  display: grid;
+  grid-template-rows: 20px 15px 20px minmax(28px, 1fr) 24px;
+  row-gap: 2px;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ornate-firefly-mote,
+  .ornate-card-sheen-active {
+    animation: none !important;
+  }
+}

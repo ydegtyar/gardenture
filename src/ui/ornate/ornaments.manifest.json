@@ -1,0 +1,205 @@
+{
+  "version": "1.0.0",
+  "totalBudgetKb": 400,
+  "palette": {
+    "goldStops": [
+      "#fff1b0",
+      "#e8b84e",
+      "#9a6418",
+      "#d9a441"
+    ],
+    "parchment": [
+      "#fdf8eb",
+      "#f5ebd4",
+      "#e8d8b7"
+    ],
+    "forestGreens": [
+      "#7be6a8",
+      "#32a869",
+      "#144d30"
+    ],
+    "nightPlum": "#120b18"
+  },
+  "assets": {
+    "cornerVineGold": {
+      "id": "cornerVineGold",
+      "name": "Gold Vine Corner Filigree",
+      "webpPath": "/assets/ornaments/corner-vine-gold.webp",
+      "pngPath": "/assets/ornaments/corner-vine-gold.png",
+      "width": 160,
+      "height": 160,
+      "sliceInsets": {
+        "top": 28,
+        "right": 28,
+        "bottom": 28,
+        "left": 28
+      },
+      "anchor": {
+        "x": 0.12,
+        "y": 0.12
+      },
+      "prompt": "Ornate fantasy game UI corner frame ornament, thick polished antique gold filigree scroll wrapped with lush emerald ivy leaves and a small glowing gem socket, top-left corner piece, hand-painted AAA fantasy RPG UI art style, transparent background",
+      "seed": 4091821
+    },
+    "edgeVineHorizontal": {
+      "id": "edgeVineHorizontal",
+      "name": "Horizontal Gold Vine Strip",
+      "webpPath": "/assets/ornaments/edge-vine-horizontal.webp",
+      "pngPath": "/assets/ornaments/edge-vine-horizontal.png",
+      "width": 320,
+      "height": 56,
+      "sliceInsets": {
+        "top": 12,
+        "right": 40,
+        "bottom": 12,
+        "left": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "prompt": "Seamless horizontal fantasy UI frame ornament strip, polished gold rod entwined with delicate emerald creeping vines and tiny leaves, hand-painted game UI art, transparent background",
+      "seed": 4091822
+    },
+    "ivyClusterGreen": {
+      "id": "ivyClusterGreen",
+      "name": "Emerald Ivy Leaf Cluster",
+      "webpPath": "/assets/ornaments/ivy-cluster-green.webp",
+      "pngPath": "/assets/ornaments/ivy-cluster-green.png",
+      "width": 220,
+      "height": 84,
+      "sliceInsets": {
+        "top": 10,
+        "right": 24,
+        "bottom": 10,
+        "left": 24
+      },
+      "anchor": {
+        "x": 0.85,
+        "y": 0.2
+      },
+      "prompt": "Lush emerald ivy leaves and curling tendrils growing over the top-right edge of a fantasy game button, vibrant cel-painted highlights, dark forest outline, transparent background",
+      "seed": 4091823
+    },
+    "thornVineGold": {
+      "id": "thornVineGold",
+      "name": "Gilded Briar Thorn Vine Strip",
+      "webpPath": "/assets/ornaments/thorn-vine-gold.webp",
+      "pngPath": "/assets/ornaments/thorn-vine-gold.png",
+      "width": 320,
+      "height": 76,
+      "sliceInsets": {
+        "top": 14,
+        "right": 32,
+        "bottom": 14,
+        "left": 32
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "prompt": "Twisting golden-amber and bronze thorny briar vine garlands stretched across top and bottom edges of a luxury RPG button, specular metallic highlights, transparent background",
+      "seed": 4091824
+    },
+    "laurelWreathGold": {
+      "id": "laurelWreathGold",
+      "name": "Polished Gold Laurel Border",
+      "webpPath": "/assets/ornaments/laurel-wreath-gold.webp",
+      "pngPath": "/assets/ornaments/laurel-wreath-gold.png",
+      "width": 280,
+      "height": 76,
+      "sliceInsets": {
+        "top": 12,
+        "right": 36,
+        "bottom": 12,
+        "left": 36
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "prompt": "Symmetrical polished antique gold laurel branches framing a dark teal fantasy button border, crisp metallic leaf facets, transparent background",
+      "seed": 4091825
+    },
+    "wingedHeartEmblem": {
+      "id": "wingedHeartEmblem",
+      "name": "Winged Herbal Heart Emblem",
+      "webpPath": "/assets/ornaments/winged-heart-emblem.webp",
+      "pngPath": "/assets/ornaments/winged-heart-emblem.png",
+      "width": 96,
+      "height": 96,
+      "sliceInsets": {
+        "top": 8,
+        "right": 8,
+        "bottom": 8,
+        "left": 8
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "prompt": "Glowing mint-emerald crystal heart flanked by delicate golden-feathered wings, restorative herbal blessing icon, AAA mobile RPG quality, transparent background",
+      "seed": 4091826
+    },
+    "crystalClusterCorner": {
+      "id": "crystalClusterCorner",
+      "name": "Faceted Sky Crystal Cluster",
+      "webpPath": "/assets/ornaments/crystal-cluster-corner.webp",
+      "pngPath": "/assets/ornaments/crystal-cluster-corner.png",
+      "width": 96,
+      "height": 96,
+      "sliceInsets": {
+        "top": 8,
+        "right": 8,
+        "bottom": 8,
+        "left": 8
+      },
+      "anchor": {
+        "x": 0.8,
+        "y": 0.2
+      },
+      "prompt": "Faceted ice-blue and mint-white crystal cluster perched on the top-right corner of a golden game button, crisp cel-shaded specular facets, transparent background",
+      "seed": 4091827
+    },
+    "cardBackSigil": {
+      "id": "cardBackSigil",
+      "name": "Botanical Tarot Card Back Mandala",
+      "webpPath": "/assets/ornaments/card-back-sigil.webp",
+      "pngPath": "/assets/ornaments/card-back-sigil.png",
+      "width": 360,
+      "height": 520,
+      "sliceInsets": {
+        "top": 24,
+        "right": 24,
+        "bottom": 24,
+        "left": 24
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "prompt": "Luxury botanical tarot card back illustration: intricate gold-foil vine mandala, crescent moons, and glowing emerald-gold star sigil embossed on deep plum and dark forest velvet",
+      "seed": 4091828
+    },
+    "backdropMushrooms": {
+      "id": "backdropMushrooms",
+      "name": "Enchanted Bioluminescent Forest Corner Accents",
+      "webpPath": "/assets/ornaments/backdrop-mushrooms.webp",
+      "pngPath": "/assets/ornaments/backdrop-mushrooms.png",
+      "width": 420,
+      "height": 260,
+      "sliceInsets": {
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      },
+      "anchor": {
+        "x": 0,
+        "y": 1
+      },
+      "prompt": "Enchanted mystic garden night foreground corner: bioluminescent teal and golden mushrooms, dark mossy roots, enchanted fern fronds and glowing spores, transparent background",
+      "seed": 4091829
+    }
+  }
+}

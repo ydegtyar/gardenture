@@ -11,6 +11,7 @@ import { GameCanvasViewport } from './app/components/GameCanvasViewport';
 import { TitleScreenOverlay } from './app/components/TitleScreenOverlay';
 import { PlayingHudOverlay } from './app/components/PlayingHudOverlay';
 import { GameModalsOverlay } from './app/components/GameModalsOverlay';
+import { GameScreenAssetsPrewarmer } from './app/utils/prefetchGameScreenAssets';
 import { StandaloneMenuShowcase } from './menu/MenuHost';
 
 export default function App() {
@@ -22,12 +23,18 @@ export default function App() {
       new URLSearchParams(window.location.search).get('menuOnly') === '1');
 
   if (isStandaloneMenuRoute) {
-    return <StandaloneMenuShowcase />;
+    return (
+      <>
+        <GameScreenAssetsPrewarmer />
+        <StandaloneMenuShowcase />
+      </>
+    );
   }
 
   return (
     <GameShellProvider>
       <div className="relative w-screen h-screen overflow-hidden bg-[#18241E] select-none">
+        <GameScreenAssetsPrewarmer />
         <GameCanvasViewport />
         <TitleScreenOverlay />
         <PlayingHudOverlay />

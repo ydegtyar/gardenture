@@ -26,7 +26,7 @@ export function GameModalsOverlay() {
 
   return (
     <>
-      {shellState === 'playing' && draftOffers.length > 0 && <CardDraftModal />}
+      {shellState === 'playing' && !awaitingRevive && draftOffers.length > 0 && <CardDraftModal />}
 
       {shellState === 'playing' && awaitingRevive && <RescueReviveModal />}
 

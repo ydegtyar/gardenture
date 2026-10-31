@@ -41,6 +41,10 @@ import type { RunSummarySnapshot } from '../Modals';
 import type { ActiveBuff } from '../components/ActiveBuffs';
 import { POWERUPS } from '../../game/data/powerups';
 import { IS_DEV } from '../debug/devGate';
+import {
+  areGameScreenAssetsReady,
+  prefetchGameScreenAssets,
+} from '../utils/prefetchGameScreenAssets';
 
 export type ShellState = 'title' | 'playing' | 'paused' | 'gameover';
 export type SanctuaryTab = 'loadout' | 'store' | 'quests' | 'bestiary' | null;
@@ -223,6 +227,8 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   const draftOffersRef = useRef<DraftOfferItem[]>([]);
   draftOffersRef.current = draftOffers;
   const [awaitingRevive, setAwaitingRevive] = useState(false);
+  const awaitingReviveRef = useRef(false);
+  awaitingReviveRef.current = awaitingRevive;
   const [isAdLoading, setIsAdLoading] = useState(false);
   const isAdPlayingRef = useRef(false);
   const [runSummary, setRunSummary] = useState<RunSummarySnapshot | null>(null);
@@ -289,9 +295,16 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
   const rankAuraTimeoutRef = useRef<number | null>(null);
 
   const completeMenuTransition = useCallback(() => {
-    isMenuTransitioningRef.current = false;
-    setIsMenuTransitioning(false);
-    clockRef.current.reset();
+    const finalize = () => {
+      isMenuTransitioningRef.current = false;
+      setIsMenuTransitioning(false);
+      clockRef.current.reset();
+    };
+    if (areGameScreenAssetsReady()) {
+      finalize();
+    } else {
+      void prefetchGameScreenAssets().finally(finalize);
+    }
   }, []);
 
   const updateShellState = useCallback((next: ShellState) => {
@@ -405,7 +418,13 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       isOutsideArena: sim.isOutsideArena,
     }));
     const shouldShowDraft =
-      sim.pendingCardOffers.length > 0 && sim.isHeroSafeForCardDraft();
+      !sim.awaitingReviveDecision &&
+      sim.currentHp > 0 &&
+      sim.deathSequenceTimer <= 0 &&
+      sim.victorySequenceTimer <= 0 &&
+      !sim.runEnded &&
+      sim.pendingCardOffers.length > 0 &&
+      sim.isHeroSafeForCardDraft();
     setDraftOffers((prev) => {
       if (!shouldShowDraft) {
         return prev.length === 0 ? prev : [];
@@ -585,7 +604,9 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         if (ev.reason === 'rescue_offer') {
           inputRef.current.clearAllIntents();
           setIsAdLoading(false);
+          awaitingReviveRef.current = true;
           setAwaitingRevive(true);
+          setDraftOffers([]);
           syncHudFromSim(sim);
         }
       });
@@ -755,8 +776,17 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       }
       setRankAura(null);
 
-      isMenuTransitioningRef.current = withMenuCrossfade;
-      setIsMenuTransitioning(withMenuCrossfade);
+      const needsAssetWait = !areGameScreenAssetsReady();
+      const holdTransition = withMenuCrossfade || needsAssetWait;
+      isMenuTransitioningRef.current = holdTransition;
+      setIsMenuTransitioning(holdTransition);
+      if (!withMenuCrossfade && needsAssetWait) {
+        void prefetchGameScreenAssets().finally(() => {
+          isMenuTransitioningRef.current = false;
+          setIsMenuTransitioning(false);
+          clockRef.current.reset();
+        });
+      }
 
       if (rendererRef.current) {
         rendererRef.current.attachCanvas(canvasContainerRef.current);
@@ -852,7 +882,14 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       onPause: () => {
         inputRef.current.clearAllIntents();
         audioRef.current.onPlatformPause();
-        if (shellStateRef.current === 'playing' && simRef.current) {
+        if (
+          shellStateRef.current === 'playing' &&
+          simRef.current &&
+          !isAdPlayingRef.current &&
+          !awaitingReviveRef.current &&
+          !simRef.current.awaitingReviveDecision &&
+          draftOffersRef.current.length === 0
+        ) {
           saveDataRef.current.activeRun = simRef.current.serializeCheckpoint();
           void saveManagerRef.current.flushImmediate();
           updateShellState('paused');
@@ -869,8 +906,21 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
 
     const detachInput = inputRef.current.attach(container);
 
+    const initialParams = new URLSearchParams(window.location.search);
+    if (initialParams.get('autostart') === '1') {
+      startNewOrResumedRun(false);
+      if (initialParams.get('autodraft') === '1' && simRef.current) {
+        simRef.current.triggerLevelUpCardDraft();
+        syncHudFromSim(simRef.current);
+      }
+    }
+
+    void prefetchGameScreenAssets();
     void (async () => {
-      await renderer.init(container, saveDataRef.current.loadout.biomeId, false);
+      await Promise.all([
+        renderer.init(container, saveDataRef.current.loadout.biomeId, false),
+        prefetchGameScreenAssets(),
+      ]);
       if (shellStateRef.current !== 'title') {
         renderer.attachCanvas(container);
       }
@@ -881,13 +931,15 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
         onPauseGame: () => {
           inputRef.current.clearAllIntents();
           audioRef.current.onPlatformPause();
-          // If an ad is actively playing or Tarot card drafting is open,
+          // If an ad is actively playing, revive modal is open, or Tarot card drafting is open,
           // mute audio and clear inputs, but DO NOT switch shellState to 'paused'
           // which would unmount the active modal.
           if (
             shellStateRef.current === 'playing' &&
             simRef.current &&
             !isAdPlayingRef.current &&
+            !awaitingReviveRef.current &&
+            !simRef.current.awaitingReviveDecision &&
             draftOffersRef.current.length === 0
           ) {
             saveDataRef.current.activeRun = simRef.current.serializeCheckpoint();
@@ -955,10 +1007,11 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           biome: initialRandomBiome,
         });
       }
-      if (params.get('autostart') === '1') {
+      if (params.get('autostart') === '1' && shellStateRef.current === 'title') {
         startNewOrResumedRun(false);
         if (params.get('autodraft') === '1' && simRef.current) {
           simRef.current.triggerLevelUpCardDraft();
+          syncHudFromSim(simRef.current);
         }
       }
     })();
@@ -1066,7 +1119,11 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if (code === 'KeyR' && (state === 'playing' || state === 'paused' || state === 'gameover')) {
+        if (
+          code === 'KeyR' &&
+          draftOffers.length === 0 &&
+          (state === 'playing' || state === 'paused' || state === 'gameover')
+        ) {
           startNewOrResumedRun(false);
           return;
         }
@@ -1091,25 +1148,9 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if (state === 'playing' && sim) {
-          if (draftOffers.length > 0) {
-            if (code === 'Digit1' && draftOffers[0]) {
-              sim.applyCardOffer(draftOffers[0].offerId);
-              setDraftOffers([]);
-              syncHudFromSim(sim);
-            } else if (code === 'Digit2' && draftOffers[1]) {
-              sim.applyCardOffer(draftOffers[1].offerId);
-              setDraftOffers([]);
-              syncHudFromSim(sim);
-            } else if (code === 'Digit3' && draftOffers[2]) {
-              sim.applyCardOffer(draftOffers[2].offerId);
-              setDraftOffers([]);
-              syncHudFromSim(sim);
-            }
-          } else {
-            if (code === 'KeyQ') sim.requestUsePowerUp(0);
-            if (code === 'KeyE') sim.requestUsePowerUp(1);
-          }
+        if (state === 'playing' && sim && draftOffers.length === 0) {
+          if (code === 'KeyQ') sim.requestUsePowerUp(0);
+          if (code === 'KeyE') sim.requestUsePowerUp(1);
         }
       },
     });
@@ -1180,7 +1221,17 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       const sim = simRef.current;
       if (!sim) return;
       sim.applyCardOffer(offerId);
-      setDraftOffers([]);
+      if (sim.currentHp > 0 && sim.awaitingReviveDecision) {
+        sim.awaitingReviveDecision = false;
+      }
+      awaitingReviveRef.current = false;
+      setAwaitingRevive(false);
+      clockRef.current.setPaused(false);
+      setDraftOffers(
+        sim.pendingCardOffers.length > 0 && sim.isHeroSafeForCardDraft()
+          ? [...sim.pendingCardOffers]
+          : []
+      );
       syncHudFromSim(sim);
       saveDataRef.current.activeRun = sim.serializeCheckpoint();
       void saveManagerRef.current.flushImmediate();
@@ -1235,7 +1286,17 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     const sim = simRef.current;
     if (!sim) return;
     sim.skipCardDraft();
-    setDraftOffers([]);
+    if (sim.currentHp > 0 && sim.awaitingReviveDecision) {
+      sim.awaitingReviveDecision = false;
+    }
+    awaitingReviveRef.current = false;
+    setAwaitingRevive(false);
+    clockRef.current.setPaused(false);
+    setDraftOffers(
+      sim.pendingCardOffers.length > 0 && sim.isHeroSafeForCardDraft()
+        ? [...sim.pendingCardOffers]
+        : []
+    );
     syncHudFromSim(sim);
   }, [syncHudFromSim]);
 
@@ -1250,8 +1311,14 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       if (earned) {
         saveManagerRef.current.recordAdWatched();
         sim.applyPlayerRevive({ isAdRevive: true });
+        awaitingReviveRef.current = false;
         setAwaitingRevive(false);
+        setDraftOffers([]);
+        clockRef.current.setPaused(false);
         clockRef.current.startResumeCountdown(1.0);
+        if (shellStateRef.current !== 'playing') {
+          updateShellState('playing');
+        }
         syncHudFromSim(sim);
         saveDataRef.current.activeRun = sim.serializeCheckpoint();
         void saveManagerRef.current.flushImmediate();
@@ -1261,7 +1328,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       isAdPlayingRef.current = false;
       setIsAdLoading(false);
     }
-  }, [isAdLoading, syncHudFromSim]);
+  }, [isAdLoading, syncHudFromSim, updateShellState]);
 
   const handleSpendCoinsRevive = useCallback(() => {
     const sim = simRef.current;
@@ -1272,12 +1339,18 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     sd.currencies.coins -= 150;
     setSaveData({ ...sd });
     sim.applyPlayerRevive();
+    awaitingReviveRef.current = false;
     setAwaitingRevive(false);
+    setDraftOffers([]);
+    clockRef.current.setPaused(false);
     clockRef.current.startResumeCountdown(1.0);
+    if (shellStateRef.current !== 'playing') {
+      updateShellState('playing');
+    }
     syncHudFromSim(sim);
     sd.activeRun = sim.serializeCheckpoint();
     void saveManagerRef.current.flushImmediate();
-  }, [syncHudFromSim]);
+  }, [syncHudFromSim, updateShellState]);
 
   const handleDeclineRevive = useCallback(() => {
     setIsAdLoading(false);

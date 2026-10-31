@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "./ui/ornate/ornate.tokens.css";
+@import "./ui/healthbar/botanicalHealthBar.css";
 
 @layer base {
   body {

@@ -3,12 +3,11 @@ import type { MenuDataProvider } from './MenuHost';
 import {
   MenuCoinIconSvg,
   MenuCrystalIconSvg,
-  MenuResumeVineOverlaySvg,
   MenuStarIconSvg,
-  MenuStartCornerCrystalSvg,
   MenuTitleCrestSvg,
 } from './MenuVisualsSvg';
 import { getMainContainerClassName } from './MenuHtmlUi.styles';
+import { GameButton } from '../ui/ornate';
 
 export interface Props {
   data: MenuDataProvider;
@@ -119,85 +118,80 @@ export const MenuHtmlUi: React.FC<Props> = ({
 
         {/* Primary CTA Row: Start Run + Optional Resume Run (Lv X) */}
         <div className="flex flex-col sm:flex-row items-stretch justify-center gap-3.5 w-full mb-3.5">
-          <button
-            type="button"
-            data-start="true"
-            data-testid="menu-start-run-button"
+          <GameButton
+            variant="gold"
+            size="lg"
+            ornament="crystal"
+            align="center"
+            title="Start Run"
+            dataStart={true}
+            dataTestId="menu-start-run-button"
             onClick={onStartRun}
-            className="relative flex-1 min-h-[60px] sm:min-h-[66px] px-6 py-3 rounded-[13px] bg-gradient-to-b from-[#F4D372] via-[#DCAC46] to-[#C28E2B] hover:from-[#FFE082] hover:to-[#CFA038] active:scale-[0.99] transition-all border-2 border-[#FFF3B8] shadow-[0_14px_28px_rgba(5,2,10,0.85),0_4px_10px_rgba(0,0,0,0.75),0_0_26px_rgba(244,211,114,0.42)] flex items-center justify-center cursor-pointer group"
-          >
-            {/* Inner bevel border */}
-            <span
-              className="absolute inset-[3px] rounded-[9px] border border-[#7A5312]/65 pointer-events-none"
-              aria-hidden="true"
-            />
-            {/* Faceted Crystal Cluster perched on top-right corner */}
-            <MenuStartCornerCrystalSvg className="w-8 h-8 absolute -top-2.5 -right-2.5 pointer-events-none drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]" />
-
-            <span className="relative z-10 font-display text-xl sm:text-[23px] font-extrabold text-[#2B1F11] tracking-wide">
-              Start Run
-            </span>
-          </button>
+            className="flex-1"
+          />
 
           {data.hasRun && (
-            <button
-              type="button"
-              data-testid="menu-resume-run-button"
+            <GameButton
+              variant="green"
+              size="lg"
+              ornament="ivy"
+              align="center"
+              title={`Resume Run (Lv ${data.runLevel ?? 1})`}
+              dataTestId="menu-resume-run-button"
               onClick={onResumeRun}
-              className="relative sm:w-[215px] min-h-[60px] sm:min-h-[66px] px-5 py-3 rounded-[13px] bg-gradient-to-b from-[#6BE8A8] via-[#34B374] to-[#1D7A4C] hover:from-[#80F2B7] hover:to-[#248F59] active:scale-[0.99] transition-all border-2 border-[#A7F3D0] shadow-[0_14px_28px_rgba(5,2,10,0.85),0_4px_10px_rgba(0,0,0,0.75),0_0_24px_rgba(72,229,122,0.38)] flex items-center justify-center cursor-pointer"
-            >
-              <span
-                className="absolute inset-[3px] rounded-[9px] border border-[#0D3822]/70 pointer-events-none"
-                aria-hidden="true"
-              />
-              <MenuResumeVineOverlaySvg />
-              <span className="relative z-10 font-sans text-sm sm:text-[16px] font-bold text-[#0E291A] whitespace-nowrap">
-                Resume Run (Lv {data.runLevel ?? 1})
-              </span>
-            </button>
+              className="sm:w-[218px]"
+            />
           )}
         </div>
 
         {/* Secondary Sanctuary Stack: Loadout & Professions / Relic Store & Quests */}
         <div className="flex flex-col gap-3 w-full">
-          <button
-            type="button"
-            data-testid="open-loadout-button"
+          <GameButton
+            variant="dark"
+            size="md"
+            ornament="none"
+            align="center"
+            title="Loadout & Professions"
+            dataTestId="open-loadout-button"
             onClick={onOpenLoadout}
-            className="relative w-full min-h-[54px] sm:min-h-[58px] px-5 py-3 rounded-[13px] bg-gradient-to-b from-[#2B2032]/92 via-[#221928]/94 to-[#2E2236]/92 hover:from-[#36283F]/96 hover:to-[#3A2B44]/96 active:scale-[0.99] transition-all border border-[#7C6D86]/65 shadow-[0_12px_24px_rgba(5,2,10,0.82),0_4px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.16)] flex items-center justify-center gap-2.5 text-[#F7F4EE] text-sm sm:text-[15px] font-semibold cursor-pointer"
-          >
-            <svg
-              className="w-4.5 h-4.5 text-[#D8CFC2] shrink-0"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-            </svg>
-            <span>Loadout & Professions</span>
-          </button>
+            className="w-full"
+            icon={
+              <svg
+                className="w-4.5 h-4.5 text-[#D8CFC2] shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            }
+          />
 
-          <button
-            type="button"
-            data-testid="open-store-button"
+          <GameButton
+            variant="dark"
+            size="md"
+            ornament="none"
+            align="center"
+            title="Relic Store & Quests"
+            dataTestId="open-store-button"
             onClick={onOpenStore}
-            className="relative w-full min-h-[54px] sm:min-h-[58px] px-5 py-3 rounded-[13px] bg-gradient-to-b from-[#2B2032]/92 via-[#221928]/94 to-[#2E2236]/92 hover:from-[#36283F]/96 hover:to-[#3A2B44]/96 active:scale-[0.99] transition-all border border-[#7C6D86]/65 shadow-[0_12px_24px_rgba(5,2,10,0.82),0_4px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.16)] flex items-center justify-center gap-2.5 text-[#F7F4EE] text-sm sm:text-[15px] font-semibold cursor-pointer"
-          >
-            <svg
-              className="w-4.5 h-4.5 text-[#D8CFC2] shrink-0"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-            </svg>
-            <span>Relic Store & Quests</span>
-          </button>
+            className="w-full"
+            icon={
+              <svg
+                className="w-4.5 h-4.5 text-[#D8CFC2] shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+            }
+          />
         </div>
       </div>
 

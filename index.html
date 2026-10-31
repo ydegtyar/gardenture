@@ -104,11 +104,15 @@
     </script>
 
     <!-- ═══════════════════════════════════════════════════
-         ICONS & PWA MANIFEST
+         ICONS, PWA MANIFEST & CRITICAL HUD IMAGE PRELOADS
     ═══════════════════════════════════════════════════ -->
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preload" as="image" href="/healthbar-frame.png" fetchpriority="high" />
+    <link rel="preload" as="image" href="/heart-emblem.png" fetchpriority="high" />
+    <link rel="preload" as="image" href="/shield-overlay.png" fetchpriority="high" />
+    <link rel="preload" as="image" href="/assets/powerups/powerups.png" crossorigin="anonymous" />
 
     <!-- ═══════════════════════════════════════════════════
          FONTS

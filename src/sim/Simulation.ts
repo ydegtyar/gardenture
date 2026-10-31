@@ -1044,6 +1044,15 @@ export class Simulation {
   }
 
   public isHeroSafeForCardDraft(): boolean {
+    if (
+      this.awaitingReviveDecision ||
+      this.currentHp <= 0 ||
+      this.deathSequenceTimer > 0 ||
+      this.victorySequenceTimer > 0 ||
+      this.runEnded
+    ) {
+      return false;
+    }
     const basicBladeRange = WEAPONS.garden_blade?.baseReach ?? BALANCE_CONFIG.SAFE_CARD_DRAFT_RANGE;
     for (const e of this.enemies) {
       if (e.hp <= 0 || e.koTimer > 0 || e.isArenaFlower || e.isHeroGrave) continue;
@@ -1112,6 +1121,11 @@ export class Simulation {
   }): void {
     this.reviveUsed = true;
     this.awaitingReviveDecision = false;
+    this.deathSequenceTimer = 0;
+    this.runEnded = false;
+    this.runOutcome = null;
+    this.pendingCardOffers = [];
+    this.queuedCardDraftCount = 0;
     const healRatio = params?.healRatio ?? 0.5;
     const healAmt = Math.max(1, Math.round(this.maxHp * healRatio));
     this.currentHp = healAmt;
@@ -1128,9 +1142,9 @@ export class Simulation {
     for (const e of this.enemies) {
       if (e.isArenaFlower || e.isHeroGrave) continue;
       const d = dist(this.heroX, this.heroY, e.x, e.y);
-      if (d <= kbRadius && d > 0.001) {
-        const nx = (e.x - this.heroX) / d;
-        const ny = (e.y - this.heroY) / d;
+      if (d <= kbRadius) {
+        const nx = d > 0.001 ? (e.x - this.heroX) / d : Math.cos(this.heroFacingAngle);
+        const ny = d > 0.001 ? (e.y - this.heroY) / d : Math.sin(this.heroFacingAngle);
         e.x += nx * kbForce * (1 - e.knockbackResist * 0.5);
         e.y += ny * kbForce * (1 - e.knockbackResist * 0.5);
       }
@@ -1322,6 +1336,10 @@ export class Simulation {
       return;
     }
 
+    if (this.awaitingReviveDecision) {
+      return;
+    }
+
     if (this.queuedCardDraftCount > 0 && this.pendingCardOffers.length === 0 && this.isHeroSafeForCardDraft()) {
       this.queuedCardDraftCount--;
       this.triggerLevelUpCardDraft();
@@ -1339,11 +1357,11 @@ export class Simulation {
 
     // 1. Move entities (Hero, Enemies, Projectiles)
     this.updateHeroMovementAndStatus(TICK_S);
-    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
     this.updateEnemiesMovementAndAI(TICK_S);
-    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
     this.updateProjectiles(TICK_S);
-    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
 
     // 2. Rebuild 2.0u Spatial Hash Grid
     this.spatialGrid.clear();
@@ -1355,9 +1373,9 @@ export class Simulation {
 
     // 3. Update Weapons & Ground Hazards
     this.updateWeapons(TICK_S);
-    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
     this.updateGroundHazards(TICK_S);
-    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
 
     // 4. Resolve Pickups & Gems
     this.updatePickups(TICK_S);
@@ -1888,7 +1906,7 @@ export class Simulation {
     let overlappingHeroEnemies = 0;
 
     for (let i = this.enemies.length - 1; i >= 0; i--) {
-      if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+      if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
       const e = this.enemies[i];
       if (!e) continue;
       e.prevX = e.x;
@@ -2850,11 +2868,11 @@ export class Simulation {
         }
         const contactDmg = e.aiState === 'charge' ? e.contactDamage * 1.4 : e.contactDamage;
         this.damageHero(Math.round(contactDmg), e);
-        if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+        if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
       }
     }
 
-    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
 
     // Soft enemy-to-enemy separation pass so swarms form a readable ring rather than 1 stacked pixel
     const len = this.enemies.length;
@@ -2896,7 +2914,7 @@ export class Simulation {
   private updateProjectiles(dt: number): void {
     const enemyProjSlowFactor = this.timeSlowTimer > 0 ? 0.2 : 1.0;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
-      if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+      if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
       const p = this.projectiles[i];
       if (!p) continue;
       const projDt = p.isEnemy ? dt * enemyProjSlowFactor : dt;
@@ -2909,7 +2927,7 @@ export class Simulation {
       if (p.lifeTimer <= 0) {
         if (p.explodesOnExpire) {
           this.triggerProjectileExplosion(p);
-          if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+          if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
         }
         this.projectiles.splice(i, 1);
         continue;
@@ -2934,7 +2952,7 @@ export class Simulation {
               ? this.enemies.find((e) => e.id === p.sourceEnemyId && e.hp > 0)
               : undefined;
           this.damageHero(p.damage, sourceEnemy);
-          if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+          if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
           this.projectiles.splice(i, 1);
         }
         continue;
@@ -2945,7 +2963,7 @@ export class Simulation {
       this.spatialGrid.queryCircle(p.x, p.y, p.radius + 1.2, hitCandidates);
       let consumed = false;
       for (const enemyId of hitCandidates) {
-        if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+        if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.awaitingReviveDecision || this.runEnded) return;
         if (p.hitEnemyIds.has(enemyId)) continue;
         const enemy = this.enemies.find((e) => e.id === enemyId);
         if (!enemy || enemy.hp <= 0 || enemy.koTimer > 0) continue;
@@ -4702,7 +4720,15 @@ export class Simulation {
   }
 
   public triggerLevelUpCardDraft(): void {
-    if (this.victorySequenceTimer > 0 || this.deathSequenceTimer > 0 || this.runEnded) return;
+    if (
+      this.victorySequenceTimer > 0 ||
+      this.deathSequenceTimer > 0 ||
+      this.awaitingReviveDecision ||
+      this.currentHp <= 0 ||
+      this.runEnded
+    ) {
+      return;
+    }
     const { offers, allCommon } = generateCardDraftOffers({
       rng: this.rng.cards,
       luck: this.stats.luck,
@@ -4829,6 +4855,9 @@ export class Simulation {
 
   private triggerSecondWindRevival(): void {
     this.secondWindUsed = true;
+    this.awaitingReviveDecision = false;
+    this.pendingCardOffers = [];
+    this.queuedCardDraftCount = 0;
     const secondWindHeal = Math.max(1, Math.round(this.maxHp * 0.35));
     this.currentHp = secondWindHeal;
     this.invulnTimer = 1.8;
@@ -4862,6 +4891,7 @@ export class Simulation {
     if (
       this.invulnTimer > 0 ||
       this.isHeroDashInvisible() ||
+      this.awaitingReviveDecision ||
       this.runEnded ||
       this.deathSequenceTimer > 0 ||
       this.victorySequenceTimer > 0
@@ -4980,6 +5010,8 @@ export class Simulation {
       if (!this.reviveUsed) {
         this.currentHp = 0;
         this.awaitingReviveDecision = true;
+        this.pendingCardOffers = [];
+        this.queuedCardDraftCount = 0;
         this.events.emit('LethalHitIntercepted', { reason: 'rescue_offer' });
         return;
       }
@@ -4994,6 +5026,8 @@ export class Simulation {
   private applyArenaThornDamage(dmg: number): void {
     if (
       dmg <= 0 ||
+      this.invulnTimer > 0 ||
+      this.awaitingReviveDecision ||
       this.runEnded ||
       this.currentHp <= 0 ||
       this.cardPickInvisTimer > 0 ||
@@ -5054,6 +5088,8 @@ export class Simulation {
       if (!this.reviveUsed) {
         this.currentHp = 0;
         this.awaitingReviveDecision = true;
+        this.pendingCardOffers = [];
+        this.queuedCardDraftCount = 0;
         this.events.emit('LethalHitIntercepted', { reason: 'rescue_offer' });
         return;
       }
@@ -5912,7 +5948,7 @@ export class Simulation {
       sim.curseLevels
     );
     sim.maxHp = cp.maxHp;
-    sim.currentHp = cp.currentHp;
+    sim.currentHp = Math.max(1, cp.currentHp);
     sim.currentXp = cp.currentXp;
     sim.level = cp.level;
     sim.xpToNext = getXpRequiredForLevel(cp.level);
