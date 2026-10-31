@@ -761,7 +761,7 @@
 }
 
 .ornate-firefly-mote {
-  animation: ornate-firefly-drift var(--ff-dur, 4.6s) ease-in-out infinite;
+  animation: ornate-firefly-drift var(--ff-dur, 16s) ease-in-out infinite;
   animation-delay: var(--ff-delay, 0s);
   will-change: transform, opacity;
 }

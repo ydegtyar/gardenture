@@ -14,14 +14,14 @@ export interface DraftBackdropProps {
 }
 
 const FIREFLY_MOTES = [
-  { left: '8%', top: '18%', size: 6, color: '#fde047', dx: '28px', dy: '-36px', dur: '7.4s', delay: '-1.8s' },
-  { left: '16%', top: '72%', size: 5, color: '#6ee7b7', dx: '-26px', dy: '-32px', dur: '8.6s', delay: '-4.2s' },
-  { left: '28%', top: '12%', size: 4, color: '#fde047', dx: '22px', dy: '28px', dur: '7.9s', delay: '-0.9s' },
-  { left: '74%', top: '14%', size: 6, color: '#6ee7b7', dx: '-30px', dy: '-30px', dur: '7.1s', delay: '-5.3s' },
-  { left: '88%', top: '26%', size: 5, color: '#fde047', dx: '-32px', dy: '24px', dur: '9.2s', delay: '-2.5s' },
-  { left: '82%', top: '76%', size: 6, color: '#6ee7b7', dx: '24px', dy: '-38px', dur: '7.7s', delay: '-6.1s' },
-  { left: '6%', top: '48%', size: 4, color: '#a7f3d0', dx: '28px', dy: '-24px', dur: '8.8s', delay: '-1.9s' },
-  { left: '93%', top: '54%', size: 5, color: '#fde047', dx: '-26px', dy: '-28px', dur: '8.2s', delay: '-3.7s' },
+  { left: '8%', top: '18%', size: 6, color: '#fde047', dx: '28px', dy: '-36px', dur: '16.5s', delay: '-3.8s' },
+  { left: '16%', top: '72%', size: 5, color: '#6ee7b7', dx: '-26px', dy: '-32px', dur: '18.6s', delay: '-8.2s' },
+  { left: '28%', top: '12%', size: 4, color: '#fde047', dx: '22px', dy: '28px', dur: '17.2s', delay: '-1.9s' },
+  { left: '74%', top: '14%', size: 6, color: '#6ee7b7', dx: '-30px', dy: '-30px', dur: '15.4s', delay: '-10.3s' },
+  { left: '88%', top: '26%', size: 5, color: '#fde047', dx: '-32px', dy: '24px', dur: '19.8s', delay: '-5.0s' },
+  { left: '82%', top: '76%', size: 6, color: '#6ee7b7', dx: '24px', dy: '-38px', dur: '16.8s', delay: '-12.1s' },
+  { left: '6%', top: '48%', size: 4, color: '#a7f3d0', dx: '28px', dy: '-24px', dur: '18.2s', delay: '-4.5s' },
+  { left: '93%', top: '54%', size: 5, color: '#fde047', dx: '-26px', dy: '-28px', dur: '17.6s', delay: '-7.7s' },
 ] as const;
 
 export const DraftBackdrop: React.FC<DraftBackdropProps> = ({

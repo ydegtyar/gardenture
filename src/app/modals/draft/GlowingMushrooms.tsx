@@ -316,28 +316,28 @@ export const GlowingMushrooms: React.FC<Props> = ({
                 animation: draft-fireflies-fadein 900ms ease-out ${delayMs + 450}ms both;
               }
 
-              /* Firefly Macro-Wander (autonomous paths across glade) */
+              /* Firefly Macro-Wander (autonomous paths across glade - slow ambient drift) */
               .draft-firefly-wander {
                 will-change: transform;
               }
-              .draft-wander-1 { animation: draft-wander-1 var(--wander-dur, 12s) ease-in-out var(--wander-delay, 0s) infinite; }
-              .draft-wander-2 { animation: draft-wander-2 var(--wander-dur, 14s) ease-in-out var(--wander-delay, 0s) infinite; }
-              .draft-wander-3 { animation: draft-wander-3 var(--wander-dur, 10s) ease-in-out var(--wander-delay, 0s) infinite; }
-              .draft-wander-4 { animation: draft-wander-4 var(--wander-dur, 11s) ease-in-out var(--wander-delay, 0s) infinite; }
-              .draft-wander-5 { animation: draft-wander-5 var(--wander-dur, 15s) ease-in-out var(--wander-delay, 0s) infinite; }
-              .draft-wander-6 { animation: draft-wander-6 var(--wander-dur, 11s) ease-in-out var(--wander-delay, 0s) infinite; }
+              .draft-wander-1 { animation: draft-wander-1 var(--wander-dur, 26s) ease-in-out var(--wander-delay, 0s) infinite; }
+              .draft-wander-2 { animation: draft-wander-2 var(--wander-dur, 30s) ease-in-out var(--wander-delay, 0s) infinite; }
+              .draft-wander-3 { animation: draft-wander-3 var(--wander-dur, 22s) ease-in-out var(--wander-delay, 0s) infinite; }
+              .draft-wander-4 { animation: draft-wander-4 var(--wander-dur, 24s) ease-in-out var(--wander-delay, 0s) infinite; }
+              .draft-wander-5 { animation: draft-wander-5 var(--wander-dur, 32s) ease-in-out var(--wander-delay, 0s) infinite; }
+              .draft-wander-6 { animation: draft-wander-6 var(--wander-dur, 25s) ease-in-out var(--wander-delay, 0s) infinite; }
 
-              /* Firefly Micro-Flutter & Bioluminescent flash */
+              /* Firefly Micro-Flutter & Bioluminescent flash (gentle, relaxed hovering) */
               .draft-firefly-flutter {
                 will-change: transform, opacity;
                 filter: drop-shadow(0 0 3px currentColor);
               }
-              .draft-flutter-glow-1 { animation: draft-flutter-glow-1 var(--flutter-dur, 4.3s) ease-in-out var(--flutter-delay, 0s) infinite; }
-              .draft-flutter-glow-2 { animation: draft-flutter-glow-2 var(--flutter-dur, 4.8s) ease-in-out var(--flutter-delay, 0s) infinite; }
-              .draft-flutter-glow-3 { animation: draft-flutter-glow-3 var(--flutter-dur, 4.4s) ease-in-out var(--flutter-delay, 0s) infinite; }
-              .draft-flutter-glow-4 { animation: draft-flutter-glow-4 var(--flutter-dur, 5.0s) ease-in-out var(--flutter-delay, 0s) infinite; }
-              .draft-flutter-glow-5 { animation: draft-flutter-glow-5 var(--flutter-dur, 4.2s) ease-in-out var(--flutter-delay, 0s) infinite; }
-              .draft-flutter-glow-6 { animation: draft-flutter-glow-6 var(--flutter-dur, 4.6s) ease-in-out var(--flutter-delay, 0s) infinite; }
+              .draft-flutter-glow-1 { animation: draft-flutter-glow-1 var(--flutter-dur, 9.2s) ease-in-out var(--flutter-delay, 0s) infinite; }
+              .draft-flutter-glow-2 { animation: draft-flutter-glow-2 var(--flutter-dur, 10.4s) ease-in-out var(--flutter-delay, 0s) infinite; }
+              .draft-flutter-glow-3 { animation: draft-flutter-glow-3 var(--flutter-dur, 9.6s) ease-in-out var(--flutter-delay, 0s) infinite; }
+              .draft-flutter-glow-4 { animation: draft-flutter-glow-4 var(--flutter-dur, 11.0s) ease-in-out var(--flutter-delay, 0s) infinite; }
+              .draft-flutter-glow-5 { animation: draft-flutter-glow-5 var(--flutter-dur, 9.0s) ease-in-out var(--flutter-delay, 0s) infinite; }
+              .draft-flutter-glow-6 { animation: draft-flutter-glow-6 var(--flutter-dur, 10.0s) ease-in-out var(--flutter-delay, 0s) infinite; }
             `
             }
           `}</style>
@@ -833,41 +833,41 @@ export const GlowingMushrooms: React.FC<Props> = ({
                 <circle cx="242" cy="230" r="1.6" fill="#ccfbf1" />
               </g>
 
-              {/* LAYER D: ANIMATED BIOLUMINESCENT FIREFLIES (Compound Non-repeating Flight) */}
+              {/* LAYER D: ANIMATED BIOLUMINESCENT FIREFLIES (Compound Non-repeating Flight - Slow Ambient Drift) */}
               <g className="draft-fireflies-layer">
                 {/* Firefly L1: Emerald Canopy Roamer */}
-                <g className="draft-firefly-wander draft-wander-1" style={{ '--wander-dur': '12.4s', '--wander-delay': '-3.5s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-2" cx="96" cy="70" r="2.2" fill="#6ee7b7" style={{ '--flutter-dur': '4.1s', '--flutter-delay': '-1.2s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-1" style={{ '--wander-dur': '26.5s', '--wander-delay': '-7.5s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-2" cx="96" cy="70" r="2.2" fill="#6ee7b7" style={{ '--flutter-dur': '8.8s', '--flutter-delay': '-2.6s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly L2: Azure Inkcap Companion */}
-                <g className="draft-firefly-wander draft-wander-2" style={{ '--wander-dur': '13.8s', '--wander-delay': '-6.2s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-1" cx="36" cy="142" r="1.8" fill="#7dd3fc" style={{ '--flutter-dur': '4.8s', '--flutter-delay': '-2.7s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-2" style={{ '--wander-dur': '29.8s', '--wander-delay': '-13.2s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-1" cx="36" cy="142" r="1.8" fill="#7dd3fc" style={{ '--flutter-dur': '10.2s', '--flutter-delay': '-5.8s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly L3: Golden Glade Explorer */}
-                <g className="draft-firefly-wander draft-wander-4" style={{ '--wander-dur': '10.8s', '--wander-delay': '-1.9s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-6" cx="142" cy="115" r="1.9" fill="#fef08a" style={{ '--flutter-dur': '3.7s', '--flutter-delay': '-0.8s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-4" style={{ '--wander-dur': '23.4s', '--wander-delay': '-4.1s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-6" cx="142" cy="115" r="1.9" fill="#fef08a" style={{ '--flutter-dur': '8.0s', '--flutter-delay': '-1.7s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly L4: Golden Bonnet Hoverer */}
-                <g className="draft-firefly-wander draft-wander-3" style={{ '--wander-dur': '9.4s', '--wander-delay': '-4.8s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-5" cx="178" cy="148" r="1.5" fill="#fde047" style={{ '--flutter-dur': '4.5s', '--flutter-delay': '-3.1s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-3" style={{ '--wander-dur': '20.6s', '--wander-delay': '-10.4s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-5" cx="178" cy="148" r="1.5" fill="#fde047" style={{ '--flutter-dur': '9.6s', '--flutter-delay': '-6.6s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly L5: Meadow Grass Skimmer */}
-                <g className="draft-firefly-wander draft-wander-6" style={{ '--wander-dur': '11.6s', '--wander-delay': '-7.4s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-4" cx="64" cy="105" r="1.7" fill="#a7f3d0" style={{ '--flutter-dur': '5.2s', '--flutter-delay': '-1.5s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-6" style={{ '--wander-dur': '25.2s', '--wander-delay': '-16.0s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-4" cx="64" cy="105" r="1.7" fill="#a7f3d0" style={{ '--flutter-dur': '11.2s', '--flutter-delay': '-3.2s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly L6: Teal Slope Spore */}
-                <g className="draft-firefly-wander draft-wander-5" style={{ '--wander-dur': '14.2s', '--wander-delay': '-2.2s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-4" cx="232" cy="182" r="1.5" fill="#5eead4" style={{ '--flutter-dur': '4.6s', '--flutter-delay': '-4.0s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-5" style={{ '--wander-dur': '30.6s', '--wander-delay': '-4.8s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-4" cx="232" cy="182" r="1.5" fill="#5eead4" style={{ '--flutter-dur': '9.9s', '--flutter-delay': '-8.6s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly L7: High Twilight Floater */}
-                <g className="draft-firefly-wander draft-wander-2" style={{ '--wander-dur': '15.0s', '--wander-delay': '-9.1s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-2" cx="118" cy="52" r="1.4" fill="#a7f3d0" style={{ '--flutter-dur': '3.9s', '--flutter-delay': '-0.4s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-2" style={{ '--wander-dur': '32.4s', '--wander-delay': '-19.5s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-2" cx="118" cy="52" r="1.4" fill="#a7f3d0" style={{ '--flutter-dur': '8.4s', '--flutter-delay': '-0.9s' } as React.CSSProperties} />
                 </g>
               </g>
             </>
@@ -1326,41 +1326,41 @@ export const GlowingMushrooms: React.FC<Props> = ({
                 <circle cx="400" cy="232" r="1.5" fill="#fef08a" />
               </g>
 
-              {/* LAYER D: ANIMATED BIOLUMINESCENT FIREFLIES (Compound Non-repeating Flight) */}
+              {/* LAYER D: ANIMATED BIOLUMINESCENT FIREFLIES (Compound Non-repeating Flight - Slow Ambient Drift) */}
               <g className="draft-fireflies-layer">
                 {/* Firefly R1: Amethyst Crown Floater */}
-                <g className="draft-firefly-wander draft-wander-1" style={{ '--wander-dur': '12.8s', '--wander-delay': '-5.1s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-3" cx="326" cy="64" r="2.2" fill="#e9d5ff" style={{ '--flutter-dur': '4.4s', '--flutter-delay': '-1.8s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-1" style={{ '--wander-dur': '27.6s', '--wander-delay': '-11.0s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-3" cx="326" cy="64" r="2.2" fill="#e9d5ff" style={{ '--flutter-dur': '9.5s', '--flutter-delay': '-3.9s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly R2: Coral Trumpet Dancer */}
-                <g className="draft-firefly-wander draft-wander-4" style={{ '--wander-dur': '11.2s', '--wander-delay': '-2.4s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-5" cx="248" cy="135" r="2.0" fill="#fed7aa" style={{ '--flutter-dur': '4.0s', '--flutter-delay': '-3.3s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-4" style={{ '--wander-dur': '24.2s', '--wander-delay': '-5.2s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-5" cx="248" cy="135" r="2.0" fill="#fed7aa" style={{ '--flutter-dur': '8.6s', '--flutter-delay': '-7.1s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly R3: Sister Chanterelle Sprite */}
-                <g className="draft-firefly-wander draft-wander-3" style={{ '--wander-dur': '9.8s', '--wander-delay': '-6.9s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-1" cx="278" cy="156" r="1.6" fill="#fb923c" style={{ '--flutter-dur': '3.8s', '--flutter-delay': '-0.9s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-3" style={{ '--wander-dur': '21.2s', '--wander-delay': '-14.8s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-1" cx="278" cy="156" r="1.6" fill="#fb923c" style={{ '--flutter-dur': '8.2s', '--flutter-delay': '-1.9s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly R4: Teal Pixie Companion */}
-                <g className="draft-firefly-wander draft-wander-2" style={{ '--wander-dur': '13.4s', '--wander-delay': '-4.3s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-4" cx="172" cy="148" r="1.6" fill="#5eead4" style={{ '--flutter-dur': '4.9s', '--flutter-delay': '-2.1s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-2" style={{ '--wander-dur': '28.8s', '--wander-delay': '-9.3s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-4" cx="172" cy="148" r="1.6" fill="#5eead4" style={{ '--flutter-dur': '10.5s', '--flutter-delay': '-4.5s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly R5: Ivy Frond Rustler */}
-                <g className="draft-firefly-wander draft-wander-5" style={{ '--wander-dur': '14.5s', '--wander-delay': '-8.0s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-3" cx="362" cy="82" r="1.8" fill="#c084fc" style={{ '--flutter-dur': '4.2s', '--flutter-delay': '-1.4s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-5" style={{ '--wander-dur': '31.2s', '--wander-delay': '-17.2s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-3" cx="362" cy="82" r="1.8" fill="#c084fc" style={{ '--flutter-dur': '9.0s', '--flutter-delay': '-3.0s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly R6: Fairy Pin Sparkler */}
-                <g className="draft-firefly-wander draft-wander-6" style={{ '--wander-dur': '10.6s', '--wander-delay': '-3.7s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-6" cx="386" cy="196" r="1.5" fill="#fef08a" style={{ '--flutter-dur': '5.4s', '--flutter-delay': '-4.5s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-6" style={{ '--wander-dur': '22.8s', '--wander-delay': '-7.9s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-6" cx="386" cy="196" r="1.5" fill="#fef08a" style={{ '--flutter-dur': '11.6s', '--flutter-delay': '-9.7s' } as React.CSSProperties} />
                 </g>
 
                 {/* Firefly R7: Twilight Glade Drifter */}
-                <g className="draft-firefly-wander draft-wander-1" style={{ '--wander-dur': '15.2s', '--wander-delay': '-11.0s' } as React.CSSProperties}>
-                  <circle className="draft-firefly-flutter draft-flutter-glow-2" cx="290" cy="50" r="1.5" fill="#e9d5ff" style={{ '--flutter-dur': '4.7s', '--flutter-delay': '-0.6s' } as React.CSSProperties} />
+                <g className="draft-firefly-wander draft-wander-1" style={{ '--wander-dur': '32.8s', '--wander-delay': '-23.6s' } as React.CSSProperties}>
+                  <circle className="draft-firefly-flutter draft-flutter-glow-2" cx="290" cy="50" r="1.5" fill="#e9d5ff" style={{ '--flutter-dur': '10.1s', '--flutter-delay': '-1.3s' } as React.CSSProperties} />
                 </g>
               </g>
             </>
