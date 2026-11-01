@@ -1455,6 +1455,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       const newProfessionId = partial.professionId ?? sd.loadout.professionId;
       const personaByProf: Partial<Record<ProfessionId, string>> = {
         ...(sd.loadout.personaByProfession ?? {}),
+        ...(partial.personaByProfession ?? {}),
       };
 
       let newPersonaId = partial.personaId !== undefined ? partial.personaId : sd.loadout.personaId;
@@ -1468,6 +1469,11 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
             personaByProf[pDef.professionId] = pDef.id;
           }
         }
+      } else if (
+        partial.personaByProfession !== undefined &&
+        partial.personaByProfession[newProfessionId] !== undefined
+      ) {
+        newPersonaId = partial.personaByProfession[newProfessionId] ?? 'adventurer_default';
       } else if (partial.professionId !== undefined && partial.professionId !== sd.loadout.professionId) {
         // Switched profession without explicitly passing personaId:
         // Use this profession's applied persona, or default if none

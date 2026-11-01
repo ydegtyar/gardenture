@@ -2,18 +2,28 @@ import type { CSSProperties } from 'react';
 
 export const getPersonaCardClassName = (isSelected: boolean, isUnlocked: boolean): string => {
   if (isSelected) {
-    return 'bg-[#36493E] border-[#A8E6CF] shadow-[0_0_14px_rgba(168,230,207,0.22)]';
+    return 'bg-gradient-to-br from-[#13281e] via-[#0d1a14] to-[#070e0a] border-[#6EE7B7] ring-1 ring-[#6EE7B7]/45 shadow-[0_14px_32px_rgba(0,0,0,0.9),0_0_18px_rgba(52,211,153,0.28),inset_0_1px_0_rgba(167,243,208,0.28)]';
   }
   if (isUnlocked) {
-    return 'bg-[#1E1520] border-[#DED2F9]/45';
+    return 'bg-gradient-to-br from-[#1D1712] via-[#120E0B] to-[#0B0907] border-[#7D623A]/85 hover:border-[#9E824C] shadow-[0_12px_28px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,232,175,0.18)]';
   }
-  return 'bg-[#130D16] border-[#FFFDF0]/15';
+  return 'bg-gradient-to-br from-[#18181B] via-[#121215] to-[#0C0C0E] border-[#4A463E]/70 shadow-[0_10px_24px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.05)]';
+};
+
+export const getPersonaInnerBevelClassName = (isSelected: boolean, isUnlocked: boolean): string => {
+  if (isSelected) {
+    return 'border-[#6EE7B7]/38';
+  }
+  if (isUnlocked) {
+    return 'border-[#C89D54]/28';
+  }
+  return 'border-[#5C564C]/22';
 };
 
 export const getPortraitContainerClassName = (isUnlocked: boolean): string => {
   return isUnlocked
-    ? 'bg-[#2B1F2D] border-[#A8E6CF]/60'
-    : 'bg-[#08050B] border-[#2D1E2F] shadow-inner';
+    ? 'bg-gradient-to-b from-[#231915] via-[#17110E] to-[#0E0A08] border-[#C89D54]/55 shadow-[inset_0_2px_10px_rgba(0,0,0,0.85),0_0_12px_rgba(212,168,83,0.18)]'
+    : 'bg-gradient-to-b from-[#121016] to-[#08050B] border-[#4A463E]/60 shadow-inner';
 };
 
 export const getPortraitImgClassName = (isUnlocked: boolean): string => {
@@ -26,7 +36,7 @@ export const getPipClassName = (isActive: boolean): string => {
 
 export const getWearButtonClassName = (isSelected: boolean): string => {
   return isSelected
-    ? 'bg-[#E11D48] hover:bg-[#BE123C] text-[#FFFDF0] shadow-sm'
+    ? 'bg-[#E11D48] hover:bg-[#BE123C] text-[#FFFDF0] shadow-sm border border-[#FDA4AF]/40'
     : 'btn-herbarium-secondary-compact';
 };
 

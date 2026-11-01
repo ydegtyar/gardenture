@@ -47,39 +47,136 @@ export function PlayingHudOverlay() {
     Math.min(1, hud.elapsedSec / Simulation.FINAL_BOSS_SPAWN_SEC),
   );
 
+  const maxDash = Math.max(1, hud.maxDashCharges);
+
   return (
     <>
-      {/* FULL-SCREEN TOP XP BAR WITH CENTERED, ALWAYS-READABLE LEVEL INDICATOR (Fixed Gradient, Clipped by Fill) */}
+      {/* AAA BOTANICAL TAROT TOP EXPERIENCE LEVEL BAR */}
       <div
         data-testid="hud-xp-bar"
         className={cn(
-          'fixed top-0 inset-x-0 pointer-events-none h-[18px] sm:h-5 bg-[#2B1F2D]/95 border-b-2 border-[#A8E6CF]/35 shadow-md relative overflow-hidden flex items-center justify-center',
+          'fixed top-0 inset-x-0 pointer-events-none h-[22px] sm:h-[26px] bg-gradient-to-b from-[#110B15]/96 via-[#1B1220]/95 to-[#0D0810]/96 border-b border-[#C89D54]/75 shadow-[0_3px_14px_rgba(0,0,0,0.88),inset_0_-1px_0_rgba(253,255,182,0.22)] relative overflow-hidden flex items-center justify-center',
           isMenuTransitioning ? 'z-10' : 'z-20'
         )}
       >
+        {/* Subtle recessed stone/soil trough inner shadow & 10% progression tick marks */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 opacity-30 pointer-events-none"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(90deg, transparent 0%, transparent calc(10% - 1px), rgba(200, 157, 84, 0.35) calc(10% - 1px), rgba(200, 157, 84, 0.35) 10%)',
+          }}
+        />
+
+        {/* Living Chlorophyll & Golden Nectar XP Fill */}
         <div
           data-testid="hud-xp-fill"
-          className="absolute inset-y-0 left-0 overflow-hidden transition-all duration-150 ease-out shadow-[0_0_10px_#88D49E]"
+          className="absolute inset-y-[1px] left-0 overflow-hidden transition-all duration-150 ease-out shadow-[0_0_14px_rgba(52,211,153,0.75)]"
           style={{ width: `${Math.round(xpRatio * 100)}%` }}
         >
           <div
-            className="h-full w-screen bg-gradient-to-r from-[#52B788] via-[#88D49E] to-[#FDFFB6]" />
+            className="h-full w-screen"
+            style={{
+              background:
+                'linear-gradient(90deg, #065F46 0%, #10B981 32%, #6EE7B7 68%, #FEF08A 94%, #FFFDF0 100%)',
+            }}
+          />
+          {/* Subtle botanical diagonal leaf-vein sheen */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 opacity-25"
+            style={{
+              backgroundImage:
+                'repeating-linear-gradient(125deg, rgba(255,255,255,0.35) 0px, rgba(255,255,255,0.35) 6px, transparent 6px, transparent 16px)',
+            }}
+          />
+          {/* Top liquid glass specular reflection */}
+          <div className="absolute inset-x-0 top-0 h-[42%] bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+          {/* Glowing Golden-Emerald Meniscus Spark at Leading Edge */}
+          {xpRatio > 0.01 && (
+            <div
+              aria-hidden="true"
+              className="absolute inset-y-0 right-0 w-2.5 bg-gradient-to-l from-[#FFFDF0] via-[#FEF08A] to-transparent shadow-[0_0_10px_#FFFDF0]"
+            />
+          )}
         </div>
-        <div className="absolute inset-x-0 top-0 h-[40%] bg-white/10 pointer-events-none" />
-        <span
-          data-testid="hud-level-indicator"
-          className="relative z-10 px-2 py-0.5 rounded bg-[#140E16]/75 text-[10px] sm:text-[11px] font-mono-tabular font-black tracking-widest text-[#FFFDF0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-none"
+
+        {/* Top gilded hairline & bottom antique bronze inner bevel */}
+        <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-[#FFF3D1]/35 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-[#7D623A]/40 via-[#E8B64A]/65 to-[#7D623A]/40 pointer-events-none" />
+
+        {/* Left & Right Botanical Vine Scroll Accents */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 48 16"
+          className="hidden sm:block absolute left-2 top-1/2 -translate-y-1/2 w-10 h-3.5 text-[#C89D54]/65 pointer-events-none"
+          fill="none"
         >
-          Level {hud.level}
-        </span>
+          <path
+            d="M2 8 H36 M8 8 C11 3, 17 3, 20 8 C17 13, 11 13, 8 8 Z"
+            stroke="currentColor"
+            strokeWidth="1.2"
+          />
+          <polygon points="38,8 42,5 46,8 42,11" fill="#E8B64A" />
+        </svg>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 48 16"
+          className="hidden sm:block absolute right-2 top-1/2 -translate-y-1/2 w-10 h-3.5 text-[#C89D54]/65 pointer-events-none scale-x-[-1]"
+          fill="none"
+        >
+          <path
+            d="M2 8 H36 M8 8 C11 3, 17 3, 20 8 C17 13, 11 13, 8 8 Z"
+            stroke="currentColor"
+            strokeWidth="1.2"
+          />
+          <polygon points="38,8 42,5 46,8 42,11" fill="#E8B64A" />
+        </svg>
+
+        {/* Centered Ornate Botanical Tarot Level Crest Plaque */}
+        <div className="relative z-10 flex items-center gap-1.5 px-2.5 sm:px-3 py-[2px] rounded-full bg-gradient-to-b from-[#24192B]/95 via-[#150E1A]/95 to-[#0D0810]/95 border border-[#E8B64A]/80 shadow-[0_2px_8px_rgba(0,0,0,0.95),0_0_12px_rgba(232,182,74,0.25),inset_0_1px_0_rgba(255,248,214,0.32)]">
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 12 12"
+            className="w-2.5 h-2.5 shrink-0"
+            fill="none"
+          >
+            <path
+              d="M11 6 C7.5 2.5, 3.5 3, 1 6 C3.5 9, 7.5 9.5, 11 6 Z"
+              fill="#6EE7B7"
+              stroke="#E8B64A"
+              strokeWidth="1"
+            />
+          </svg>
+          <span
+            data-testid="hud-level-indicator"
+            className="text-[10px] sm:text-[11px] font-mono-tabular font-black tracking-[0.14em] uppercase text-[#FFFDF0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-none"
+          >
+            Level {hud.level}
+          </span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 12 12"
+            className="w-2.5 h-2.5 shrink-0 scale-x-[-1]"
+            fill="none"
+          >
+            <path
+              d="M11 6 C7.5 2.5, 3.5 3, 1 6 C3.5 9, 7.5 9.5, 11 6 Z"
+              fill="#6EE7B7"
+              stroke="#E8B64A"
+              strokeWidth="1"
+            />
+          </svg>
+        </div>
       </div>
 
       <div
-        className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-2 sm:p-3 md:p-5 pt-6 sm:pt-7 pb-5 sm:pb-6">
+        className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-2 sm:p-3 md:p-5 pt-7 sm:pt-8 pb-5 sm:pb-6">
         {/* TOP PERIMETER ROW: 3 Compact Corner Clusters (Mobile single-row fit) */}
-        <div className="flex items-center sm:items-start justify-between gap-1.5 sm:gap-3 w-full">
-          {/* Cluster 1 (Top-Left): AAA Botanical Tarot Health Bar + Segmented Dash Cooldown + Dev-Only Demo Controls */}
-          <div className="w-[124px] min-[390px]:w-[145px] min-[440px]:w-44 sm:w-[340px] shrink-0 flex flex-col gap-1 sm:gap-1.5 pointer-events-none">
+        <div className="flex items-start justify-between gap-1.5 sm:gap-3 w-full">
+          {/* Cluster 1 (Top-Left): AAA Botanical Tarot Health Bar + Ornate Botanical Dash Charge Gauge + Dev-Only Demo Controls */}
+          <div className="w-[152px] min-[390px]:w-[172px] min-[440px]:w-52 sm:w-[340px] shrink-0 flex flex-col gap-1 sm:gap-1.5 pointer-events-none">
             <div data-testid="hud-vitality-thermometer" className="w-full">
               <BotanicalHealthBar
                 hp={hud.hp}
@@ -89,39 +186,110 @@ export function PlayingHudOverlay() {
               />
             </div>
 
-            {/* Full-Width Segmented Dash Cooldown Line (splits into smaller parts as dash count increases) */}
+            {/* AAA Botanical Roguelite Zephyr Wing / Leaf-Crystal Dash Indicator (Single & Multi-Dash) */}
             <div
               data-testid="hud-dash-cooldown-bar"
-              className="flex items-center gap-1 sm:gap-1.5 w-full"
+              className="flex items-center gap-1 sm:gap-1.5 w-full pl-1 pr-0.5"
             >
-              {Array.from({ length: Math.max(1, hud.maxDashCharges) }).map((_, i) => {
-                const isReady = i < hud.dashCharges;
-                const isRecharging = i === hud.dashCharges;
-                const fillPct = isReady
-                  ? 100
-                  : isRecharging
-                    ? Math.round(Math.max(0, Math.min(1, hud.dashReadyRatio)) * 100)
-                    : 0;
-                return (
-                  <div
-                    key={i}
-                    data-testid={`hud-dash-segment-${i}`}
-                    className="relative flex-1 h-1.5 sm:h-2.5 rounded-full bg-[#18111A] border border-[#2D1E2F] overflow-hidden"
-                  >
+              {/* Sculpted Botanical Zephyr Wing Emblem */}
+              <div
+                aria-hidden="true"
+                className={cn(
+                  'w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center shrink-0 border transition-all duration-200',
+                  hud.isDashInvisible
+                    ? 'bg-[#10233A] border-[#7DD3FC] shadow-[0_0_10px_rgba(125,211,252,0.75)]'
+                    : hud.dashCharges > 0
+                      ? 'bg-gradient-to-b from-[#1B3326] to-[#0D1A13] border-[#E8B64A]/85 shadow-[0_2px_6px_rgba(0,0,0,0.85),0_0_8px_rgba(110,231,183,0.45)]'
+                      : 'bg-[#140E16] border-[#5C5346]/60 opacity-75'
+                )}
+              >
+                <svg viewBox="0 0 16 16" className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none">
+                  <path
+                    d="M2.5 11.5 C4.5 6.5, 9 4, 13.8 3.2 C12.2 7.5, 9.2 11.2, 4.5 12.2 Z"
+                    fill={
+                      hud.isDashInvisible
+                        ? '#BAE6FD'
+                        : hud.dashCharges > 0
+                          ? '#6EE7B7'
+                          : '#6B7280'
+                    }
+                    stroke="#140E16"
+                    strokeWidth="0.9"
+                  />
+                  <path
+                    d="M3.5 11.2 Q8 7.5 12.8 4"
+                    stroke="#FFFDF0"
+                    strokeWidth="0.9"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+
+              {/* Segmented Leaf-Crystal Charge Cells */}
+              <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
+                {Array.from({ length: maxDash }).map((_, i) => {
+                  const isReady = i < hud.dashCharges;
+                  const isRecharging = i === hud.dashCharges;
+                  const fillPct = isReady
+                    ? 100
+                    : isRecharging
+                      ? Math.round(Math.max(0, Math.min(1, hud.dashReadyRatio)) * 100)
+                      : 0;
+                  return (
                     <div
+                      key={i}
+                      data-testid={`hud-dash-segment-${i}`}
+                      data-ready={isReady ? 'true' : 'false'}
                       className={cn(
-                        'h-full transition-all duration-75',
+                        'relative flex-1 h-2.5 sm:h-3 rounded-[4px] bg-gradient-to-b from-[#0E0912] via-[#18111D] to-[#0C070E] border overflow-hidden transition-all duration-150',
                         hud.isDashInvisible
-                          ? 'bg-[#A0C4FF] shadow-[0_0_6px_#A0C4FF]'
+                          ? 'border-[#7DD3FC] shadow-[0_0_10px_rgba(125,211,252,0.6),inset_0_1px_2px_rgba(0,0,0,0.85)]'
                           : isReady
-                            ? 'bg-[#A8E6CF] shadow-[0_0_6px_rgba(168,230,207,0.65)]'
-                            : 'bg-[#5FE0C8]/75'
+                            ? 'border-[#E8B64A]/85 shadow-[0_2px_6px_rgba(0,0,0,0.85),0_0_8px_rgba(52,211,153,0.35),inset_0_1px_0_rgba(255,248,214,0.35)]'
+                            : 'border-[#5C5346]/65 shadow-[inset_0_2px_4px_rgba(0,0,0,0.9)]'
                       )}
-                      style={{ width: `${fillPct}%` }}
-                    />
-                  </div>
-                );
-              })}
+                    >
+                      {/* Liquid Sylph-Emerald / Zephyr Charge Fill */}
+                      <div
+                        className={cn(
+                          'relative h-full transition-all duration-75 overflow-hidden',
+                          hud.isDashInvisible
+                            ? 'bg-gradient-to-r from-[#38BDF8] via-[#A0C4FF] to-[#FFFDF0] shadow-[0_0_8px_#A0C4FF]'
+                            : isReady
+                              ? 'bg-gradient-to-r from-[#10B981] via-[#6EE7B7] to-[#FEF08A] shadow-[0_0_8px_rgba(110,231,183,0.75)]'
+                              : 'bg-gradient-to-r from-[#047857] via-[#10B981] to-[#6EE7B7]/90'
+                        )}
+                        style={{ width: `${fillPct}%` }}
+                      >
+                        {/* Upper glass bevel highlight */}
+                        <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                        {/* Leading-edge recharge spark */}
+                        {isRecharging && fillPct > 4 && fillPct < 100 && (
+                          <div className="absolute inset-y-0 right-0 w-1.5 bg-[#FFFDF0] blur-[0.5px] shadow-[0_0_6px_#FFFDF0]" />
+                        )}
+                      </div>
+
+                      {/* Botanical leaf-vein notch & glowing central diamond pip when charged */}
+                      {isReady && (
+                        <div
+                          aria-hidden="true"
+                          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                        >
+                          {maxDash === 1 ? (
+                            <div className="flex items-center justify-between w-full px-2">
+                              <span className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[#FFFDF0]/55 to-[#FFFDF0]/85" />
+                              <span className="mx-1.5 w-1.5 h-1.5 rotate-45 bg-[#FFFDF0] border border-[#064E3B] shadow-[0_0_4px_#FFFDF0]" />
+                              <span className="h-[1px] flex-1 bg-gradient-to-l from-transparent via-[#FFFDF0]/55 to-[#FFFDF0]/85" />
+                            </div>
+                          ) : (
+                            <span className="w-1.5 h-1.5 rotate-45 bg-[#FFFDF0] border border-[#064E3B]/80 shadow-[0_0_4px_#FFFDF0]" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Active Power-Up Buff Strip (stacked directly below HP/Dash bars) */}

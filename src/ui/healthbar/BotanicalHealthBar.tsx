@@ -151,7 +151,7 @@ export function BotanicalHealthBar({
       {IS_DEV && showDemoControls && (
         <div
           data-testid="healthbar-demo-controls"
-          className="flex items-center gap-1 pointer-events-auto flex-nowrap"
+          className="hidden sm:flex items-center gap-1 pointer-events-auto flex-nowrap"
         >
           <button
             type="button"

@@ -239,17 +239,34 @@ export const ChainBloomSymbol: React.FC<CardSymbolProps> = ({ gradients: g }) =>
 
 /**
  * 4.19 Shockwave / 4.25 Crit Burst:
- * Expanding seismic rings & golden starburst.
+ * Multi-layered expanding seismic compression rings, tectonic ground fissures, ejected earth shards & golden starburst.
  */
 export const ShockwaveBurstSymbol: React.FC<CardSymbolProps> = ({ gradients: g }) => (
-  <g stroke="#2D1E2F" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-    <ellipse cx="90" cy="86" rx="55" ry="18" fill="none" stroke={`url(#${g.gold})`} strokeWidth="3.5" />
-    <ellipse cx="90" cy="86" rx="35" ry="11" fill="none" stroke={`url(#${g.mint})`} strokeWidth="3" />
+  <g stroke="#2D1E2F" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    {/* Outer seismic pressure wave ring */}
+    <ellipse cx="90" cy="88" rx="64" ry="22" fill={`url(#${g.gold})`} opacity="0.22" stroke="none" />
+    <ellipse cx="90" cy="88" rx="62" ry="20" fill="none" stroke={`url(#${g.gold})`} strokeWidth="4" />
+    <ellipse cx="90" cy="88" rx="58" ry="18" fill="none" stroke="#FFFDF0" strokeWidth="1.5" strokeDasharray="8 6" />
+    {/* Secondary dewy-mint harmonic seismic ring */}
+    <ellipse cx="90" cy="88" rx="42" ry="13.5" fill="none" stroke={`url(#${g.mint})`} strokeWidth="3.2" />
+    {/* Inner reverberation ring */}
+    <ellipse cx="90" cy="88" rx="22" ry="7" fill="none" stroke={`url(#${g.cyan})`} strokeWidth="2.4" />
+    {/* Radial tectonic ground fissures */}
+    <polyline points="68,88 52,96 34,94" fill="none" stroke="#FFFDF0" strokeWidth="2" />
+    <polyline points="112,88 128,96 146,94" fill="none" stroke="#FFFDF0" strokeWidth="2" />
+    <polyline points="82,95 74,106 62,110" fill="none" stroke={`url(#${g.gold})`} strokeWidth="2.2" />
+    <polyline points="98,95 106,106 118,110" fill="none" stroke={`url(#${g.gold})`} strokeWidth="2.2" />
+    {/* Ejected earth & emerald shards */}
+    <polygon points="36,68 43,62 45,71" fill={`url(#${g.gold})`} strokeWidth="2" />
+    <polygon points="144,68 137,62 135,71" fill={`url(#${g.mint})`} strokeWidth="2" />
+    <circle cx="54" cy="40" r="3.5" fill={`url(#${g.mint})`} strokeWidth="1.8" />
+    <circle cx="126" cy="40" r="3.5" fill={`url(#${g.gold})`} strokeWidth="1.8" />
+    {/* Central seismic impact starburst */}
     <polygon
-      points="90,20 101,47 130,47 107,64 115,91 90,74 65,91 73,64 50,47 79,47"
+      points="90,18 100,45 129,45 106,62 114,89 90,72 66,89 74,62 51,45 80,45"
       fill={`url(#${g.gold})`}
     />
-    <circle cx="90" cy="58" r="7" fill="#FFFDF0" stroke="none" opacity="0.8" />
+    <circle cx="90" cy="56" r="8" fill="#FFFDF0" stroke="none" opacity="0.9" />
   </g>
 );
 

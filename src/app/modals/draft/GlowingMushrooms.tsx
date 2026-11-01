@@ -182,7 +182,7 @@ export const GlowingMushrooms: React.FC<Props> = ({
     <div
       data-testid={`glowing-mushrooms-${side}`}
       aria-hidden="true"
-      className={`pointer-events-none fixed bottom-[-10px] z-0 select-none overflow-visible ${
+      className={`portrait:hidden pointer-events-none fixed bottom-[-10px] z-0 select-none overflow-visible ${
         side === 'left' ? 'left-0' : 'right-0'
       } ${className}`}
       style={{

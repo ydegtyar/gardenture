@@ -57,7 +57,7 @@ import {
   SigilCard,
   TrinketStoreCard,
 } from '../components/StoreItemCard';
-import { TrinketRelicArt } from '../trinkets';
+import { TrinketCornerFiligreeSvg, TrinketRelicArt } from '../trinkets';
 import { calculateCurseRewardMultiplier } from '../../sim/rules/formulas';
 import { YouTubeSdkPanel } from './YouTubeSdkPanel';
 import { cn } from '../../utils/cn';
@@ -236,80 +236,237 @@ export function LoadoutAndStoreModal() {
                     const prof = PROFESSIONS[profId]!;
                     const isUnlocked = unlocks.professions.includes(profId);
                     const isSelected = loadout.professionId === profId;
+                    const unlockedProfPersonas = PERSONAS.filter(
+                      (p) => p.professionId === profId && unlocks.personas.includes(p.id)
+                    );
                     const isPersonaAppliedForProf =
                       loadout.personaByProfession?.[profId] !== undefined
                         ? loadout.personaByProfession[profId]
                         : loadout.professionId === profId
                           ? loadout.personaId
                           : undefined;
-                    const activeProfPersona = PERSONAS.find(
-                      (p) =>
-                        p.id === isPersonaAppliedForProf &&
-                        p.professionId === profId &&
-                        unlocks.personas.includes(p.id)
+                    const activeProfPersona = unlockedProfPersonas.find(
+                      (p) => p.id === isPersonaAppliedForProf
                     );
                     const spriteUrl = getSpritePortraitDataUrl(
                       resolveHeroSpriteKey(profId, activeProfPersona?.id)
                     );
+                    const filigreeVariant = isSelected ? 'draft' : 'trinket';
+
+                    const handleSetHeroSkin = (targetPersonaId: string) => {
+                      onSelectLoadout({
+                        personaByProfession: {
+                          ...(loadout.personaByProfession ?? {}),
+                          [profId]: targetPersonaId,
+                        },
+                        ...(isSelected ? { personaId: targetPersonaId } : {}),
+                      });
+                    };
+
                     return (
                       <div
                         key={profId}
+                        data-testid={`hero-card-${profId}`}
+                        data-skin={activeProfPersona?.id ?? 'adventurer_default'}
                         className={cn(
-                          'p-3.5 rounded-xl border-2 flex flex-col justify-between',
+                          'relative overflow-hidden rounded-[6px] px-3.5 py-3.5 border transition-all duration-300 flex flex-col justify-between gap-3',
                           isSelected
-                            ? 'bg-[#36493E] border-[#A8E6CF]'
-                            : 'bg-[#1E1520] border-[#FFFDF0]/15'
+                            ? 'bg-gradient-to-br from-[#13281e] via-[#0d1a14] to-[#070e0a] border-[#6EE7B7] ring-1 ring-[#6EE7B7]/45 shadow-[0_14px_32px_rgba(0,0,0,0.9),0_0_18px_rgba(52,211,153,0.28),inset_0_1px_0_rgba(167,243,208,0.28)]'
+                            : isUnlocked
+                              ? 'bg-gradient-to-br from-[#1D1712] via-[#120E0B] to-[#0B0907] border-[#7D623A]/85 hover:border-[#9E824C] shadow-[0_12px_28px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,232,175,0.18)]'
+                              : 'bg-gradient-to-br from-[#18181B] via-[#121215] to-[#0C0C0E] border-[#4A463E]/70 shadow-[0_10px_24px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.05)]'
                         )}
                       >
-                        <div className="flex items-start gap-3">
+                        {/* Inner Bevel Hairline Frame (reused from Trinket/Sigil StoreItemCard) */}
+                        <div
+                          className={cn(
+                            'absolute inset-[3px] rounded-[4px] border pointer-events-none z-10 transition-colors duration-300',
+                            isSelected
+                              ? 'border-[#6EE7B7]/38'
+                              : isUnlocked
+                                ? 'border-[#C89D54]/28'
+                                : 'border-[#5C564C]/22'
+                          )}
+                        />
+
+                        {/* 4 Ornate Corner Filigree Flourishes (reused from Trinket/Sigil StoreItemCard) */}
+                        <TrinketCornerFiligreeSvg
+                          position="tl"
+                          locked={!isUnlocked}
+                          variant={filigreeVariant}
+                          active={isSelected}
+                        />
+                        <TrinketCornerFiligreeSvg
+                          position="tr"
+                          locked={!isUnlocked}
+                          variant={filigreeVariant}
+                          active={isSelected}
+                        />
+                        <TrinketCornerFiligreeSvg
+                          position="bl"
+                          locked={!isUnlocked}
+                          variant={filigreeVariant}
+                          active={isSelected}
+                        />
+                        <TrinketCornerFiligreeSvg
+                          position="br"
+                          locked={!isUnlocked}
+                          variant={filigreeVariant}
+                          active={isSelected}
+                        />
+
+                        {/* Atmospheric Glow Backdrop */}
+                        <div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{
+                            background: isSelected
+                              ? 'radial-gradient(circle at 22% 65%, rgba(52, 211, 153, 0.22), transparent 60%)'
+                              : isUnlocked
+                                ? 'radial-gradient(circle at 22% 70%, rgba(212, 142, 45, 0.16), transparent 58%)'
+                                : 'radial-gradient(circle at 30% 80%, rgba(110, 116, 128, 0.12), transparent 60%)',
+                          }}
+                        />
+
+                        <div className="relative z-10 flex items-start gap-3">
                           {spriteUrl && (
-                            <div className="relative w-16 h-16 rounded-xl bg-[#2B1F2D] border-2 border-[#2D1E2F] shrink-0 flex items-center justify-center overflow-hidden p-1">
-                              {activeProfPersona?.id === 'herbalist_frieren_strange' && (
-                                <HitenJadePortraitAuraBackSvg />
-                              )}
-                              <img
-                                src={spriteUrl}
-                                alt={`${prof.name} sprite`}
-                                referrerPolicy="no-referrer"
-                                className="relative z-10 w-full h-full object-contain"
-                              />
-                              {activeProfPersona?.id === 'herbalist_frieren_strange' && (
-                                <HitenJadePortraitAuraFrontSvg />
+                            <div className="flex flex-col items-center gap-1.5 shrink-0">
+                              <div
+                                className={cn(
+                                  'relative w-20 h-20 rounded-[6px] border flex items-center justify-center overflow-hidden p-1.5',
+                                  isUnlocked
+                                    ? 'bg-gradient-to-b from-[#231915] via-[#17110E] to-[#0E0A08] border-[#C89D54]/55 shadow-[inset_0_2px_10px_rgba(0,0,0,0.85),0_0_12px_rgba(212,168,83,0.18)]'
+                                    : 'bg-gradient-to-b from-[#121016] to-[#08050B] border-[#4A463E]/60 shadow-inner'
+                                )}
+                              >
+                                <div className="absolute inset-[2px] rounded-[4px] border border-[#FFFDF0]/10 pointer-events-none z-20" />
+                                {activeProfPersona?.id === 'herbalist_frieren_strange' && (
+                                  <HitenJadePortraitAuraBackSvg />
+                                )}
+                                <img
+                                  src={spriteUrl}
+                                  alt={`${prof.name} sprite`}
+                                  data-testid={`hero-portrait-${profId}`}
+                                  referrerPolicy="no-referrer"
+                                  className={cn(
+                                    'relative z-10 w-full h-full object-contain transition-all duration-300',
+                                    !isUnlocked && 'opacity-70 grayscale-[35%]'
+                                  )}
+                                />
+                                {activeProfPersona?.id === 'herbalist_frieren_strange' && (
+                                  <HitenJadePortraitAuraFrontSvg />
+                                )}
+                              </div>
+
+                              {/* Skin Quick-Toggle under portrait when Arcana is unlocked */}
+                              {unlockedProfPersonas.length > 0 && (
+                                <button
+                                  type="button"
+                                  data-testid={`hero-skin-toggle-${profId}`}
+                                  onClick={() => {
+                                    const nextSkinId = activeProfPersona
+                                      ? 'adventurer_default'
+                                      : unlockedProfPersonas[0]!.id;
+                                    handleSetHeroSkin(nextSkinId);
+                                  }}
+                                  className={cn(
+                                    'w-20 px-1.5 py-0.5 rounded border text-[9.5px] font-extrabold uppercase tracking-wider transition-all cursor-pointer truncate text-center',
+                                    activeProfPersona
+                                      ? 'bg-[#25182E] border-[#C084FC]/70 text-[#E9D5FF] shadow-[0_0_8px_rgba(192,132,252,0.28)] hover:border-[#E9D5FF]'
+                                      : 'bg-[#18130F] border-[#C89D54]/45 text-[#E8D5B5] hover:border-[#FDFFB6]'
+                                  )}
+                                  title={
+                                    activeProfPersona
+                                      ? `Active Skin: ${activeProfPersona.name} (Click for Classic Skin)`
+                                      : `Classic Skin (Click for ${unlockedProfPersonas[0]!.name} Arcana Skin)`
+                                  }
+                                >
+                                  {activeProfPersona ? '✦ Arcana' : '⟲ Skin'}
+                                </button>
                               )}
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className="font-display font-bold text-base truncate">
+                            <div className="flex items-center justify-between gap-1.5 mb-1">
+                              <span className="font-display font-bold text-[15px] sm:text-base text-[#FFF3D1] drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] truncate">
                                 {prof.name}
                               </span>
-                              <span className="text-xs text-[#FDFFB6] shrink-0">
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#18130F] text-[#FDFFB6] border border-[#C89D54]/40 shrink-0">
                                 {prof.roleLabel}
                               </span>
                             </div>
-                            <p className="text-xs text-[#FFFDF0]/80 mb-1.5">{prof.description}</p>
-                            <p className="text-[11px] text-[#A8E6CF]">
-                              Dash ({prof.dashName}): {prof.dashDescription}
+                            <p className="text-xs text-[#D8D0C2] leading-relaxed mb-1.5">
+                              {prof.description}
                             </p>
+                            <p className="text-[11px] text-[#A8E6CF] leading-snug">
+                              <span className="font-bold">Dash ({prof.dashName}):</span>{' '}
+                              {prof.dashDescription}
+                            </p>
+
+                            {/* Segmented Skin Switcher Bar when Arcana skin(s) are unlocked */}
+                            {unlockedProfPersonas.length > 0 && (
+                              <div
+                                data-testid={`hero-skin-switcher-${profId}`}
+                                className="mt-2 pt-1.5 border-t border-[#C89D54]/20 flex items-center justify-between gap-1.5 flex-wrap"
+                              >
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-[#DED2F9]/85">
+                                  Skin:
+                                </span>
+                                <div className="inline-flex items-center rounded-[5px] bg-[#0E0A0C]/90 p-0.5 border border-[#C89D54]/35 gap-0.5">
+                                  <button
+                                    type="button"
+                                    data-testid={`hero-skin-default-${profId}`}
+                                    onClick={() => handleSetHeroSkin('adventurer_default')}
+                                    className={cn(
+                                      'px-2 py-0.5 rounded-[3px] text-[10px] font-bold transition-all cursor-pointer',
+                                      !activeProfPersona
+                                        ? 'bg-[#C89D54]/25 text-[#FFF3D1] border border-[#C89D54]/60 shadow-xs'
+                                        : 'text-[#8C8881] hover:text-[#D8D0C2]'
+                                    )}
+                                  >
+                                    Classic
+                                  </button>
+                                  {unlockedProfPersonas.map((persona) => {
+                                    const isThisSkin = activeProfPersona?.id === persona.id;
+                                    return (
+                                      <button
+                                        key={persona.id}
+                                        type="button"
+                                        data-testid={`hero-skin-persona-${persona.id}`}
+                                        onClick={() => handleSetHeroSkin(persona.id)}
+                                        className={cn(
+                                          'px-2 py-0.5 rounded-[3px] text-[10px] font-bold transition-all cursor-pointer truncate max-w-[118px]',
+                                          isThisSkin
+                                            ? 'bg-[#3B1F4E] text-[#F3E8FF] border border-[#C084FC]/70 shadow-[0_0_8px_rgba(192,132,252,0.28)]'
+                                            : 'text-[#A89F91] hover:text-[#DED2F9]'
+                                        )}
+                                      >
+                                        {persona.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-2 border-t border-[#FFFDF0]/10 flex items-center justify-between">
-                          <span className="text-[11px] text-[#FFFDF0]/60">
-                            Starts with {WEAPONS[prof.startingWeaponId]?.name}
+                        <div className="relative z-10 pt-2 border-t border-[#C89D54]/20 flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-[#D8D0C2]/75 truncate">
+                            Starts with <strong className="text-[#FFF3D1] font-semibold">{WEAPONS[prof.startingWeaponId]?.name}</strong>
                           </span>
                           {isUnlocked ? (
                             <button
                               type="button"
+                              data-testid={`select-profession-${profId}`}
                               onClick={() =>
                                 onSelectLoadout({
-                                   professionId: profId,
+                                  professionId: profId,
                                   startingWeaponId: prof.startingWeaponId,
                                 })
                               }
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
                                 isSelected
-                                  ? 'bg-[#6FA36B] text-[#101F12] shadow-sm'
+                                  ? 'bg-[#6FA36B] text-[#101F12] shadow-sm border border-[#A8E6CF]/50'
                                   : 'btn-herbarium-secondary-compact'
                               }`}
                             >
@@ -318,6 +475,7 @@ export function LoadoutAndStoreModal() {
                           ) : (
                             <button
                               type="button"
+                              data-testid={`unlock-profession-${profId}`}
                               disabled={currencies.coins < prof.unlockCostCoins}
                               onClick={() => onUnlockProfession(profId, prof.unlockCostCoins)}
                               className="btn-herbarium-secondary-compact px-3 py-1.5 text-xs text-[#E8B64A] disabled:opacity-40 whitespace-nowrap"

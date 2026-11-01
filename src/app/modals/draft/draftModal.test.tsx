@@ -265,3 +265,117 @@ test('Ornate UI Kit & DraftCard: renders full untranscated arcana titles and ali
   );
   assert.ok(btnMarkup.includes('aria-label="Reroll with Coins — Vault: 160 · 3/3 Left — 40"'));
 });
+
+test('GlowingMushrooms: includes portrait:hidden class so mushrooms are hidden in portrait view', async () => {
+  const { GlowingMushrooms } = await import('./GlowingMushrooms');
+  const leftMarkup = renderToStaticMarkup(<GlowingMushrooms side="left" />);
+  const rightMarkup = renderToStaticMarkup(<GlowingMushrooms side="right" />);
+  assert.ok(leftMarkup.includes('portrait:hidden'));
+  assert.ok(leftMarkup.includes('data-testid="glowing-mushrooms-left"'));
+  assert.ok(rightMarkup.includes('portrait:hidden'));
+  assert.ok(rightMarkup.includes('data-testid="glowing-mushrooms-right"'));
+});
+
+test('HeroPersonasSection styles: reuses StoreItemCard container gradients and inner bevel hairlines', async () => {
+  const {
+    getPersonaCardClassName,
+    getPersonaInnerBevelClassName,
+    getPortraitContainerClassName,
+  } = await import('../HeroPersonasSection.styles');
+
+  assert.ok(getPersonaCardClassName(true, true).includes('border-[#6EE7B7]'));
+  assert.ok(getPersonaCardClassName(false, true).includes('border-[#7D623A]/85'));
+  assert.ok(getPersonaCardClassName(false, false).includes('border-[#4A463E]/70'));
+  assert.equal(getPersonaInnerBevelClassName(true, true), 'border-[#6EE7B7]/38');
+  assert.equal(getPersonaInnerBevelClassName(false, true), 'border-[#C89D54]/28');
+  assert.equal(getPersonaInnerBevelClassName(false, false), 'border-[#5C564C]/22');
+  assert.ok(getPortraitContainerClassName(true).includes('border-[#C89D54]/55'));
+});
+
+test('ChestPickupRenderer, ShockwaveBlastRenderer, and SeedBladesRenderer render ornate botanical geometry without errors', async () => {
+  const { ChestPickupRenderer } = await import('../../../view/renderers/items/ChestPickupRenderer');
+  const { drawShockwaveBlastEffect } = await import('../../../view/renderers/items/ShockwaveBlastRenderer');
+  const { drawSeedBladeProjectile } = await import('../../../view/renderers/weapons/SeedBladesRenderer');
+
+  const calls: string[] = [];
+  const mockGraphics: any = new Proxy(
+    {},
+    {
+      get(_target, prop: string) {
+        return (..._args: unknown[]) => {
+          calls.push(prop);
+          return mockGraphics;
+        };
+      },
+    }
+  );
+
+  // 1. Dropped Tarot Card back item (ChestPickupRenderer)
+  const chestRenderer = new ChestPickupRenderer();
+  assert.equal(chestRenderer.matches({ kind: 'chest' } as any), true);
+  chestRenderer.draw({
+    g: mockGraphics,
+    pickup: { id: 7, kind: 'chest', x: 5, y: 5, value: 1, magnetized: false, pullSpeed: 0 },
+    sim: { elapsedTicks: 120 } as any,
+    px: 240,
+    py: 240,
+  });
+  assert.ok(calls.includes('roundRect'), 'Expected Tarot Card Back rounded rect frame');
+  assert.ok(calls.includes('poly'), 'Expected Tarot Card Back starburst & diamond filigrees');
+
+  // 2. AAA Seismic Shockwave Blast (ShockwaveBlastRenderer)
+  calls.length = 0;
+  drawShockwaveBlastEffect(
+    mockGraphics,
+    {
+      id: 11,
+      kind: 'shockwave_blast',
+      x: 4,
+      y: 4,
+      targetX: 4,
+      targetY: 4,
+      angle: 0.5,
+      radius: 3.0,
+      arcRad: 1,
+      color: 0xfdffb6,
+      timer: 0.3,
+      maxTimer: 0.46,
+    },
+    0.35,
+    0.85
+  );
+  assert.ok(calls.includes('circle'), 'Expected concentric seismic shockwave rings');
+  assert.ok(calls.includes('arc'), 'Expected supersonic segmented shockfront arcs');
+  assert.ok(calls.includes('poly'), 'Expected tectonic shards & epicenter starburst');
+
+  // 3. Silver Sunflower Seed Projectile (SeedBladesRenderer)
+  calls.length = 0;
+  drawSeedBladeProjectile(
+    mockGraphics,
+    {
+      id: 19,
+      isEnemy: false,
+      x: 3,
+      y: 3,
+      prevX: 2.8,
+      prevY: 3,
+      vx: 8,
+      vy: 0,
+      radius: 0.25,
+      damage: 14,
+      isCrit: false,
+      pierceRemaining: 1,
+      lifeTimer: 1.2,
+      color: 0xcbd5e1,
+      weaponTags: ['projectile', 'pierce'],
+      hitEnemyIds: new Set(),
+    },
+    { weapons: [{ id: 'seed_blades', level: 2, evolved: false }] } as any,
+    180,
+    180,
+    12,
+    0
+  );
+  assert.ok(calls.includes('bezierCurveTo'), 'Expected teardrop sunflower seed hull curves');
+  assert.ok(calls.includes('quadraticCurveTo'), 'Expected longitudinal sunflower seed stripes');
+});

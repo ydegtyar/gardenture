@@ -894,6 +894,12 @@
   align-items: center;
 }
 
+@media (orientation: portrait) {
+  [data-testid^="glowing-mushrooms-"] {
+    display: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ornate-firefly-mote,
   .ornate-card-sheen-active {

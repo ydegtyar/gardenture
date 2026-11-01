@@ -366,6 +366,25 @@
   animation: heart-critical-loop 0.65s cubic-bezier(0.25, 0.9, 0.35, 1) infinite;
 }
 
+/* Mobile Portrait Configuration: Increase healthbar line height for crisp readability */
+@media (orientation: portrait) {
+  .hud-healthbar {
+    aspect-ratio: 640 / 156;
+  }
+
+  .hud-healthbar .hp-track {
+    top: 31%;
+    height: 38%;
+  }
+
+  .hud-healthbar .heart-icon {
+    left: 4.9%;
+    top: 22%;
+    width: 10.2%;
+    height: 56%;
+  }
+}
+
 /* Respect reduced motion while preserving color & state indicators */
 @media (prefers-reduced-motion: reduce) {
   .hp-main-fill::before {

@@ -13,10 +13,12 @@ import {
   LazyPersonaDebugSingleButton,
 } from '../debug/LazyDebugComponents';
 import { IS_DEV } from '../debug/devGate';
+import { TrinketCornerFiligreeSvg } from '../trinkets';
 import {
   getEyeDotStyle,
   getPipClassName,
   getPersonaCardClassName,
+  getPersonaInnerBevelClassName,
   getPortraitContainerClassName,
   getPortraitImgClassName,
   getWearButtonClassName,
@@ -494,22 +496,71 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
           const eyeLeftHex = `#${persona.eyeLeftColor.toString(16).padStart(6, '0')}`;
           const eyeRightHex = `#${persona.eyeRightColor.toString(16).padStart(6, '0')}`;
 
+          const filigreeVariant = selected ? 'draft' : 'trinket';
+
           return (
             <div
               key={persona.id}
               data-testid={`persona-card-${persona.id}`}
               data-unlocked={unlocked ? 'true' : 'false'}
-              className={`p-3.5 rounded-xl border-2 flex flex-col justify-between gap-3 transition-colors ${getPersonaCardClassName(
+              className={`relative overflow-hidden rounded-[6px] px-3.5 py-3.5 border flex flex-col justify-between gap-3 transition-all duration-300 ${getPersonaCardClassName(
                 selected,
                 unlocked
               )}`}
             >
-              <div className="flex items-start gap-3 min-w-0">
+              {/* Inner Bevel Hairline Frame (reused from Trinket/Sigil StoreItemCard) */}
+              <div
+                className={`absolute inset-[3px] rounded-[4px] border pointer-events-none z-10 transition-colors duration-300 ${getPersonaInnerBevelClassName(
+                  selected,
+                  unlocked
+                )}`}
+              />
+
+              {/* 4 Ornate Corner Filigree Flourishes (reused from Trinket/Sigil StoreItemCard) */}
+              <TrinketCornerFiligreeSvg
+                position="tl"
+                locked={!unlocked}
+                variant={filigreeVariant}
+                active={selected}
+              />
+              <TrinketCornerFiligreeSvg
+                position="tr"
+                locked={!unlocked}
+                variant={filigreeVariant}
+                active={selected}
+              />
+              <TrinketCornerFiligreeSvg
+                position="bl"
+                locked={!unlocked}
+                variant={filigreeVariant}
+                active={selected}
+              />
+              <TrinketCornerFiligreeSvg
+                position="br"
+                locked={!unlocked}
+                variant={filigreeVariant}
+                active={selected}
+              />
+
+              {/* Atmospheric Glow Backdrop */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: selected
+                    ? 'radial-gradient(circle at 22% 65%, rgba(52, 211, 153, 0.22), transparent 60%)'
+                    : unlocked
+                      ? 'radial-gradient(circle at 22% 70%, rgba(212, 142, 45, 0.16), transparent 58%)'
+                      : 'radial-gradient(circle at 30% 80%, rgba(110, 116, 128, 0.12), transparent 60%)',
+                }}
+              />
+
+              <div className="relative z-10 flex items-start gap-3 min-w-0">
                 <div
-                  className={`relative w-20 h-20 rounded-xl border-2 shrink-0 flex items-center justify-center overflow-hidden p-1 ${getPortraitContainerClassName(
+                  className={`relative w-20 h-20 rounded-[6px] border shrink-0 flex items-center justify-center overflow-hidden p-1.5 ${getPortraitContainerClassName(
                     unlocked
                   )}`}
                 >
+                  <div className="absolute inset-[2px] rounded-[4px] border border-[#FFFDF0]/10 pointer-events-none z-20" />
                   {unlocked && persona.id === 'herbalist_frieren_strange' && (
                     <HitenJadePortraitAuraBackSvg />
                   )}
@@ -540,7 +591,7 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-1.5 mb-0.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#2B1F2D] text-[#FDFFB6] border border-[#FDFFB6]/25">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#18130F] text-[#FDFFB6] border border-[#C89D54]/40">
                       {profName} Arcana Skin
                     </span>
                     {unlocked && (
@@ -621,8 +672,8 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-[#FFFDF0]/10 flex items-center justify-between gap-2">
-                <span className="text-[10px] text-[#FFFDF0]/60 truncate">
+              <div className="relative z-10 pt-2 border-t border-[#C89D54]/20 flex items-center justify-between gap-2">
+                <span className="text-[10px] text-[#D8D0C2]/75 truncate">
                   {unlocked
                     ? persona.subtitle
                     : NO_ADS
@@ -635,7 +686,13 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
                     data-testid={`wear-persona-${persona.id}`}
                     onClick={() => {
                       if (selected) {
-                        onSelectLoadout({ personaId: 'adventurer_default' });
+                        onSelectLoadout({
+                          personaId: 'adventurer_default',
+                          personaByProfession: {
+                            ...(loadout.personaByProfession ?? {}),
+                            [persona.professionId]: 'adventurer_default',
+                          },
+                        });
                       } else {
                         onSelectLoadout({
                           personaId: persona.id,
@@ -643,6 +700,10 @@ export const HeroPersonasSection: React.FC<Props> = ({ sectionNumberLabel }) => 
                           startingWeaponId:
                             PROFESSIONS[persona.professionId]?.startingWeaponId ??
                             loadout.startingWeaponId,
+                          personaByProfession: {
+                            ...(loadout.personaByProfession ?? {}),
+                            [persona.professionId]: persona.id,
+                          },
                         });
                       }
                     }}
