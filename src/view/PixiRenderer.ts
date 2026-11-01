@@ -24,6 +24,10 @@ import { HeroRenderer } from './renderers/HeroRenderer';
 import { EnemyRenderer } from './renderers/EnemyRenderer';
 import { WeaponEffectsRenderer } from './renderers/WeaponEffectsRenderer';
 import {
+  initSporeParticleSystem,
+  destroySporeParticleSystem,
+} from './renderers/weapons/SporePopRenderer';
+import {
   DynamicCamera,
   ZOOM_MAX,
   type CameraUpdateInput,
@@ -221,15 +225,18 @@ export class PixiGameRenderer {
     void preloadPowerUpAtlas();
 
     // Assemble Z-ordered scene graph
+    const sporeParticleContainers = initSporeParticleSystem(this.worldContainer);
     this.worldContainer.addChild(
       this.groundChunkContainer,
       this.decalGraphic,
+      sporeParticleContainers.groundContainer,
       this.telegraphGraphic,
       this.pickupGraphic,
       this.pickupSpriteContainer,
       this.enemyUnderGraphic,
       this.enemySpriteContainer,
       this.enemyOverlayGraphic,
+      sporeParticleContainers.overlayContainer,
       this.heroUnderGraphic,
       this.heroSprite,
       this.heroWeaponGraphic,
@@ -753,6 +760,7 @@ export class PixiGameRenderer {
 
   public destroy(): void {
     this.isDestroyed = true;
+    destroySporeParticleSystem();
     if (this.app) {
       this.app.destroy(
         { removeView: true, releaseGlobalResources: false },

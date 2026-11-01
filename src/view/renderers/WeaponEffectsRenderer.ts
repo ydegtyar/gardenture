@@ -16,6 +16,8 @@ import {
   drawLightningStrikeEffect,
   drawThornTrailHazard,
   drawSporePopGasCloud,
+  updateSporeCloudEmitter,
+  sweepSporeCloudEmitters,
   drawSeedTrapHazard,
 } from './weapons';
 import {
@@ -72,6 +74,15 @@ export class WeaponEffectsRenderer {
           cloudProgress,
           fade,
           h.id,
+          sim.elapsedSeconds
+        );
+        updateSporeCloudEmitter(
+          h.id,
+          hx,
+          hy,
+          rPx,
+          h.lifeTimer > 0.15,
+          0.016,
           sim.elapsedSeconds
         );
       } else if (h.kind === 'seed_trap') {
@@ -254,6 +265,15 @@ export class WeaponEffectsRenderer {
           fx.id,
           sim.elapsedSeconds
         );
+        updateSporeCloudEmitter(
+          fx.id,
+          cx,
+          cy,
+          baseR,
+          progress < 0.85,
+          0.016,
+          sim.elapsedSeconds
+        );
       } else if (fx.kind === 'chain_bolt') {
         let originX = hx;
         let originY = hy;
@@ -338,6 +358,9 @@ export class WeaponEffectsRenderer {
         drawLightningStrikeEffect(g, fx, fade);
       }
     }
+
+    // Sweep any expired spore cloud emitters
+    sweepSporeCloudEmitters(sim.elapsedSeconds);
   }
 
   // Preserve backwards-compatible static methods
