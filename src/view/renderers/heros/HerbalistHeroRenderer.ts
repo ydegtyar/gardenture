@@ -1,13 +1,13 @@
 import { BaseHeroProfessionRenderer } from './BaseHeroProfessionRenderer';
 import { HerbalistCharacter } from './HerbalistCharacter';
-import type { HeroRenderContext, PersonaRenderer } from './types';
+import type { HeroPose, HeroRenderContext, PersonaRenderer } from './types';
 import { attachGardenBladeToHero, drawHeroHalberd } from './weapons';
 
 export * from './HerbalistCharacter';
 
 /**
  * Hero profession renderer strategy for the Herbalist support hero.
- * Integrates the Chunky Chibi Herbalist character into the game's simulation and view pipelines.
+ * Integrates the Procedural Vector Herbalist & Hiten Jade into the game's simulation and view pipelines.
  */
 export class HerbalistHeroRenderer extends BaseHeroProfessionRenderer {
   public readonly professionId = 'herbalist';
@@ -44,7 +44,8 @@ export class HerbalistHeroRenderer extends BaseHeroProfessionRenderer {
     displayFacingAngle: number,
     bodyColor: number,
     accentColor: number,
-    activePersonaRenderer?: PersonaRenderer
+    activePersonaRenderer?: PersonaRenderer,
+    heroPose?: HeroPose
   ): void {
     const isHitenJade = ctx.sim.personaId === 'herbalist_frieren_strange';
     const personaSocket =
@@ -60,6 +61,7 @@ export class HerbalistHeroRenderer extends BaseHeroProfessionRenderer {
 
     attachGardenBladeToHero({
       gOver: ctx.heroWeaponGraphic,
+      gUnder: ctx.heroUnderGraphic,
       hx,
       cy,
       displayFacingAngle,
@@ -71,15 +73,22 @@ export class HerbalistHeroRenderer extends BaseHeroProfessionRenderer {
       bodyColor,
       accentColor,
       customSocket: personaSocket,
+      heroPose,
     });
 
     const spearWpn = ctx.sim.weapons.find((w) => w.id === 'thorn_spear');
     if (spearWpn) {
       const isAttacking = spearWpn.phase !== 'ready';
+      const anchorX = isAttacking
+        ? (heroPose?.sockets.handNear.x ?? hx)
+        : (heroPose?.sockets.back.x ?? hx);
+      const anchorY = isAttacking
+        ? (heroPose?.sockets.handNear.y ?? cy)
+        : (heroPose?.sockets.back.y ?? cy);
       drawHeroHalberd(
         isAttacking ? ctx.heroWeaponGraphic : ctx.heroUnderGraphic,
-        hx,
-        cy,
+        anchorX,
+        anchorY,
         isAttacking ? spearWpn.lockedAngle : displayFacingAngle,
         spearWpn,
         ctx.sim.elapsedSeconds,

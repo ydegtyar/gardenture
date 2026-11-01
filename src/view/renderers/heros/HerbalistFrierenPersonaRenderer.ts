@@ -1,721 +1,368 @@
-import type * as PIXI from 'pixi.js';
-import type { PersonaRenderer, PersonaRenderContext } from './types';
+import * as PIXI from 'pixi.js';
+import { clamp } from '../../../core/math/vec2';
 import type { HeroWeaponSocket } from './GardenBladeAttachment';
+import {
+  drawProceduralHeroBody,
+  HERO_CEL_PALETTES,
+  type PersonaCelPalette,
+} from './rig/CelHeroDrawer';
+import type { HeroGaitStyle, HeroPose, HeroRigProportions } from './rig/HeroRigCore';
+import type { PersonaRenderer, PersonaRenderContext } from './types';
 
-export interface HitenJadeCondensationFacetSample {
+export interface HitenJadeOrbitalSample {
+  /** 0 = Jade Water stream, 1 = Crystalline Ice stream */
+  streamIndex: 0 | 1;
+  /** Head position of the orbital stream relative to (hx, cy) */
+  headX: number;
+  headY: number;
+  /** Depth coordinate in [-1, 1]: < 0 is behind the hero (gUnder), >= 0 is in front (gOver) */
+  depthZ: number;
+  /** Scale multiplier from perspective depth (smaller behind, larger in front) */
+  depthScale: number;
+  /** Trail ribbon points from tail (index 0) to head (last index) relative to (hx, cy) */
+  ribbonPoints: Array<{ x: number; y: number; z: number; alpha: number; width: number }>;
+}
+
+export interface HitenJadeFacetSample {
+  x: number;
+  y: number;
   dx: number;
   dy: number;
-  rx: number;
-  ry: number;
-  tiltRad: number;
+  z: number;
+  isFront: boolean;
+  rotation: number;
   scale: number;
   alpha: number;
-  glintFactor: number;
-  isFront: boolean;
-  fill: number;
-  core: number;
+  isIce: boolean;
 }
 
 export interface HitenJadeVaporPuffSample {
+  x: number;
+  y: number;
   dx: number;
   dy: number;
+  isFront: boolean;
   radiusX: number;
   radiusY: number;
-  curlX: number;
-  curlY: number;
   alpha: number;
-  isFront: boolean;
-  isJade: boolean;
   color: number;
-  coreColor: number;
 }
 
-export interface HitenJadeAuraAnimationSample {
-  /** Primary harmonic sway of the lower ice-blue orbital */
+export interface HitenJadeAuraSample {
   iceSwayX: number;
-  iceLiftY: number;
-  iceBreathWidth: number;
-  /** Primary harmonic sway of the upper diamond-green orbital */
   jadeSwayX: number;
-  jadeLiftY: number;
-  jadeBreathWidth: number;
-  /** Continuous orbital revolution angle (radians) */
-  orbitAngle: number;
-  /** Normalized 0..1 travelling condensation surges along the orbitals */
   flowPulseA: number;
-  flowPulseB: number;
-  flowPulseC: number;
-  /** Shoulder plume curl offset */
-  plumeSwayX: number;
-  plumeLiftY: number;
-  /** Animated diamond condensation facets orbiting along the green & blue orbitals */
-  facets: HitenJadeCondensationFacetSample[];
-  /** Rising wispy water vapor puffs & mist tendrils evaporating from the orbitals */
+  orbitals: [HitenJadeOrbitalSample, HitenJadeOrbitalSample];
+  facets: HitenJadeFacetSample[];
   vaporPuffs: HitenJadeVaporPuffSample[];
 }
 
 /**
- * Pure deterministic animation sampler for Hiten Jade's revolving diamond-green
- * and ice-blue orbitals, orbiting diamond condensation facets, and rising water vapor mist.
+ * Pure deterministic sampler for the Hiten Jade ('herbalist_frieren_strange')
+ * Living Mist-Spring Dew Aura:
+ * - Two counter-tilted 3D elliptical orbital streams (Jade Water & Crystalline Ice)
+ *   that weave behind (`z < 0`) and in front of (`z >= 0`) the hero's body.
+ * - 8 sparkling diamond condensation facets suspended along the orbital paths.
+ * - 10 rising water-vapor puffs & steam tendrils that billow in front and behind.
  */
 export function computeHitenJadeAuraSample(
   elapsedSeconds: number,
   heroVx = 0,
   heroVy = 0
-): HitenJadeAuraAnimationSample {
-  const t = elapsedSeconds;
-  // Reactive trailing lean when moving
-  const velLeanX = Math.max(-4.5, Math.min(4.5, -heroVx * 0.55));
-  const velLeanY = Math.max(-2.8, Math.min(2.8, -heroVy * 0.35));
+): HitenJadeAuraSample {
+  const rx = 20.5;
+  const ry = 7.5;
+  const tiltRad = 0.38; // ~22 deg tilted orbital planes
+  const cosTilt = Math.cos(tiltRad);
+  const sinTilt = Math.sin(tiltRad);
 
-  // Pronounced, fluid 3D orbital undulation & vertical cross-sweep so the two crossing orbitals visibly move
-  const orbitAngle = t * 2.35;
-  const iceSwayX = Math.sin(t * 3.1) * 6.8 + Math.cos(t * 1.85) * 2.4 + velLeanX * 0.7;
-  const iceLiftY = Math.cos(t * 2.65) * 5.2 + Math.sin(t * 4.1) * 1.8 + velLeanY * 0.55;
-  const iceBreathWidth = 1 + 0.22 * Math.sin(t * 3.8);
+  const velDragX = clamp(-heroVx * 0.45, -6, 6);
+  const velDragY = clamp(-heroVy * 0.45, -6, 6);
 
-  const jadeSwayX = -Math.sin(t * 2.95 + 0.9) * 6.8 + Math.sin(t * 2.05) * 2.4 + velLeanX * 0.7;
-  const jadeLiftY = Math.sin(t * 2.75 + 0.65) * 5.2 - Math.cos(t * 3.9) * 1.8 + velLeanY * 0.55;
-  const jadeBreathWidth = 1 + 0.22 * Math.cos(t * 3.6 + 0.7);
+  const iceSwayX = Math.sin(elapsedSeconds * 2.4 + 0.8) * 3.8 + velDragX * 0.5;
+  const jadeSwayX = Math.cos(elapsedSeconds * 2.1 - 0.4) * 3.8 + velDragX * 0.5;
+  const flowPulseA = 0.5 + 0.5 * Math.sin(elapsedSeconds * 4.2);
 
-  const flowPulseA = ((t * 0.95) % 1 + 1) % 1;
-  const flowPulseB = ((t * 0.95 + 0.333) % 1 + 1) % 1;
-  const flowPulseC = ((t * 0.95 + 0.667) % 1 + 1) % 1;
+  const buildOrbital = (streamIndex: 0 | 1): HitenJadeOrbitalSample => {
+    const dir = streamIndex === 0 ? 1 : -1;
+    const planeSign = streamIndex === 0 ? 1 : -1;
+    const baseAngle =
+      elapsedSeconds * 2.5 * dir + (streamIndex === 1 ? Math.PI * 0.65 : 0);
+    const ribbonSegments = 9;
+    const arcSpan = 1.35;
+    const ribbonPoints: Array<{
+      x: number;
+      y: number;
+      z: number;
+      alpha: number;
+      width: number;
+    }> = [];
 
-  const plumeSwayX = Math.sin(t * 3.5) * 4.6 + velLeanX * 0.85;
-  const plumeLiftY = Math.cos(t * 2.8) * 3.6;
+    for (let s = 0; s <= ribbonSegments; s++) {
+      const frac = s / ribbonSegments; // 0 = tail, 1 = head
+      const theta = baseAngle - dir * (1 - frac) * arcSpan;
 
-  // 8 diamond condensation facets (4 orbiting along the tilted Emerald-Jade orbital, 4 along the tilted Glacier-Blue orbital)
-  const facets: HitenJadeCondensationFacetSample[] = [];
-  for (let i = 0; i < 8; i++) {
-    const isJade = i % 2 === 0;
-    const ringIndex = Math.floor(i / 2); // 0..3 around each orbital ring
-    const direction = isJade ? 1 : -1;
-    const theta =
-      t * 2.25 * direction +
-      ringIndex * (Math.PI * 0.5) +
-      (isJade ? 0.25 : 1.05);
+      const rawX = Math.cos(theta) * rx;
+      const rawY = Math.sin(theta) * ry;
+      const z = Math.sin(theta);
 
-    const cosT = Math.cos(theta);
-    const sinT = Math.sin(theta);
+      const rotX = rawX * cosTilt - rawY * (sinTilt * planeSign);
+      const rotY = rawX * (sinTilt * planeSign) + rawY * cosTilt - 2.0;
 
-    // Tilted 3D orbital ellipse matching the crossing green & blue orbitals indicated on the screenshot
-    const tiltSlope = isJade ? 0.42 : -0.42;
-    const radiusX = 23.5 + Math.sin(t * 3.0 + i) * 2.2;
-    const swayX = isJade ? jadeSwayX * 0.38 : iceSwayX * 0.38;
-    const liftY = isJade ? jadeLiftY * 0.38 : iceLiftY * 0.38;
+      const tailFactor = 1 - frac;
+      const px = rotX + velDragX * tailFactor;
+      const py = rotY + velDragY * tailFactor;
 
-    const dx = cosT * radiusX + swayX + velLeanX * 0.4;
-    const dy =
-      -1.5 +
-      cosT * radiusX * tiltSlope +
-      sinT * 6.8 +
-      liftY +
-      Math.sin(t * 4.2 + i * 1.3) * 1.4;
+      const depthScale = 0.82 + 0.24 * ((z + 1) * 0.5);
+      ribbonPoints.push({
+        x: px,
+        y: py,
+        z,
+        alpha: (0.12 + 0.78 * Math.pow(frac, 1.4)) * (z < 0 ? 0.78 : 0.96),
+        width: (1.0 + 3.4 * Math.pow(frac, 1.2)) * depthScale,
+      });
+    }
 
-    const depth = (sinT + 1) * 0.5; // 0 = furthest back, 1 = furthest front
-    const pulse = 0.5 + 0.5 * Math.sin(t * 5.0 + i * 1.57);
-    const scale = (0.76 + 0.34 * depth) * (0.88 + 0.22 * pulse);
-    const tiltRad = Math.sin(theta) * 0.28 + (isJade ? -0.18 : 0.18);
+    const head = ribbonPoints[ribbonPoints.length - 1]!;
+    const headDepthScale = 0.82 + 0.24 * ((head.z + 1) * 0.5);
+
+    return {
+      streamIndex,
+      headX: head.x,
+      headY: head.y,
+      depthZ: head.z,
+      depthScale: headDepthScale,
+      ribbonPoints,
+    };
+  };
+
+  const orbital0 = buildOrbital(0);
+  const orbital1 = buildOrbital(1);
+
+  // 8 diamond condensation facets orbiting full-circle between front and back hemispheres
+  const facets: HitenJadeFacetSample[] = [];
+  const facetCount = 8;
+  for (let i = 0; i < facetCount; i++) {
+    const phase = elapsedSeconds * 2.35 + (i * Math.PI * 2) / facetCount;
+    const z = Math.sin(phase);
+    const isFront = z >= 0;
+    const bobY = Math.sin(elapsedSeconds * 3.1 + i * 1.7) * 2.4;
+    const fx = Math.cos(phase) * (rx * 1.06) + velDragX * 0.35;
+    const fy = z * (ry * 0.75) - 3.5 + bobY + velDragY * 0.35;
+    const twinkle = 0.5 + 0.5 * Math.sin(elapsedSeconds * 5.4 + i * 2.1);
 
     facets.push({
-      dx,
-      dy,
-      rx: 2.6,
-      ry: 3.9,
-      tiltRad,
-      scale,
-      alpha: (0.58 + 0.42 * depth) * (0.84 + 0.16 * pulse),
-      glintFactor: sinT >= -0.1 ? Math.max(0, (pulse - 0.52) / 0.48) : 0,
-      isFront: sinT >= 0,
-      fill: isJade ? 0x10b981 : 0x38bdf8,
-      core: isJade ? 0xa7f3d0 : 0xe0f2fe,
+      x: fx,
+      y: fy,
+      dx: fx,
+      dy: fy,
+      z,
+      isFront,
+      rotation: elapsedSeconds * (i % 2 === 0 ? 1.8 : -1.8) + i,
+      scale: (0.65 + 0.45 * twinkle) * (z < 0 ? 0.82 : 1.05),
+      alpha: (0.45 + 0.5 * twinkle) * (z < 0 ? 0.72 : 0.95),
+      isIce: i % 2 === 1,
     });
   }
 
-  // 10 continuous rising wispy water vapor puffs & mist tendrils evaporating upward from the orbitals
+  // 10 rising wispy water vapor puffs & steam tendrils billowing both in front and behind
   const vaporPuffs: HitenJadeVaporPuffSample[] = [];
   const puffCount = 10;
   for (let p = 0; p < puffCount; p++) {
-    const isJade = p % 2 === 0;
-    const cycleRate = 0.62 + (p % 3) * 0.11;
-    const lifePhase = ((t * cycleRate + p / puffCount) % 1 + 1) % 1; // 0 (bottom of coil) -> 1 (evaporated above crown)
-    const env = Math.sin(lifePhase * Math.PI); // Smooth fade-in and fade-out
-
-    // Spawn around the orbital ring and rise upward while curling in S-waves
-    const spawnAngle = p * ((Math.PI * 2) / puffCount) + t * 0.85 * (isJade ? 1 : -1);
-    const baseRingX = Math.cos(spawnAngle) * 20.5;
-    const waveDriftX =
-      Math.sin(lifePhase * Math.PI * 2.2 + t * 3.2 + p) * 5.2 +
-      (isJade ? jadeSwayX * 0.3 : iceSwayX * 0.3) +
-      velLeanX * (0.4 + lifePhase * 0.6);
-
-    const dx = baseRingX + waveDriftX;
-    // Ascend from lower robe (+13) up past the head/shoulders (-27)
-    const dy = 13.0 - lifePhase * 40.0 + Math.sin(spawnAngle) * 3.5 + velLeanY * 0.4;
-
-    const growth = 0.65 + lifePhase * 0.85;
-    const radiusX = (4.2 + (p % 3) * 1.1) * growth;
-    const radiusY = (2.6 + (p % 2) * 0.8) * growth;
-    const curlX = Math.cos(t * 3.6 + p * 1.7) * 5.5;
-    const curlY = -4.5 - lifePhase * 4.5;
+    const cycle = (elapsedSeconds * 0.75 + p / puffCount) % 1.0;
+    const fade = Math.sin(cycle * Math.PI);
+    const spreadAngle = (p * Math.PI * 2) / puffCount + elapsedSeconds * 0.4;
+    const puffX =
+      Math.cos(spreadAngle) * (9.5 + cycle * 5.0) + velDragX * cycle * 0.8;
+    const puffY = 9.5 - cycle * 11.0 + velDragY * cycle * 0.5;
+    const isFront = Math.sin(spreadAngle) >= 0;
 
     vaporPuffs.push({
-      dx,
-      dy,
-      radiusX,
-      radiusY,
-      curlX,
-      curlY,
-      alpha: (0.28 + 0.24 * (p % 2)) * env,
-      isFront: Math.sin(spawnAngle) >= -0.15,
-      isJade,
-      color: isJade ? 0x10b981 : 0x38bdf8,
-      coreColor: isJade ? 0xa7f3d0 : 0xe0f2fe,
+      x: puffX,
+      y: puffY,
+      dx: puffX,
+      dy: puffY,
+      isFront,
+      radiusX: 5.5 + cycle * 5.5,
+      radiusY: 2.6 + cycle * 2.2,
+      alpha: 0.32 * fade,
+      color: p % 2 === 0 ? 0x6ee7b7 : 0xbae6fd,
     });
   }
 
   return {
     iceSwayX,
-    iceLiftY,
-    iceBreathWidth,
     jadeSwayX,
-    jadeLiftY,
-    jadeBreathWidth,
-    orbitAngle,
     flowPulseA,
-    flowPulseB,
-    flowPulseC,
-    plumeSwayX,
-    plumeLiftY,
+    orbitals: [orbital0, orbital1],
     facets,
     vaporPuffs,
   };
 }
 
-function cubicBezierPoint(
-  t: number,
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  x3: number,
-  y3: number
-): { x: number; y: number } {
-  const u = 1 - t;
-  const tt = t * t;
-  const uu = u * u;
-  const uuu = uu * u;
-  const ttt = tt * t;
-  return {
-    x: uuu * x0 + 3 * uu * t * x1 + 3 * u * tt * x2 + ttt * x3,
-    y: uuu * y0 + 3 * uu * t * y1 + 3 * u * tt * y2 + ttt * y3,
-  };
-}
-
-function drawCondensationDiamondFacet(
-  g: PIXI.Graphics,
-  vx: number,
-  vy: number,
-  facet: HitenJadeCondensationFacetSample
-): void {
-  const rx = facet.rx * facet.scale;
-  const ry = facet.ry * facet.scale;
-  const cosT = Math.cos(facet.tiltRad);
-  const sinT = Math.sin(facet.tiltRad);
-
-  const topX = vx + sinT * ry;
-  const topY = vy - cosT * ry;
-  const rightX = vx + cosT * rx;
-  const rightY = vy + sinT * rx;
-  const botX = vx - sinT * ry;
-  const botY = vy + cosT * ry;
-  const leftX = vx - cosT * rx;
-  const leftY = vy - sinT * rx;
-
-  // Soft outer vapor condensation halo around each diamond facet
-  g.circle(vx, vy, Math.max(rx, ry) * 1.2).fill({
-    color: facet.fill,
-    alpha: 0.24 * facet.alpha,
-  });
-
-  // Outer diamond body with crisp cel outline matching the character art
-  g.moveTo(topX, topY)
-    .lineTo(rightX, rightY)
-    .lineTo(botX, botY)
-    .lineTo(leftX, leftY)
-    .closePath()
-    .fill({ color: facet.fill, alpha: 0.94 * facet.alpha })
-    .stroke({ color: 0x2d1e2f, width: 1.35, alpha: 0.9 * facet.alpha, join: 'round' });
-
-  // Inner crystalline facet core
-  const irx = rx * 0.54;
-  const iry = ry * 0.54;
-  g.moveTo(vx + sinT * iry, vy - cosT * iry)
-    .lineTo(vx + cosT * irx, vy + sinT * irx)
-    .lineTo(vx - sinT * iry, vy + cosT * iry)
-    .lineTo(vx - cosT * irx, vy - sinT * irx)
-    .closePath()
-    .fill({ color: facet.core, alpha: 0.98 * facet.alpha });
-
-  // High-grade 4-point star glint when condensation facet shimmers at peak phase
-  if (facet.glintFactor > 0.05) {
-    const glintLen = (ry + 2.4) * (0.65 + 0.55 * facet.glintFactor);
-    const glintAlpha = 0.85 * facet.glintFactor * facet.alpha;
-    g.moveTo(vx - glintLen, vy)
-      .lineTo(vx + glintLen, vy)
-      .moveTo(vx, vy - glintLen)
-      .lineTo(vx, vy + glintLen)
-      .stroke({
-        color: 0xffffff,
-        width: 1.35,
-        alpha: glintAlpha,
-        cap: 'round',
-      });
-  }
-}
-
-function drawVaporPuffAndWisp(
-  g: PIXI.Graphics,
-  hx: number,
-  cy: number,
-  puff: HitenJadeVaporPuffSample
-): void {
-  const px = hx + puff.dx;
-  const py = cy + puff.dy;
-
-  // Soft billowing water vapor cloud puff
-  g.ellipse(px, py, puff.radiusX, puff.radiusY).fill({
-    color: puff.color,
-    alpha: puff.alpha * 0.55,
-  });
-  g.ellipse(px + puff.curlX * 0.22, py - 0.8, puff.radiusX * 0.62, puff.radiusY * 0.62).fill({
-    color: puff.coreColor,
-    alpha: puff.alpha * 0.72,
-  });
-
-  // Rising S-curve wispy steam tendril trailing upward from the vapor puff
-  g.moveTo(px - puff.curlX * 0.35, py + puff.radiusY * 0.5)
-    .quadraticCurveTo(
-      px + puff.curlX * 0.65,
-      py + puff.curlY * 0.45,
-      px - puff.curlX * 0.25,
-      py + puff.curlY
-    )
-    .stroke({
-      color: puff.coreColor,
-      width: 2.1,
-      alpha: puff.alpha * 0.85,
-      cap: 'round',
-    });
-}
-
 /**
- * Hiten Jade persona aura renderer (Mist-Spring Dew Weaver of the Jade Sanctuary):
- * - No spinning mechanical orbs, no pulsing spheres on sprite, and no duplicate mouth rhombus.
- * - High-grade animated emerald-jade and glacier-blue crossing orbitals that revolve and wave around the hero.
- * - Orbiting crystalline diamond condensation facets travelling along the orbitals.
- * - Rising, billowing wispy water vapor clouds and steam tendrils.
+ * Hiten Jade ('herbalist_frieren_strange') Persona Renderer — Reference Implementation:
+ * - Full procedural vector rig & cel-shaded body (`drawVectorBody`) with silver-white
+ *   twin-tails driven by deterministic fixed-step spring physics, cerulean dress-robe,
+ *   snowy frost capelet, and golden brooch.
+ * - Suppresses the base Herbalist's wooden stick with hand (`suppressDefaultWeapon = true`).
+ * - When Garden Blade is drafted, attaches the Garden Blade to her `handNear` socket
+ *   with cerulean-blue mage sleeves and snowy frost cuffs.
+ * - Surrounds Hiten Jade with a 3D depth-sorted Living Mist-Spring Dew Aura (`gUnder` & `gOver`).
  */
 export class HerbalistFrierenPersonaRenderer implements PersonaRenderer {
   public readonly id = 'herbalist_frieren_strange';
-
-  /**
-   * Hiten Jade does not use a wooden staff; her hands channel living mist-spring dew.
-   * The Herbalist's default wooden stick with hand is suppressed completely.
-   */
   public readonly suppressDefaultWeapon = true;
   public readonly hasDefaultWeapon = false;
+  public readonly palette: PersonaCelPalette =
+    HERO_CEL_PALETTES.herbalist_frieren_strange!;
+  public readonly gaitStyle: HeroGaitStyle = 'serene';
+  public readonly rigProportions: Partial<HeroRigProportions> = {
+    pelvisHeight: 10.8,
+    torsoLength: 14.2,
+    chestWidth: 12.6,
+    hipWidth: 10.4,
+    headRadius: 10.6,
+    strideLength: 7.2,
+    strideFrequency: 0.22,
+    bobAmplitude: 1.35,
+    leanMultiplier: 0.026,
+  };
 
   /**
-   * Weapon socket configuration when Hiten Jade equips the Garden Blade card.
-   * Matches her frost-trimmed cerulean robe and porcelain skin.
+   * Custom weapon socket for Hiten Jade when she equips the Garden Blade:
+   * - Uses her cerulean-blue dress sleeve (`0x0284c7`), snowy frost white cuff (`0xf8fafc`),
+   *   and soft porcelain skin (`0xffe4d6`).
+   * - `drawDefaultWeapon` is explicitly `undefined` so she NEVER carries the wooden stick.
    */
   public readonly weaponSocket: Partial<HeroWeaponSocket> = {
-    sleeveColor: 0x0284c7, // Cerulean blue dress-robe
-    cuffColor: 0xf8fafc,   // Snowy frost white cuff
-    handColor: 0xffe4d6,   // Soft porcelain peach skin
+    handRestX: 12.5,
+    handRestY: 4.8,
+    socketX: 12.5,
+    socketY: 4.8,
+    shoulderX: 8.5,
+    shoulderY: 0.8,
+    sleeveColor: 0x0284c7,
+    cuffColor: 0xf8fafc,
+    handColor: 0xffe4d6,
     drawDefaultWeapon: undefined,
   };
 
+  /**
+   * Renders Hiten Jade's procedural cel-shaded vector body, twin-tails, and mage attire
+   * without any sprites or negative scale mirroring.
+   */
+  public drawVectorBody(
+    gUnder: PIXI.Graphics,
+    gOver: PIXI.Graphics,
+    pose: HeroPose,
+    _elapsedSeconds: number
+  ): void {
+    drawProceduralHeroBody(
+      gUnder,
+      gOver,
+      pose,
+      this.palette,
+      this.rigProportions.headRadius ?? 10.6
+    );
+  }
+
   public drawAura(ctx: PersonaRenderContext): void {
     const { gUnder, gOver, hx, cy, groundY, elapsedSeconds, heroVx, heroVy } = ctx;
-    const t = elapsedSeconds;
-    const sample = computeHitenJadeAuraSample(t, heroVx, heroVy);
+    const sample = computeHitenJadeAuraSample(elapsedSeconds, heroVx, heroVy);
 
-    // =========================================================================
-    // 1. BACK ORBITAL ARCS & RISING WATER VAPOR MIST (gUnder - behind body)
-    // =========================================================================
+    // 1. Subtle Mist-Spring Ground Shimmer & Rising Vapor Puffs (depth-sorted between gUnder & gOver)
+    const groundPulse = 0.85 + 0.15 * Math.sin(elapsedSeconds * 3.2);
+    gUnder
+      .ellipse(hx, groundY + 10.5, 17.5 * groundPulse, 7.2 * groundPulse)
+      .fill({ color: 0x0d9488, alpha: 0.18 })
+      .stroke({ color: 0x5eead4, width: 1.3, alpha: 0.42 });
 
-    // 1A. Back-hemisphere rising wispy water vapor puffs & steam tendrils
     for (const puff of sample.vaporPuffs) {
-      if (!puff.isFront) {
-        drawVaporPuffAndWisp(gUnder, hx, cy, puff);
+      const targetG = puff.isFront ? gOver : gUnder;
+      targetG
+        .ellipse(hx + puff.x, cy + puff.y, puff.radiusX, puff.radiusY)
+        .fill({ color: puff.color, alpha: puff.alpha });
+    }
+
+    // 2. Depth-Sorted 3D Crossing Orbital Ribbons (z < 0 -> gUnder, z >= 0 -> gOver)
+    for (const orb of sample.orbitals) {
+      const isJade = orb.streamIndex === 0;
+      const outerColor = isJade ? 0x10b981 : 0x38bdf8;
+      const innerColor = isJade ? 0x6ee7b7 : 0xbae6fd;
+      const coreColor = 0xffffff;
+
+      const pts = orb.ribbonPoints;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i]!;
+        const p1 = pts[i + 1]!;
+        const targetG = (p0.z + p1.z) * 0.5 < 0 ? gUnder : gOver;
+
+        targetG
+          .moveTo(hx + p0.x, cy + p0.y)
+          .lineTo(hx + p1.x, cy + p1.y)
+          .stroke({
+            color: outerColor,
+            width: p1.width * 1.45,
+            alpha: p1.alpha * 0.52,
+            cap: 'round',
+          });
+
+        targetG
+          .moveTo(hx + p0.x, cy + p0.y)
+          .lineTo(hx + p1.x, cy + p1.y)
+          .stroke({
+            color: innerColor,
+            width: p1.width * 0.72,
+            alpha: p1.alpha * 0.92,
+            cap: 'round',
+          });
       }
+
+      // 3. Sculpted Teardrop Dew / Ice Droplet at the Head of Each Orbital Stream
+      const headG = orb.depthZ < 0 ? gUnder : gOver;
+      const dhx = hx + orb.headX;
+      const dhy = cy + orb.headY;
+      const r = 3.6 * orb.depthScale;
+
+      headG
+        .circle(dhx, dhy, r * 1.9)
+        .fill({ color: innerColor, alpha: orb.depthZ < 0 ? 0.22 : 0.34 });
+
+      headG
+        .circle(dhx, dhy, r)
+        .fill({ color: innerColor, alpha: 0.96 })
+        .stroke({ color: 0x0f172a, width: 1.4, alpha: 0.85 });
+
+      headG
+        .circle(dhx - r * 0.3, dhy - r * 0.3, r * 0.42)
+        .fill({ color: coreColor, alpha: 0.98 });
     }
 
-    // 1B. Cyclic ascending mist wisp rings that rise from hem to crown behind the silhouette
-    for (let m = 0; m < 4; m++) {
-      const mPhase = ((t * 0.58 + m / 4) % 1 + 1) % 1;
-      const env = Math.sin(mPhase * Math.PI);
-      const my = groundY + 6 - mPhase * 36;
-      const mHalfW = 17 + Math.sin(mPhase * Math.PI * 1.6 + m) * 7.5;
-      const mWaveY = Math.sin(t * 3.8 + m * 1.9) * 3.8;
-      const mColor = m % 2 === 0 ? 0x38bdf8 : 0x10b981;
-      const mCore = m % 2 === 0 ? 0xe0f2fe : 0xa7f3d0;
-
-      gUnder
-        .moveTo(hx - mHalfW, my + 2)
-        .quadraticCurveTo(hx + (m % 2 === 0 ? 6 : -6), my - 5.5 + mWaveY, hx + mHalfW, my - 1)
-        .stroke({
-          color: mColor,
-          width: 5.8 * env,
-          alpha: 0.34 * env,
-          cap: 'round',
-        });
-      gUnder
-        .moveTo(hx - mHalfW * 0.84, my + 1)
-        .quadraticCurveTo(
-          hx + (m % 2 === 0 ? 4.5 : -4.5),
-          my - 4.8 + mWaveY,
-          hx + mHalfW * 0.84,
-          my - 0.5
-        )
-        .stroke({
-          color: mCore,
-          width: 2.2 * env,
-          alpha: 0.72 * env,
-          cap: 'round',
-        });
-    }
-
-    // 1C. Back Helical Orbital Arcs (undulating counter-revolving orbital ribbons behind body)
-    const bIceX0 = hx - 20 + sample.iceSwayX * 0.55;
-    const bIceY0 = groundY + 6 + sample.iceLiftY * 0.45;
-    const bIceX1 = hx - 31 - sample.iceSwayX * 0.95;
-    const bIceY1 = cy + 7 + sample.iceLiftY * 0.85;
-    const bIceX2 = hx + 31 + sample.iceSwayX * 0.95;
-    const bIceY2 = cy - 3 - sample.iceLiftY * 0.85;
-    const bIceX3 = hx + 20 - sample.iceSwayX * 0.55;
-    const bIceY3 = cy - 16 + sample.iceLiftY * 0.5;
-
-    const bJadeX0 = hx + 20 + sample.jadeSwayX * 0.55;
-    const bJadeY0 = groundY + 5 + sample.jadeLiftY * 0.45;
-    const bJadeX1 = hx + 30 - sample.jadeSwayX * 0.95;
-    const bJadeY1 = cy + 5 + sample.jadeLiftY * 0.85;
-    const bJadeX2 = hx - 30 + sample.jadeSwayX * 0.95;
-    const bJadeY2 = cy - 5 - sample.jadeLiftY * 0.85;
-    const bJadeX3 = hx - 20 - sample.jadeSwayX * 0.55;
-    const bJadeY3 = cy - 17 + sample.jadeLiftY * 0.5;
-
-    // Outer soft translucent vapor bands behind legs, torso, and shoulders
-    gUnder
-      .moveTo(bIceX0, bIceY0)
-      .bezierCurveTo(bIceX1, bIceY1, bIceX2, bIceY2, bIceX3, bIceY3)
-      .stroke({
-        color: 0x38bdf8,
-        width: 10.4 * sample.iceBreathWidth,
-        alpha: 0.34,
-        cap: 'round',
-        join: 'round',
-      });
-    gUnder
-      .moveTo(bJadeX0, bJadeY0)
-      .bezierCurveTo(bJadeX1, bJadeY1, bJadeX2, bJadeY2, bJadeX3, bJadeY3)
-      .stroke({
-        color: 0x10b981,
-        width: 10.0 * sample.jadeBreathWidth,
-        alpha: 0.32,
-        cap: 'round',
-        join: 'round',
-      });
-
-    // Mid-layer sculpted back orbitals
-    gUnder
-      .moveTo(bIceX0 + 0.8, bIceY0)
-      .bezierCurveTo(bIceX1 + 1.5, bIceY1, bIceX2 - 1.5, bIceY2, bIceX3 - 0.8, bIceY3)
-      .stroke({
-        color: 0x7dd3fc,
-        width: 5.5 * sample.iceBreathWidth,
-        alpha: 0.68,
-        cap: 'round',
-        join: 'round',
-      });
-    gUnder
-      .moveTo(bJadeX0 - 0.8, bJadeY0)
-      .bezierCurveTo(bJadeX1 - 1.5, bJadeY1, bJadeX2 + 1.5, bJadeY2, bJadeX3 + 0.8, bJadeY3)
-      .stroke({
-        color: 0x34d399,
-        width: 5.3 * sample.jadeBreathWidth,
-        alpha: 0.66,
-        cap: 'round',
-        join: 'round',
-      });
-
-    // Inner bright frost & jade core filaments on back orbitals
-    gUnder
-      .moveTo(bIceX0 + 1.2, bIceY0)
-      .bezierCurveTo(bIceX1 + 2.0, bIceY1, bIceX2 - 2.0, bIceY2, bIceX3 - 1.0, bIceY3)
-      .stroke({
-        color: 0xe0f2fe,
-        width: 2.2,
-        alpha: 0.86,
-        cap: 'round',
-        join: 'round',
-      });
-    gUnder
-      .moveTo(bJadeX0 - 1.2, bJadeY0)
-      .bezierCurveTo(bJadeX1 - 2.0, bJadeY1, bJadeX2 + 2.0, bJadeY2, bJadeX3 + 1.0, bJadeY3)
-      .stroke({
-        color: 0xa7f3d0,
-        width: 2.2,
-        alpha: 0.86,
-        cap: 'round',
-        join: 'round',
-      });
-
-    // 1D. Animated Wispy Upper Vapor Plumes curling & unfurling behind left & right shoulders
-    const lPlumeTipX = hx - 12 + sample.plumeSwayX;
-    const lPlumeTipY = cy - 30 + sample.plumeLiftY;
-    const lPlumeCtrl1X = hx - 28 - sample.plumeSwayX * 0.8;
-    const lPlumeCtrl1Y = cy - 16 + sample.plumeLiftY * 0.6;
-    const lPlumeCtrl2X = hx - 23 + sample.plumeSwayX * 0.95;
-    const lPlumeCtrl2Y = cy - 27 - sample.plumeLiftY * 0.7;
-
-    gUnder
-      .moveTo(hx - 15, cy - 8)
-      .bezierCurveTo(lPlumeCtrl1X, lPlumeCtrl1Y, lPlumeCtrl2X, lPlumeCtrl2Y, lPlumeTipX, lPlumeTipY)
-      .stroke({ color: 0x38bdf8, width: 6.2 * sample.iceBreathWidth, alpha: 0.52, cap: 'round' });
-    gUnder
-      .moveTo(hx - 15, cy - 8)
-      .bezierCurveTo(
-        lPlumeCtrl1X + 1,
-        lPlumeCtrl1Y,
-        lPlumeCtrl2X + 1,
-        lPlumeCtrl2Y + 1,
-        lPlumeTipX,
-        lPlumeTipY
-      )
-      .stroke({ color: 0xe0f2fe, width: 2.4, alpha: 0.9, cap: 'round' });
-
-    const rPlumeTipX = hx + 12 - sample.plumeSwayX;
-    const rPlumeTipY = cy - 30 - sample.plumeLiftY;
-    const rPlumeCtrl1X = hx + 28 + sample.plumeSwayX * 0.8;
-    const rPlumeCtrl1Y = cy - 16 - sample.plumeLiftY * 0.6;
-    const rPlumeCtrl2X = hx + 23 - sample.plumeSwayX * 0.95;
-    const rPlumeCtrl2Y = cy - 27 + sample.plumeLiftY * 0.7;
-
-    gUnder
-      .moveTo(hx + 15, cy - 8)
-      .bezierCurveTo(rPlumeCtrl1X, rPlumeCtrl1Y, rPlumeCtrl2X, rPlumeCtrl2Y, rPlumeTipX, rPlumeTipY)
-      .stroke({ color: 0x10b981, width: 6.2 * sample.jadeBreathWidth, alpha: 0.52, cap: 'round' });
-    gUnder
-      .moveTo(hx + 15, cy - 8)
-      .bezierCurveTo(
-        rPlumeCtrl1X - 1,
-        rPlumeCtrl1Y,
-        rPlumeCtrl2X - 1,
-        rPlumeCtrl2Y + 1,
-        rPlumeTipX,
-        rPlumeTipY
-      )
-      .stroke({ color: 0xa7f3d0, width: 2.4, alpha: 0.9, cap: 'round' });
-
-    // Render back-hemisphere orbiting diamond condensation facets on gUnder
+    // 4. Sparkling Diamond Condensation Facets (depth-sorted between gUnder and gOver)
     for (const facet of sample.facets) {
-      if (!facet.isFront) {
-        drawCondensationDiamondFacet(gUnder, hx + facet.dx, cy + facet.dy, facet);
-      }
-    }
+      const targetG = facet.z < 0 ? gUnder : gOver;
+      const fx = hx + facet.x;
+      const fy = cy + facet.y;
+      const s = 3.2 * facet.scale;
+      const color = facet.isIce ? 0xe0f2fe : 0xa7f3d0;
+      const rimColor = facet.isIce ? 0x38bdf8 : 0x10b981;
 
-    // =========================================================================
-    // 2. FRONT CROSSING ORBITALS, FLOWING VAPOR STREAMS & FACETS (gOver)
-    // =========================================================================
+      const cosR = Math.cos(facet.rotation);
+      const sinR = Math.sin(facet.rotation);
+      const dx1 = cosR * s;
+      const dy1 = sinR * s;
+      const dx2 = -sinR * (s * 0.58);
+      const dy2 = cosR * (s * 0.58);
 
-    // 2A. Right-to-Left / Lower-to-Upper Glacier-Blue Orbital Ribbon (indicated by right arrow)
-    const fIceX0 = hx - 22 + sample.iceSwayX * 0.6;
-    const fIceY0 = groundY + 4 + sample.iceLiftY * 0.55;
-    const fIceX1 = hx - 9 + sample.iceSwayX * 0.95;
-    const fIceY1 = groundY + 11 - sample.iceLiftY * 0.9;
-    const fIceX2 = hx + 15 - sample.iceSwayX * 0.85;
-    const fIceY2 = cy + 9 + sample.iceLiftY * 0.95;
-    const fIceX3 = hx + 23 + sample.iceSwayX * 0.7;
-    const fIceY3 = cy - 2 + sample.iceLiftY * 0.6;
-    const fIceX4 = hx + 28 + sample.plumeSwayX * 0.8;
-    const fIceY4 = cy - 8 + sample.iceLiftY * 0.5;
-    const fIceX5 = hx + 21 - sample.plumeSwayX * 0.6;
-    const fIceY5 = cy - 15 - sample.iceLiftY * 0.5;
-    const fIceX6 = hx + 14 + sample.plumeSwayX * 0.45;
-    const fIceY6 = cy - 19 + sample.plumeLiftY * 0.5;
-
-    gOver
-      .moveTo(fIceX0, fIceY0)
-      .bezierCurveTo(fIceX1, fIceY1, fIceX2, fIceY2, fIceX3, fIceY3)
-      .bezierCurveTo(fIceX4, fIceY4, fIceX5, fIceY5, fIceX6, fIceY6)
-      .stroke({
-        color: 0x0284c7,
-        width: 10.5 * sample.iceBreathWidth,
-        alpha: 0.34,
-        cap: 'round',
-        join: 'round',
-      });
-    gOver
-      .moveTo(fIceX0, fIceY0)
-      .bezierCurveTo(fIceX1, fIceY1, fIceX2, fIceY2, fIceX3, fIceY3)
-      .bezierCurveTo(fIceX4, fIceY4, fIceX5, fIceY5, fIceX6, fIceY6)
-      .stroke({
-        color: 0x38bdf8,
-        width: 5.8 * sample.iceBreathWidth,
-        alpha: 0.82,
-        cap: 'round',
-        join: 'round',
-      });
-    gOver
-      .moveTo(fIceX0 + 1.5, fIceY0)
-      .bezierCurveTo(fIceX1 + 1, fIceY1 - 1, fIceX2 - 1, fIceY2 - 1, fIceX3 - 1, fIceY3)
-      .bezierCurveTo(fIceX4 - 1.5, fIceY4 + 1, fIceX5 - 1, fIceY5 + 1, fIceX6, fIceY6)
-      .stroke({
-        color: 0xe0f2fe,
-        width: 2.35,
-        alpha: 0.96,
-        cap: 'round',
-        join: 'round',
-      });
-
-    // 2B. Left-to-Right / Upper-to-Lower Emerald-Jade Orbital Ribbon (indicated by left arrow)
-    const fJadeX0 = hx + 22 + sample.jadeSwayX * 0.6;
-    const fJadeY0 = groundY + 3 + sample.jadeLiftY * 0.55;
-    const fJadeX1 = hx + 11 + sample.jadeSwayX * 0.95;
-    const fJadeY1 = cy + 12 - sample.jadeLiftY * 0.9;
-    const fJadeX2 = hx - 15 - sample.jadeSwayX * 0.85;
-    const fJadeY2 = cy + 5 + sample.jadeLiftY * 0.95;
-    const fJadeX3 = hx - 23 + sample.jadeSwayX * 0.7;
-    const fJadeY3 = cy - 4 + sample.jadeLiftY * 0.6;
-    const fJadeX4 = hx - 28 - sample.plumeSwayX * 0.8;
-    const fJadeY4 = cy - 10 + sample.jadeLiftY * 0.5;
-    const fJadeX5 = hx - 20 + sample.plumeSwayX * 0.6;
-    const fJadeY5 = cy - 17 - sample.jadeLiftY * 0.5;
-    const fJadeX6 = hx - 12 - sample.plumeSwayX * 0.45;
-    const fJadeY6 = cy - 21 - sample.plumeLiftY * 0.5;
-
-    gOver
-      .moveTo(fJadeX0, fJadeY0)
-      .bezierCurveTo(fJadeX1, fJadeY1, fJadeX2, fJadeY2, fJadeX3, fJadeY3)
-      .bezierCurveTo(fJadeX4, fJadeY4, fJadeX5, fJadeY5, fJadeX6, fJadeY6)
-      .stroke({
-        color: 0x059669,
-        width: 10.5 * sample.jadeBreathWidth,
-        alpha: 0.34,
-        cap: 'round',
-        join: 'round',
-      });
-    gOver
-      .moveTo(fJadeX0, fJadeY0)
-      .bezierCurveTo(fJadeX1, fJadeY1, fJadeX2, fJadeY2, fJadeX3, fJadeY3)
-      .bezierCurveTo(fJadeX4, fJadeY4, fJadeX5, fJadeY5, fJadeX6, fJadeY6)
-      .stroke({
-        color: 0x10b981,
-        width: 5.8 * sample.jadeBreathWidth,
-        alpha: 0.82,
-        cap: 'round',
-        join: 'round',
-      });
-    gOver
-      .moveTo(fJadeX0 - 1.5, fJadeY0)
-      .bezierCurveTo(fJadeX1 - 1, fJadeY1 - 1, fJadeX2 + 1, fJadeY2 - 1, fJadeX3 + 1, fJadeY3)
-      .bezierCurveTo(fJadeX4 + 1.5, fJadeY4 + 1, fJadeX5 + 1, fJadeY5 + 1, fJadeX6, fJadeY6)
-      .stroke({
-        color: 0xa7f3d0,
-        width: 2.35,
-        alpha: 0.96,
-        cap: 'round',
-        join: 'round',
-      });
-
-    // 2C. Travelling Condensation Surge Waves racing along both Front Orbitals
-    for (const rawPhase of [sample.flowPulseA, sample.flowPulseB, sample.flowPulseC]) {
-      const surgeEnv = Math.sin(rawPhase * Math.PI);
-      const tPrev = Math.max(0, rawPhase - 0.16);
-      const tNext = Math.min(1, rawPhase + 0.16);
-
-      const iceP0 = cubicBezierPoint(tPrev, fIceX0, fIceY0, fIceX1, fIceY1, fIceX2, fIceY2, fIceX3, fIceY3);
-      const icePM = cubicBezierPoint(rawPhase, fIceX0, fIceY0, fIceX1, fIceY1, fIceX2, fIceY2, fIceX3, fIceY3);
-      const iceP1 = cubicBezierPoint(tNext, fIceX0, fIceY0, fIceX1, fIceY1, fIceX2, fIceY2, fIceX3, fIceY3);
-
-      gOver
-        .moveTo(iceP0.x, iceP0.y)
-        .quadraticCurveTo(icePM.x, icePM.y, iceP1.x, iceP1.y)
-        .stroke({
-          color: 0xffffff,
-          width: 3.6 * surgeEnv,
-          alpha: 0.88 * surgeEnv,
-          cap: 'round',
-        });
-
-      const jadeP0 = cubicBezierPoint(tPrev, fJadeX0, fJadeY0, fJadeX1, fJadeY1, fJadeX2, fJadeY2, fJadeX3, fJadeY3);
-      const jadePM = cubicBezierPoint(rawPhase, fJadeX0, fJadeY0, fJadeX1, fJadeY1, fJadeX2, fJadeY2, fJadeX3, fJadeY3);
-      const jadeP1 = cubicBezierPoint(tNext, fJadeX0, fJadeY0, fJadeX1, fJadeY1, fJadeX2, fJadeY2, fJadeX3, fJadeY3);
-
-      gOver
-        .moveTo(jadeP0.x, jadeP0.y)
-        .quadraticCurveTo(jadePM.x, jadePM.y, jadeP1.x, jadeP1.y)
-        .stroke({
-          color: 0xffffff,
-          width: 3.6 * surgeEnv,
-          alpha: 0.88 * surgeEnv,
-          cap: 'round',
-        });
-    }
-
-    // 2D. Secondary Wispy Intertwining Vapor Tendrils & Rising Front Vapor Puffs
-    const lTendrilSway = Math.sin(t * 4.1 + 0.4) * 3.8;
-    const rTendrilSway = Math.cos(t * 3.9 + 1.1) * 3.8;
-    gOver
-      .moveTo(hx - 23 + lTendrilSway * 0.4, cy + 4 + sample.iceLiftY * 0.45)
-      .quadraticCurveTo(
-        hx - 31 - lTendrilSway,
-        cy - 5 + sample.jadeLiftY * 0.55,
-        hx - 20 + lTendrilSway * 0.6,
-        cy - 14 - sample.iceLiftY * 0.45
-      )
-      .stroke({
-        color: 0x7dd3fc,
-        width: 3.8 * sample.iceBreathWidth,
-        alpha: 0.84,
-        cap: 'round',
-      });
-    gOver
-      .moveTo(hx + 23 + rTendrilSway * 0.4, cy + 3 + sample.jadeLiftY * 0.45)
-      .quadraticCurveTo(
-        hx + 31 - rTendrilSway,
-        cy - 6 + sample.iceLiftY * 0.55,
-        hx + 20 + rTendrilSway * 0.6,
-        cy - 15 - sample.jadeLiftY * 0.45
-      )
-      .stroke({
-        color: 0x6ee7b7,
-        width: 3.8 * sample.jadeBreathWidth,
-        alpha: 0.84,
-        cap: 'round',
-      });
-
-    // Front-hemisphere rising wispy water vapor puffs & steam tendrils
-    for (const puff of sample.vaporPuffs) {
-      if (puff.isFront) {
-        drawVaporPuffAndWisp(gOver, hx, cy, puff);
-      }
-    }
-
-    // 2E. Render front-hemisphere orbiting diamond condensation facets on gOver
-    for (const facet of sample.facets) {
-      if (facet.isFront) {
-        drawCondensationDiamondFacet(gOver, hx + facet.dx, cy + facet.dy, facet);
-      }
+      targetG
+        .moveTo(fx + dx1, fy + dy1)
+        .lineTo(fx + dx2, fy + dy2)
+        .lineTo(fx - dx1, fy - dy1)
+        .lineTo(fx - dx2, fy - dy2)
+        .closePath()
+        .fill({ color, alpha: facet.alpha })
+        .stroke({ color: rimColor, width: 1.0, alpha: facet.alpha * 0.85 });
     }
   }
 }
-
-
-

@@ -301,6 +301,12 @@ export class WeaponEffectsRenderer {
           if (bladeTip) {
             originX = bladeTip.x;
             originY = bladeTip.y;
+          } else {
+            // Fall back to near-hand castOrigin offset
+            const aimCos = Math.cos(sim.heroFacingAngle);
+            const aimSin = Math.sin(sim.heroFacingAngle);
+            originX = hx + aimCos * 11.5;
+            originY = hy - 2 + aimSin * 7.5;
           }
         }
 

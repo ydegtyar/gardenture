@@ -4,8 +4,23 @@ import type { Simulation } from '../../sim/Simulation';
 import {
   biomeRegistry,
   drawFinalBossThornArena,
+  ArenaBoundary,
+  RenderPipeline,
+  GameManager,
+  THORN_WALL_PALETTE,
+  getSharedArenaBoundary,
+  type ViewportBounds,
   type BiomeRenderContext,
 } from './bioms';
+
+export {
+  ArenaBoundary,
+  RenderPipeline,
+  GameManager,
+  THORN_WALL_PALETTE,
+  getSharedArenaBoundary,
+  type ViewportBounds,
+};
 
 export const PPU = 48;
 export const CHUNK_SIZE_U = 12;
@@ -42,11 +57,18 @@ export class EnvironmentRenderer {
     renderer.populateGroundChunk(ctx);
   }
 
+  public static getSharedArenaBoundary(): ArenaBoundary {
+    return getSharedArenaBoundary();
+  }
+
   public static drawFinalBossThornArena(
     g: PIXI.Graphics,
     sim: Simulation,
-    elapsedSeconds: number
+    elapsedSeconds: number,
+    viewport?: ViewportBounds
   ): void {
-    drawFinalBossThornArena(g, sim, elapsedSeconds, PPU);
+    drawFinalBossThornArena(g, sim, elapsedSeconds, PPU, viewport);
   }
 }
+
+

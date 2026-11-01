@@ -1,4 +1,10 @@
 import * as PIXI from 'pixi.js';
+import {
+  HeroProceduralController,
+  type HeroPose,
+  type SocketMap,
+} from './rig/HeroRigCore';
+import type { Attachment } from './types';
 
 /**
  * ============================================================================
@@ -7,13 +13,13 @@ import * as PIXI from 'pixi.js';
  *
  * Style specifications:
  * - Proportions: Chunky chibi, head is about half the total height (~32px of 64px),
- *   body is a simple rounded block, no visible legs, feet are two small rounded boots.
+ *   body is a simple rounded block, feet are two small rounded boots with 2-bone IK.
  * - Outline: One thick dark plum outline (#2a1a2e, about 3px at 64px height), uniform
  *   weight on every part. No thin inner detail lines.
  * - Shading: Flat colors with one soft shade tone per material (base + a lighter inner
- *   area or a darker bottom edge).
+ *   area or a darker bottom edge) and fixed world-space top-left lighting.
+ * - Facing without mirroring: Continuous facing in [-1, 1], zero negative scale.
  * - Face: Two dark eyes with white specular catchlight, brows, blush on both cheeks.
- *   No nose or mouth.
  * - Scale: High-contrast, readable at 64px, pivot at feet (0, 0), transparent background.
  */
 
@@ -234,10 +240,25 @@ interface SparkleParticle {
 /**
  * Chunky Chibi Herbalist Hero Container for PixiJS (v8).
  * Standalone, modular, zero external game logic dependency.
+ * Powered by HeroProceduralController (continuous facing without negative scale,
+ * distance-driven locomotion, 2-bone IK limbs, and named weapon/spell sockets).
  */
 export class HerbalistCharacter extends PIXI.Container {
   /** Active animation state */
   public currentState: HerbalistAnimationState = 'idle';
+
+  /** Procedural 2D rig, facing, IK, and secondary motion controller */
+  public readonly proceduralController = new HeroProceduralController(0, 0);
+
+  /** Active socket-bound attachments */
+  private readonly attachments: Attachment[] = [];
+
+  /** Simulated world position & velocity for standalone locomotion */
+  private worldX = 0;
+  private worldY = 0;
+  private heroVx = 0;
+  private heroVy = 0;
+  private targetFacingAngle = 0;
 
   /** Elapsed time in active state (seconds) */
   private stateTimer = 0;
@@ -1067,6 +1088,71 @@ export class HerbalistCharacter extends PIXI.Container {
     }
   }
 
+  /**
+   * Current solved procedural 2D rig & socket pose.
+   */
+  public get pose(): HeroPose {
+    return this.proceduralController.pose;
+  }
+
+  /**
+   * Current named world-space socket map ('handNear', 'handFar', 'back', 'hip', 'castOrigin', 'headTop', 'feet').
+   */
+  public get sockets(): SocketMap {
+    return this.proceduralController.pose.sockets;
+  }
+
+  /**
+   * Current smoothed continuous facing parameter in [-1, 1] (never mirrors via negative scale).
+   */
+  public get facing(): number {
+    return this.proceduralController.pose.facing;
+  }
+
+  /**
+   * Sets target facing / aim direction vector (triggers smooth ~120ms 3/4-turn transition).
+   */
+  public setFacingDirection(dirX: number, dirY: number): void {
+    if (Math.hypot(dirX, dirY) > 1e-4) {
+      this.targetFacingAngle = Math.atan2(dirY, dirX);
+    }
+  }
+
+  /**
+   * Sets simulated movement velocity (drives distance-based gait phase & spring secondary motion).
+   */
+  public setVelocity(vx: number, vy: number): void {
+    this.heroVx = vx;
+    this.heroVy = vy;
+    if (Math.hypot(vx, vy) > 0.1) {
+      this.targetFacingAngle = Math.atan2(vy, vx);
+    }
+  }
+
+  /**
+   * Binds a formal socket Attachment (e.g., GardenBladeAttachment, ChainLightningAttachment).
+   */
+  public attach(attachment: Attachment): void {
+    if (!this.attachments.includes(attachment)) {
+      this.attachments.push(attachment);
+    }
+    if (attachment.suppressesDefaultWeapon) {
+      this.staffGraphic.visible = false;
+    }
+  }
+
+  /**
+   * Removes a bound socket Attachment.
+   */
+  public detach(attachmentId: string): void {
+    const idx = this.attachments.findIndex((a) => a.id === attachmentId);
+    if (idx >= 0) {
+      this.attachments.splice(idx, 1);
+    }
+    const stillSuppressed = this.attachments.some((a) => a.suppressesDefaultWeapon);
+    this.staffGraphic.visible = !this.hasGardenBlade && !stillSuppressed;
+  }
+
   /** Convenience alias for cast_heal */
   public castHeal(): void {
     this.playState('cast_heal');
@@ -1091,6 +1177,35 @@ export class HerbalistCharacter extends PIXI.Container {
     this.stateTimer += dtSec;
     const t = this.totalElapsed;
 
+    // Advance simulated world position for distance-driven gait phase
+    this.worldX += this.heroVx * dtSec * 36;
+    this.worldY += this.heroVy * dtSec * 36;
+    const isMoving = Math.hypot(this.heroVx, this.heroVy) > 0.1;
+
+    const pose = this.proceduralController.step({
+      professionId: 'herbalist',
+      hx: this.worldX,
+      cy: this.worldY - 18,
+      groundY: this.worldY - 11,
+      heroVx: this.heroVx,
+      heroVy: this.heroVy,
+      facingAngle: this.targetFacingAngle,
+      elapsedSeconds: t,
+      dtSec,
+      isMoving,
+      isDashing: false,
+      isHit: false,
+      isDead: false,
+      isLowHealth: false,
+      lowHealthRatio: 1.0,
+      isLevitating: false,
+      meleeWeapon: this.hasGardenBlade ? this.gardenBladeState : null,
+      isCastingSpell: this.currentState === 'cast_heal',
+    });
+
+    // Ensure root container scale is strictly positive (no negative scale mirroring!)
+    this.scale.set(Math.abs(this.scale.x) || 1, Math.abs(this.scale.y) || 1);
+
     // 1. Spontaneous Blinking (every 3-5 s for 0.14 s)
     if (!this.isBlinking) {
       this.blinkTimer -= dtSec;
@@ -1108,14 +1223,12 @@ export class HerbalistCharacter extends PIXI.Container {
       }
     }
 
-    // 2. Idle Harmonic Oscillations
-    // Body breathing (scaleY 1.0 to 1.02)
-    const breath = 1.0 + Math.sin(t * 3.2) * 0.015;
-    // Head & hat bob
+    // 2. Idle Harmonic Oscillations + Continuous Facing Gaze Shift
+    const breath = pose.scaleY;
     const headBob = Math.sin(t * 3.2 - 0.4) * 0.75;
-    // Orb floating drift
+    const gazeShiftX = pose.facing * 1.4;
     const orbDriftY = Math.sin(t * 2.6) * 1.8;
-    const orbDriftX = Math.cos(t * 1.9) * 0.6;
+    const orbDriftX = Math.cos(t * 1.9) * 0.6 - pose.facing * 1.2;
 
     // 3. State-Specific Overrides
     if (this.currentState === 'cast_heal') {
@@ -1153,9 +1266,9 @@ export class HerbalistCharacter extends PIXI.Container {
         );
       }
 
-      // Hero tilt back slightly in spellcasting pose
-      this.bodyContainer.scale.set(1.0, breath * 1.01);
-      this.headContainer.position.set(0, this.baseHeadY + headBob - 1);
+      // Hero tilt back slightly in spellcasting pose (positive scales only)
+      this.bodyContainer.scale.set(pose.scaleX, breath * 1.01);
+      this.headContainer.position.set(gazeShiftX, this.baseHeadY + headBob - 1);
       this.staffGraphic.rotation = this.baseStaffAngle - 0.12;
 
       if (progress >= 1.0) {
@@ -1170,17 +1283,14 @@ export class HerbalistCharacter extends PIXI.Container {
       let crouchScaleY = 1.0;
       let crouchOffsetY = 0;
       if (progress < 0.3) {
-        // Crouch anticipation (drops 2.5px, scaleY 0.88)
         const p = progress / 0.3;
         crouchScaleY = 1.0 - p * 0.12;
         crouchOffsetY = p * 2.5;
       } else if (progress < 0.6) {
-        // Spring up (scaleY 1.05)
         const p = (progress - 0.3) / 0.3;
         crouchScaleY = 0.88 + p * 0.18;
         crouchOffsetY = 2.5 - p * 3.5;
 
-        // Pop leaves up from the ground once at spring transition
         if (this.stateTimer - dtSec < 0.24 && this.stateTimer >= 0.24) {
           for (let i = 0; i < 6; i++) {
             const spreadX = (Math.random() - 0.5) * 22;
@@ -1198,15 +1308,14 @@ export class HerbalistCharacter extends PIXI.Container {
           }
         }
       } else {
-        // Settle back to 1.0
         const p = (progress - 0.6) / 0.4;
         crouchScaleY = 1.06 - p * 0.06;
         crouchOffsetY = -1.0 + p * 1.0;
       }
 
-      this.bodyContainer.scale.set(1.0, crouchScaleY);
+      this.bodyContainer.scale.set(1.0, Math.max(0.5, crouchScaleY));
       this.bodyContainer.position.set(0, crouchOffsetY);
-      this.headContainer.position.set(0, this.baseHeadY + crouchOffsetY);
+      this.headContainer.position.set(gazeShiftX, this.baseHeadY + crouchOffsetY);
       this.orbContainer.position.set(this.baseOrbX + orbDriftX, this.baseOrbY + crouchOffsetY + orbDriftY);
 
       if (progress >= 1.0) {
@@ -1214,11 +1323,11 @@ export class HerbalistCharacter extends PIXI.Container {
         this.playState('idle');
       }
     } else {
-      // Idle state
+      // Idle / Move state
       this.groundRingGraphic.clear();
-      this.bodyContainer.scale.set(1.0, breath);
+      this.bodyContainer.scale.set(pose.scaleX, breath);
       this.bodyContainer.position.set(0, 0);
-      this.headContainer.position.set(0, this.baseHeadY + headBob);
+      this.headContainer.position.set(gazeShiftX, this.baseHeadY + headBob);
       this.orbContainer.position.set(this.baseOrbX + orbDriftX, this.baseOrbY + orbDriftY);
       this.drawOrb(1.0);
     }
@@ -1227,9 +1336,13 @@ export class HerbalistCharacter extends PIXI.Container {
     this.updateFloatingAccents(t);
     this.updateParticles(dtSec);
 
-    // 5. Update Garden Blade if equipped (replaces hand with stick)
+    // 5. Update Garden Blade & Socket-Bound Attachments
     if (this.hasGardenBlade) {
       this.drawGardenBladeAttachment(t);
+    }
+    for (const attachment of this.attachments) {
+      attachment.update(dtSec, pose);
+      attachment.draw(this.groundRingGraphic, this.gardenBladeGraphic, pose);
     }
   }
 

@@ -1,11 +1,31 @@
+import type * as PIXI from 'pixi.js';
+import {
+  drawProceduralHeroBody,
+  HERO_CEL_PALETTES,
+  type PersonaCelPalette,
+} from './rig/CelHeroDrawer';
+import type { HeroGaitStyle, HeroPose } from './rig/HeroRigCore';
 import type { PersonaRenderer, PersonaRenderContext } from './types';
 
 /**
- * Vessel Ackerman persona aura renderer:
- * Abyssal Void-Shade ring + ODM steam wisps.
+ * Vessel Ackerman ('seeker_hollow_levi') persona renderer:
+ * Agile scout-captain silhouette with survey mantle, spring-driven cloak,
+ * and Abyssal Void-Shade ring + ODM steam wisps.
  */
 export class SeekerHollowPersonaRenderer implements PersonaRenderer {
   public readonly id = 'seeker_hollow_levi';
+  public readonly palette: PersonaCelPalette =
+    HERO_CEL_PALETTES.seeker_hollow_levi!;
+  public readonly gaitStyle: HeroGaitStyle = 'agile';
+
+  public drawVectorBody(
+    gUnder: PIXI.Graphics,
+    gOver: PIXI.Graphics,
+    pose: HeroPose,
+    _elapsedSeconds: number
+  ): void {
+    drawProceduralHeroBody(gUnder, gOver, pose, this.palette, 10.0);
+  }
 
   public drawAura(ctx: PersonaRenderContext): void {
     const { gUnder, hx, groundY, cy, elapsedSeconds } = ctx;

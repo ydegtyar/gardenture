@@ -144,12 +144,15 @@ export function drawShockwaveBlastEffect(
     const aMid = aStart + arcSpan * 0.32;
     const aEnd = aStart + arcSpan * 0.64;
 
-    g.arc(cx, cy, outerR * 1.04, aStart, aEnd).stroke({
-      color: PALETTE.CREAM_WHITE,
-      width: 2.2 * fade,
-      alpha: 0.82 * fade,
-      cap: 'round',
-    });
+    const arcR = outerR * 1.04;
+    g.moveTo(cx + Math.cos(aStart) * arcR, cy + Math.sin(aStart) * arcR)
+      .arc(cx, cy, arcR, aStart, aEnd)
+      .stroke({
+        color: PALETTE.CREAM_WHITE,
+        width: 2.2 * fade,
+        alpha: 0.82 * fade,
+        cap: 'round',
+      });
 
     // Outward kinetic shock spike at segment midpoint
     const spIn = outerR * 0.88;

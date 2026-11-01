@@ -1,324 +1,253 @@
-import type * as PIXI from 'pixi.js';
-import { PALETTE, PERSONAS, PROFESSIONS, isPersonaRelatedToProfession } from '../../../content/data/catalog';
-import { clamp, lerp } from '../../../core/math/vec2';
-import { resolveHeroSpriteKey } from '../../SpriteAtlas';
+import * as PIXI from 'pixi.js';
+import {
+  PALETTE,
+  PROFESSIONS,
+  PERSONAS,
+} from '../../../content/data/catalog';
+import { lerp } from '../../../core/math/vec2';
 import { PPU } from '../EnvironmentRenderer';
-import { drawAegisShieldAura, drawCharacterLegs, drawHeroAngelWings } from './common';
-import type { HeroProfessionRenderer, HeroRenderContext, PersonaRenderer } from './types';
-import { drawHeroHalberd, drawHeroSword, attachGardenBladeToHero } from './weapons';
-import { personaRegistry } from './PersonaRegistry';
+import { drawHeroAngelWings, drawAegisShieldAura } from './common';
+import { attachGardenBladeToHero, drawHeroHalberd } from './weapons';
+import { ChainLightningAttachment } from './ChainLightningAttachment';
+import { WardenZagreusPersonaRenderer } from './WardenZagreusPersonaRenderer';
+import { SeekerHollowPersonaRenderer } from './SeekerHollowPersonaRenderer';
+import { HerbalistFrierenPersonaRenderer } from './HerbalistFrierenPersonaRenderer';
+import { StormcallerGojoPersonaRenderer } from './StormcallerGojoPersonaRenderer';
+import {
+  drawProceduralHeroBody,
+  resolveHeroCelPalette,
+} from './rig/CelHeroDrawer';
+import {
+  HeroProceduralController,
+  HeroRenderProfiler,
+  type HeroPose,
+} from './rig/HeroRigCore';
+import type {
+  HeroProfessionRenderer,
+  HeroRenderContext,
+  PersonaRenderer,
+} from './types';
 
-/**
- * Base template implementation for rendering a hero profession.
- * Specialized hero profession renderers can extend or customize this behavior.
- */
-export abstract class BaseHeroProfessionRenderer implements HeroProfessionRenderer {
+export abstract class BaseHeroProfessionRenderer
+  implements HeroProfessionRenderer
+{
   public abstract readonly professionId: string;
 
-  public draw(ctx: HeroRenderContext): void {
+  /** Per-profession procedural 2D rig, facing, IK, and secondary motion controller */
+  public readonly proceduralController = new HeroProceduralController(0, 0);
+
+  /** Socket-bound Chain Lightning attachment instance */
+  protected readonly chainLightningAttachment = new ChainLightningAttachment();
+
+  private lastElapsedSeconds = 0;
+
+  protected static readonly personaRenderers = new Map<string, PersonaRenderer>([
+    ['warden_zagreus_naruto', new WardenZagreusPersonaRenderer()],
+    ['seeker_hollow_levi', new SeekerHollowPersonaRenderer()],
+    ['herbalist_frieren_strange', new HerbalistFrierenPersonaRenderer()],
+    ['stormcaller_gojo_killua', new StormcallerGojoPersonaRenderer()],
+  ]);
+
+  public static getPersonaRenderer(
+    personaId?: string | null
+  ): PersonaRenderer | undefined {
+    if (!personaId) return undefined;
+    return this.personaRenderers.get(personaId);
+  }
+
+  public drawHero(ctx: HeroRenderContext): void {
+    const profStartMs = HeroRenderProfiler.beginFrame();
     const {
-      heroUnderGraphic,
+      heroUnderGraphic: gUnder,
       heroSprite,
-      heroWeaponGraphic,
-      atlasTextures,
+      heroWeaponGraphic: gOver,
       sim,
       alpha,
       displayFacingAngle,
     } = ctx;
 
-    const gUnder = heroUnderGraphic;
-    const gOver = heroWeaponGraphic;
     gUnder.clear();
     gOver.clear();
 
+    // IMPORTANT: Heroes and personas have NO sprites, spritesheets or texture atlases.
+    // Hide legacy raster sprite completely and keep its scale strictly positive (1, 1).
+    heroSprite.visible = false;
+    heroSprite.scale.set(1, 1);
+
     const hx = lerp(sim.heroPrevX, sim.heroX, alpha) * PPU;
     const hy = lerp(sim.heroPrevY, sim.heroY, alpha) * PPU;
+
     const prof = PROFESSIONS[sim.professionId] ?? PROFESSIONS.warden!;
+    const persona = sim.personaId
+      ? (PERSONAS.find((p) => p.id === sim.personaId) ?? null)
+      : null;
+
+    const bodyColor = persona ? persona.bodyColor : prof.primaryColor;
+    const accentColor = persona ? persona.accentColor : prof.accentColor;
+    const eyeLeftColor = persona ? persona.eyeLeftColor : PALETTE.CREAM_WHITE;
+    const eyeRightColor = persona ? persona.eyeRightColor : PALETTE.CREAM_WHITE;
+
+    const activePersonaRenderer = BaseHeroProfessionRenderer.getPersonaRenderer(
+      sim.personaId
+    );
+    const isLevitating = Boolean(activePersonaRenderer?.isLevitating);
+
+    // Compute frame dt from simulation elapsedSeconds
+    const rawDt = sim.elapsedSeconds - this.lastElapsedSeconds;
+    const dtSec = rawDt > 0 && rawDt < 0.25 ? rawDt : 1 / 60;
+    this.lastElapsedSeconds = sim.elapsedSeconds;
+
     const speed = Math.hypot(sim.heroVx, sim.heroVy);
-    const isMoving = speed > 0.25;
-    const animTime =
-      sim.elapsedSeconds +
-      (sim.victorySequenceTimer > 0 ? 1.95 - sim.victorySequenceTimer : 0) +
-      (sim.deathSequenceTimer > 0 ? 1.65 - sim.deathSequenceTimer : 0);
-    const walkPhase = animTime * 14;
+    const isMoving = speed > 0.12;
+    const isDashing = (sim.dashTimer ?? 0) > 0;
+    const isHit = (sim.hitFlashTimer ?? 0) > 0;
+    const currentHp = sim.currentHp ?? 100;
+    const maxHp = sim.maxHp ?? 100;
+    const isWinSeq = (sim.victorySequenceTimer ?? 0) > 0;
+    const isDead = currentHp <= 0 && !isWinSeq;
+    const hpRatio = maxHp > 0 ? currentHp / maxHp : 1;
+    const isLowHealth = hpRatio < 0.25 && !isDead;
 
-    const isPersonaRelated = isPersonaRelatedToProfession(sim.personaId, sim.professionId);
-    const activePersonaRenderer = isPersonaRelated && sim.personaId ? personaRegistry.get(sim.personaId) : undefined;
-    const isLevitatingThunderGod = Boolean(activePersonaRenderer?.isLevitating);
+    const swordWpn = sim.weapons.find((w) => w.id === 'garden_blade');
+    const spearWpn = sim.weapons.find((w) => w.id === 'thorn_spear');
+    const primaryMelee =
+      swordWpn && swordWpn.phase !== 'ready'
+        ? swordWpn
+        : spearWpn && spearWpn.phase !== 'ready'
+          ? spearWpn
+          : swordWpn ?? spearWpn ?? null;
 
-    const bobY = isLevitatingThunderGod
-      ? Math.sin(animTime * 4.2) * 3.8 - 6.0
-      : isMoving
-        ? Math.abs(Math.sin(walkPhase)) * -4.0
-        : Math.sin(animTime * 3.5) * -1.5;
+    this.chainLightningAttachment.syncFromSimulation(sim);
 
-    // Victory sequence: Hero sprouts white Angel Wings and flies skyward ONLY after Final Boss death animation finishes!
-    const isWinningAscension = sim.victorySequenceTimer > 0 && sim.bossDeathTimer <= 0;
-    const winProgress = isWinningAscension
-      ? clamp(1 - sim.victorySequenceTimer / 1.1, 0, 1)
-      : 0;
-    const flyHeightOffset = isWinningAscension
-      ? -Math.pow(winProgress, 1.35) * 92 - Math.sin(animTime * 10) * 5
-      : 0;
-
-    // Death sequence: Hero collapses and leaves a stone grave before fading to Game Over
-    const isDyingSequence = sim.deathSequenceTimer > 0;
-    const deathProgress = isDyingSequence
-      ? clamp(1 - sim.deathSequenceTimer / 1.65, 0, 1)
-      : 0;
-
-    // Dash Invisibility Frames visual feedback
-    const isDashInvisible = sim.dashIframeTimer > 0 || sim.dashTimer > 0;
-    const currentAlpha = isDyingSequence
-      ? clamp(1 - deathProgress * 0.85, 0.15, 1)
-      : isDashInvisible
-        ? 0.42 + 0.18 * Math.sin(animTime * 45)
-        : 1.0;
-
-    gUnder.alpha = currentAlpha;
-    gOver.alpha = currentAlpha;
-
-    // Ground contact shadow (shrinks as hero ascends on victory)
-    const shadowScale = isWinningAscension ? clamp(1 - winProgress * 0.65, 0.3, 1) : 1.0;
-    gUnder.ellipse(hx, hy + 13, 16 * shadowScale, 8.5 * shadowScale).fill({
-      color: 0x0f131d,
-      alpha: 0.42 * shadowScale,
+    const cy = hy - 2;
+    // 1. Step Procedural Rig, Continuous Facing (no negative scale!), Distance-Driven Gait,
+    //    2-Bone Analytic IK, and Fixed-Step Spring Secondary Motion
+    const pose = this.proceduralController.step({
+      professionId: this.professionId,
+      personaId: sim.personaId,
+      hx,
+      cy,
+      groundY: hy,
+      heroVx: sim.heroVx,
+      heroVy: sim.heroVy,
+      facingAngle: displayFacingAngle,
+      elapsedSeconds: sim.elapsedSeconds,
+      dtSec,
+      isMoving,
+      isDashing,
+      isHit,
+      isDead,
+      isLowHealth,
+      lowHealthRatio: hpRatio,
+      isLevitating,
+      meleeWeapon: primaryMelee,
+      isCastingSpell: false,
     });
 
-    if (isWinningAscension) {
-      // Golden ascension light pillar & floating white angel feathers
-      const beamAlpha = 0.22 + 0.12 * Math.sin(animTime * 8);
-      gUnder.ellipse(hx, hy + 10, 28, 13).fill({
-        color: PALETTE.BUTTER_YELLOW,
-        alpha: beamAlpha + 0.12,
-      });
-      gUnder.rect(hx - 20, hy + flyHeightOffset - 60, 40, 80 - flyHeightOffset).fill({
-        color: PALETTE.BUTTER_YELLOW,
-        alpha: beamAlpha * 0.55,
-      });
-      for (let f = 0; f < 6; f++) {
-        const fPhase = (animTime * 1.8 + f * 0.19) % 1;
-        const fx = hx + Math.sin(f * 2.1 + animTime * 3) * 26;
-        const fy = hy + flyHeightOffset + 24 - fPhase * 52;
-        gUnder
-          .ellipse(fx, fy, 4.5, 2.0)
-          .fill({ color: 0xffffff, alpha: (1 - fPhase) * 0.9 })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 1, alpha: (1 - fPhase) * 0.6 });
-      }
-    }
+    // Update socket-bound Chain Lightning attachment (applies cast recoil & sleeve glow to pose)
+    this.chainLightningAttachment.update(dtSec, pose);
 
-    if (isDyingSequence) {
-      // Soul wisps rising as the hero collapses and leaves their grave
-      for (let w = 0; w < 5; w++) {
-        const wPhase = (deathProgress * 1.4 + w * 0.2) % 1;
-        const wx = hx + Math.sin(w * 1.7 + animTime * 5) * 16;
-        const wy = hy - wPhase * 42;
-        gOver.circle(wx, wy, 3.5 * (1 - wPhase * 0.5)).fill({
-          color: PALETTE.MINT_GREEN,
-          alpha: (1 - wPhase) * 0.85,
-        });
-      }
-    }
+    const flipX = pose.facingSign;
 
-    // Shield Power-Up (Aegis Orb) active crystalline rune ward & orbiting shield crests
-    if (sim.shieldHp > 0 || sim.shieldBreakFadeTimer > 0) {
+    // 2. Active Aegis Shield Aura (under & over layers)
+    if ((sim.shieldHp ?? 0) > 0 || (sim.shieldBreakFadeTimer ?? 0) > 0) {
       drawAegisShieldAura(
         gUnder,
         gOver,
         hx,
-        hy + flyHeightOffset,
-        animTime,
-        sim.shieldHp,
-        sim.shieldTimer,
-        sim.shieldBreakFadeTimer
+        hy,
+        sim.elapsedSeconds,
+        sim.shieldHp ?? 0,
+        sim.shieldTimer ?? 0,
+        sim.shieldBreakFadeTimer ?? 0
       );
     }
 
-    // Ember Guard ("fire_breath") active flame barrier ring & orbiting fireballs
-    if (sim.fireBreathTimer > 0) {
-      const egRadiusPx = 2.1 * sim.stats.areaMult * PPU;
-      const pulse = 0.85 + 0.15 * Math.sin(animTime * 16);
-      gUnder
-        .circle(hx, hy + flyHeightOffset, egRadiusPx * pulse)
-        .fill({ color: 0xfb923c, alpha: 0.09 })
-        .stroke({ color: 0xfb923c, width: 3, alpha: 0.68 });
-      const orbCount = 4;
-      for (let i = 0; i < orbCount; i++) {
-        const a = animTime * 5.2 + (i / orbCount) * Math.PI * 2;
-        const ox = hx + Math.cos(a) * egRadiusPx;
-        const oy = hy + flyHeightOffset + Math.sin(a) * egRadiusPx;
-        const tailA = a - 0.28;
-        gUnder
-          .circle(
-            hx + Math.cos(tailA) * egRadiusPx,
-            hy + flyHeightOffset + Math.sin(tailA) * egRadiusPx,
-            5.5
-          )
-          .fill({ color: 0xf43f5e, alpha: 0.55 });
-        gUnder
-          .circle(ox, oy, 7.5)
-          .fill({ color: 0xfb923c, alpha: 0.95 })
-          .stroke({ color: PALETTE.INK_OUTLINE, width: 2 });
-        gUnder.circle(ox, oy, 3.8).fill({ color: PALETTE.BUTTER_YELLOW, alpha: 0.95 });
-      }
+    // 3. Draw Procedural Cel-Shaded Vector Body & Limbs (into gUnder and gOver)
+    const palette =
+      activePersonaRenderer?.palette ??
+      resolveHeroCelPalette(this.professionId, sim.personaId);
+
+    if (activePersonaRenderer?.drawVectorBody) {
+      activePersonaRenderer.drawVectorBody(
+        gUnder,
+        gOver,
+        pose,
+        sim.elapsedSeconds
+      );
+    } else {
+      drawProceduralHeroBody(gUnder, gOver, pose, palette);
     }
 
-    // Dash phase ring around hero while invisible
-    if (isDashInvisible) {
-      gUnder.circle(hx, hy + flyHeightOffset, 22).stroke({
-        color: PALETTE.SKY_BLUE,
-        width: 2,
-        alpha: 0.75,
+    // 4. Persona-Specific Elemental Auras & Orbitals
+    if (activePersonaRenderer) {
+      activePersonaRenderer.drawAura({
+        gUnder,
+        gOver,
+        hx,
+        cy: pose.centerY,
+        groundY: hy,
+        flipX,
+        isMoving,
+        walkPhase: pose.gaitPhase,
+        elapsedSeconds: sim.elapsedSeconds,
+        eyeLeftColor,
+        eyeRightColor,
+        heroVx: sim.heroVx,
+        heroVy: sim.heroVy,
+        heroPose: pose,
       });
+    } else {
+      this.drawProfessionEyes(
+        gOver,
+        hx,
+        pose.centerY,
+        flipX,
+        sim.elapsedSeconds,
+        pose
+      );
     }
 
-    const customPersona =
-      isPersonaRelated && sim.personaId && sim.personaId !== 'adventurer_default'
-        ? PERSONAS.find((p) => p.id === sim.personaId)
-        : undefined;
-
-    const bodyColor =
-      sim.hitFlashTimer > 0
-        ? PALETTE.CREAM_WHITE
-        : isDashInvisible
-          ? PALETTE.SKY_BLUE
-          : (customPersona?.cloakColor ?? prof.primaryColor);
-    const accentColor =
-      sim.hitFlashTimer > 0
-        ? PALETTE.CREAM_WHITE
-        : isDashInvisible
-          ? PALETTE.CREAM_WHITE
-          : (customPersona?.accentColor ?? prof.accentColor);
-
-    // Animated legs beneath Bestiary hero sprite (or poised levitation for Thander Rein)
-    if (!isDyingSequence) {
-      drawCharacterLegs(
+    // 5. Grand Angel Wings during Victory Sequence
+    if (isWinSeq) {
+      drawHeroAngelWings(
         gUnder,
         hx,
-        hy + flyHeightOffset,
-        isMoving && !isWinningAscension,
-        walkPhase,
-        displayFacingAngle,
-        accentColor,
-        bodyColor,
-        isLevitatingThunderGod
+        pose.centerY,
+        sim.elapsedSeconds,
+        sim.victorySequenceTimer
       );
     }
 
-    const collapseDropY = isDyingSequence ? deathProgress * 10 : 0;
-    const cy = hy + bobY + flyHeightOffset + collapseDropY;
+    // 6. Socket-Bound Weapon & Spell Attachments (Garden Blade, Arbalete, Chain Lightning)
+    this.drawAttachedWeapons(
+      ctx,
+      hx,
+      pose.centerY,
+      flipX,
+      displayFacingAngle,
+      bodyColor,
+      accentColor,
+      activePersonaRenderer,
+      pose
+    );
 
-    // Draw articulated White Angel Wings behind the hero during Victory sequence!
-    if (isWinningAscension) {
-      drawHeroAngelWings(gUnder, hx, cy, animTime, winProgress);
-    }
-
-    // Update the Hero PIXI.Sprite from Bestiary / Persona Skin SpriteAtlas
-    const spriteKey = resolveHeroSpriteKey(sim.professionId, sim.personaId);
-    const tex = atlasTextures.get(spriteKey);
-    if (tex && heroSprite.texture !== tex) {
-      heroSprite.texture = tex;
-    }
-    heroSprite.visible = true;
-    heroSprite.anchor.set(0.5, 0.56);
-    heroSprite.position.set(hx, cy);
-    heroSprite.alpha = currentAlpha;
-
-    const baseScale = 58 / 256;
-    const facingCos = Math.cos(displayFacingAngle);
-    const flipX = facingCos < -0.15 ? -1 : 1;
-    const squashX = isLevitatingThunderGod
-      ? 1 + Math.sin(sim.elapsedSeconds * 4.2) * 0.02
-      : isMoving
-        ? 1 + Math.sin(walkPhase * 2) * 0.045
-        : 1 + Math.sin(sim.elapsedSeconds * 3.5) * 0.015;
-    const squashY = isDyingSequence
-      ? clamp(1 - deathProgress * 0.45, 0.5, 1)
-      : isLevitatingThunderGod
-        ? 1 - Math.sin(sim.elapsedSeconds * 4.2) * 0.02
-        : isMoving
-          ? 1 - Math.sin(walkPhase * 2) * 0.045
-          : 1 - Math.sin(sim.elapsedSeconds * 3.5) * 0.015;
-
-    heroSprite.scale.set(baseScale * squashX * flipX, baseScale * squashY);
-    heroSprite.rotation = isDyingSequence
-      ? deathProgress * 0.65 * flipX
-      : isLevitatingThunderGod
-        ? isMoving && !isWinningAscension
-          ? clamp(sim.heroVx / Math.max(1, sim.stats.moveSpeed), -1, 1) * 0.09
-          : Math.sin(sim.elapsedSeconds * 2.5) * 0.022
-        : isMoving && !isWinningAscension
-          ? Math.sin(walkPhase) * 0.075
-          : 0;
-
-    if (sim.hitFlashTimer > 0) {
-      heroSprite.tint = 0xffffff;
-      gOver.circle(hx, cy - 4, 18).fill({ color: PALETTE.CREAM_WHITE, alpha: 0.55 });
-    } else if (isDashInvisible) {
-      heroSprite.tint = PALETTE.SKY_BLUE;
-    } else {
-      heroSprite.tint = 0xffffff;
-    }
-
-    // Permanent Arcana Skin visual effects dispatched via PersonaRenderer Strategy
-    if (customPersona && !isDyingSequence) {
-      // Heterochromia eye glints (for non-levitating personas that use eye glint dots; Hiten Jade has no pulsing spheres on sprite)
-      if (
-        !isLevitatingThunderGod &&
-        customPersona.id !== 'herbalist_frieren_strange'
-      ) {
-        const eyeY = cy - 12.1;
-        const leftEyeX = hx - 3.4 * flipX;
-        const rightEyeX = hx + 3.4 * flipX;
-        const eyePulse = 0.78 + 0.22 * Math.sin(sim.elapsedSeconds * 9);
-        gOver
-          .circle(leftEyeX, eyeY, 2.2)
-          .fill({ color: customPersona.eyeLeftColor, alpha: 0.95 * eyePulse });
-        gOver
-          .circle(rightEyeX, eyeY, 2.2)
-          .fill({ color: customPersona.eyeRightColor, alpha: 0.95 * eyePulse });
-      }
-
-      if (activePersonaRenderer) {
-        activePersonaRenderer.drawAura({
-          gUnder,
-          gOver,
-          hx,
-          cy,
-          groundY: hy + flyHeightOffset,
-          flipX,
-          elapsedSeconds: sim.elapsedSeconds,
-          eyeLeftColor: customPersona.eyeLeftColor,
-          eyeRightColor: customPersona.eyeRightColor,
-          heroVx: sim.heroVx,
-          heroVy: sim.heroVy,
-        });
-      }
-    }
-
-    if (!customPersona && !isDyingSequence) {
-      this.drawProfessionEyes(gOver, hx, cy, flipX, sim.elapsedSeconds);
-    }
-
-    // Draw attached weapons (Garden Blade / Arbalete) using the reusable attachment mechanic
-    if (!isDyingSequence) {
-      this.drawAttachedWeapons(
-        ctx,
-        hx,
-        cy,
-        flipX,
-        displayFacingAngle,
-        bodyColor,
-        accentColor,
-        activePersonaRenderer
-      );
-    }
+    this.chainLightningAttachment.draw(gUnder, gOver, pose);
+    HeroRenderProfiler.endFrame(profStartMs, 2);
   }
 
-  /**
-   * Hook for drawing weapons attached to the hero.
-   * Can be overridden by specialized hero profession renderers (e.g. HerbalistHeroRenderer).
-   */
+  protected drawProfessionEyes(
+    _gOver: PIXI.Graphics,
+    _hx: number,
+    _cy: number,
+    _flipX: number,
+    _elapsedSeconds: number,
+    _pose?: HeroPose
+  ): void {
+    // Base professions render expressive cel-shaded eyes in drawProceduralHeroBody;
+    // subclasses like Stormcaller can layer extra elemental eye glow here.
+  }
+
   protected drawAttachedWeapons(
     ctx: HeroRenderContext,
     hx: number,
@@ -327,54 +256,45 @@ export abstract class BaseHeroProfessionRenderer implements HeroProfessionRender
     displayFacingAngle: number,
     bodyColor: number,
     accentColor: number,
-    activePersonaRenderer?: PersonaRenderer
+    activePersonaRenderer?: PersonaRenderer,
+    heroPose?: HeroPose
   ): void {
-    const { heroWeaponGraphic: gOver, heroUnderGraphic: gUnder, sim } = ctx;
-    const shouldSuppressDefault =
-      activePersonaRenderer?.suppressDefaultWeapon || activePersonaRenderer?.hasDefaultWeapon === false;
-    const customSocket =
-      activePersonaRenderer?.weaponSocket ?? (shouldSuppressDefault ? { drawDefaultWeapon: undefined } : undefined);
-
     attachGardenBladeToHero({
-      gOver,
+      gOver: ctx.heroWeaponGraphic,
+      gUnder: ctx.heroUnderGraphic,
       hx,
       cy,
       displayFacingAngle,
       flipX,
-      elapsedSeconds: sim.elapsedSeconds,
-      sim,
-      professionId: sim.professionId,
-      personaId: sim.personaId,
+      elapsedSeconds: ctx.sim.elapsedSeconds,
+      sim: ctx.sim,
+      professionId: this.professionId,
+      personaId: ctx.sim.personaId,
       bodyColor,
       accentColor,
-      customSocket,
+      customSocket: activePersonaRenderer?.weaponSocket,
+      heroPose,
     });
-    const spearWpn = sim.weapons.find((w) => w.id === 'thorn_spear');
+
+    const spearWpn = ctx.sim.weapons.find((w) => w.id === 'thorn_spear');
     if (spearWpn) {
       const isAttacking = spearWpn.phase !== 'ready';
+      const anchorX = isAttacking
+        ? (heroPose?.sockets.handNear.x ?? hx)
+        : (heroPose?.sockets.back.x ?? hx);
+      const anchorY = isAttacking
+        ? (heroPose?.sockets.handNear.y ?? cy)
+        : (heroPose?.sockets.back.y ?? cy);
       drawHeroHalberd(
-        isAttacking ? gOver : gUnder,
-        hx,
-        cy,
+        isAttacking ? ctx.heroWeaponGraphic : ctx.heroUnderGraphic,
+        anchorX,
+        anchorY,
         isAttacking ? spearWpn.lockedAngle : displayFacingAngle,
         spearWpn,
-        sim.elapsedSeconds,
+        ctx.sim.elapsedSeconds,
         !isAttacking,
         flipX
       );
     }
-  }
-
-  /**
-   * Hook for specialized hero profession renderers to draw profession-specific eye effects.
-   */
-  protected drawProfessionEyes(
-    _gOver: PIXI.Graphics,
-    _hx: number,
-    _cy: number,
-    _flipX: number,
-    _elapsedSeconds: number
-  ): void {
-    // Override in specialized hero profession renderers
   }
 }

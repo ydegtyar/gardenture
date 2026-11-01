@@ -226,9 +226,11 @@ export class PixiGameRenderer {
 
     // Assemble Z-ordered scene graph
     const sporeParticleContainers = initSporeParticleSystem(this.worldContainer);
+    const arenaBoundary = EnvironmentRenderer.getSharedArenaBoundary();
     this.worldContainer.addChild(
       this.groundChunkContainer,
       this.decalGraphic,
+      arenaBoundary.container,
       sporeParticleContainers.groundContainer,
       this.telegraphGraphic,
       this.pickupGraphic,
@@ -529,10 +531,20 @@ export class PixiGameRenderer {
     this.projectileGraphic.clear();
     this.fxGraphic.clear();
 
+    const halfWorldW = (screenW * 0.5) / this.camera.zoom;
+    const halfWorldH = (screenH * 0.5) / this.camera.zoom;
+    const viewportBounds = {
+      minX: this.camera.x - halfWorldW,
+      minY: this.camera.y - halfWorldH,
+      maxX: this.camera.x + halfWorldW,
+      maxY: this.camera.y + halfWorldH,
+    };
+
     EnvironmentRenderer.drawFinalBossThornArena(
       this.decalGraphic,
       sim,
-      sim.elapsedSeconds
+      sim.elapsedSeconds,
+      viewportBounds
     );
     WeaponEffectsRenderer.drawGroundHazards(this.decalGraphic, sim);
     WeaponEffectsRenderer.drawPickups(
