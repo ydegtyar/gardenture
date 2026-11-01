@@ -32,6 +32,8 @@ export function PlayingHudOverlay() {
     usePowerUpSlot,
   } = useGameShell();
 
+  const lastSlotTouchMsRef = React.useRef<Record<number, number>>({});
+
   if (shellState === 'title') return null;
 
   const currentRankDef = STYLE_RANKS[hud.rankIndex] ?? STYLE_RANKS[0]!;
@@ -232,12 +234,32 @@ export function PlayingHudOverlay() {
                     key={slotIdx}
                     type="button"
                     data-testid={`hud-powerup-slot-${slotIdx}`}
-                    disabled={!pDef}
+                    data-powerup-slot={slotIdx}
+                    data-interactive="true"
+                    aria-disabled={!pDef}
                     aria-label={
                       pDef ? `Use ${pDef.name} [${keyBind}]` : `Empty Power-Up Slot [${keyBind}]`
                     }
-                    onClick={(e) => {
+                    onPointerDown={(e) => {
+                      if (e.pointerType === 'mouse' && e.button !== 0) return;
+                      e.stopPropagation();
                       e.currentTarget.blur();
+                      lastSlotTouchMsRef.current[slotIdx] = performance.now();
+                      usePowerUpSlot(slotIdx);
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      e.currentTarget.blur();
+                      const now = performance.now();
+                      if (now - (lastSlotTouchMsRef.current[slotIdx] ?? -Infinity) < 400) return;
+                      lastSlotTouchMsRef.current[slotIdx] = now;
+                      usePowerUpSlot(slotIdx);
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.currentTarget.blur();
+                      const now = performance.now();
+                      if (now - (lastSlotTouchMsRef.current[slotIdx] ?? -Infinity) < 400) return;
                       usePowerUpSlot(slotIdx);
                     }}
                     style={
@@ -249,7 +271,7 @@ export function PlayingHudOverlay() {
                         : undefined
                     }
                     className={cn(
-                      'relative flex flex-col items-center justify-center rounded-xl border-2 transition-all active:scale-95 whitespace-nowrap shrink-0 p-2 sm:p-2.5 min-w-[70px] sm:min-w-[84px] cursor-pointer',
+                      'relative flex flex-col items-center justify-center rounded-xl border-2 transition-all active:scale-95 whitespace-nowrap shrink-0 p-2 sm:p-2.5 min-w-[70px] sm:min-w-[84px] cursor-pointer touch-none select-none',
                       pDef
                         ? 'bg-gradient-to-b from-[#251A2C] to-[#16101B] text-[#EDE6D0] shadow-md hover:brightness-110'
                         : 'bg-[#0E1A17]/60 border-[#3D392A]/40 text-[#EDE6D0]/30 cursor-not-allowed'

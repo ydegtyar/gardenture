@@ -835,6 +835,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
       const win = window as unknown as Record<string, unknown>;
       win.__BLOSSOM_SIM__ = initialSim;
       win.__BLOSSOM_RENDERER__ = renderer;
+      win.__BLOSSOM_INPUT__ = inputRef.current;
       win.render_game_to_text = () => {
         const s = simRef.current;
         const r = rendererRef.current;
@@ -1153,6 +1154,14 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           if (code === 'KeyE') sim.requestUsePowerUp(1);
         }
       },
+      onUsePowerUp: (slotIndex) => {
+        const state = shellStateRef.current;
+        const sim = simRef.current;
+        if (state === 'playing' && !isMenuTransitioningRef.current && sim && draftOffers.length === 0) {
+          sim.requestUsePowerUp(slotIndex);
+          syncHudFromSim(sim);
+        }
+      },
     });
   }, [awaitingRevive, draftOffers, sanctuaryTab, startNewOrResumedRun, syncHudFromSim, updateShellState]);
 
@@ -1198,9 +1207,15 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     updateShellState('playing');
   }, [syncHudFromSim, updateShellState]);
 
-  const usePowerUpSlot = useCallback((slotIndex: number) => {
-    simRef.current?.requestUsePowerUp(slotIndex);
-  }, []);
+  const usePowerUpSlot = useCallback(
+    (slotIndex: number) => {
+      const sim = simRef.current;
+      if (!sim) return;
+      sim.requestUsePowerUp(slotIndex);
+      syncHudFromSim(sim);
+    },
+    [syncHudFromSim]
+  );
 
   const updateSettings = useCallback((partial: Partial<SaveDataV1['settings']>) => {
     const sd = saveDataRef.current;

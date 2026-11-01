@@ -10,7 +10,7 @@ export function GameCanvasViewport() {
     <div
       ref={canvasContainerRef}
       data-testid="game-canvas-container"
-      className="absolute inset-0 w-full h-full"
+      className="absolute inset-0 w-full h-full touch-none select-none"
     />
   );
 }
