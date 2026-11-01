@@ -5,4 +5,5 @@ export * from './SeedGemIcon';
 export * from './MuteSvgIcon';
 export * from './PauseSvgIcon';
 export * from './RestartSvgIcon';
+export * from './FullscreenSvgIcon';
 export * from './PowerUpAbilityIcon';

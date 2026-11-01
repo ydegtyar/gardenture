@@ -45,6 +45,11 @@ import {
   areGameScreenAssetsReady,
   prefetchGameScreenAssets,
 } from '../utils/prefetchGameScreenAssets';
+import {
+  isDocumentFullscreen,
+  syncFullscreenAttribute,
+  toggleDocumentFullscreen,
+} from '../utils/fullscreenControl';
 
 export type ShellState = 'title' | 'playing' | 'paused' | 'gameover';
 export type SanctuaryTab = 'loadout' | 'store' | 'quests' | 'bestiary' | null;
@@ -130,12 +135,14 @@ export interface GameShellContextValue {
   canWatchRewardedAd: boolean;
   platformProvider: string;
   isMenuTransitioning: boolean;
+  isFullscreen: boolean;
 
   // Core Actions
   startNewOrResumedRun: (resumeExisting?: boolean, withMenuCrossfade?: boolean) => void;
   completeMenuTransition: () => void;
   updateShellState: (next: ShellState) => void;
   toggleMute: () => void;
+  toggleFullscreen: () => void;
   pauseRun: () => void;
   resumeRun: () => void;
   endRunWithSuddenDeath: () => void;
@@ -236,6 +243,7 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     useState<EndedRunRewardsSummary | null>(null);
   const exitToTitleAfterEndRunRef = useRef(false);
   const [userMuted, setUserMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => isDocumentFullscreen());
   const [debugMenuOpen, setDebugMenuOpen] = useState(false);
   const debugMenuOpenRef = useRef(false);
   const [ytDiagnostics, setYtDiagnostics] = useState(() =>
@@ -1120,6 +1128,13 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        if (code === 'KeyF') {
+          void toggleDocumentFullscreen().then((nextFs) => {
+            setIsFullscreen(nextFs);
+          });
+          return;
+        }
+
         if (
           code === 'KeyR' &&
           draftOffers.length === 0 &&
@@ -1169,6 +1184,31 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     const next = !audioRef.current.isUserMuted();
     audioRef.current.setUserMuted(next);
     setUserMuted(next);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    void toggleDocumentFullscreen().then((nextFs) => {
+      setIsFullscreen(nextFs);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onFullscreenChange = () => {
+      const doc = document as unknown as {
+        fullscreenElement?: Element | null;
+        webkitFullscreenElement?: Element | null;
+      };
+      const nativeActive = Boolean(doc.fullscreenElement || doc.webkitFullscreenElement);
+      syncFullscreenAttribute(nativeActive);
+      setIsFullscreen(nativeActive);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+    };
   }, []);
 
   const pauseRun = useCallback(() => {
@@ -2061,10 +2101,12 @@ export function GameShellProvider({ children }: { children: React.ReactNode }) {
     canWatchRewardedAd,
     platformProvider: platform.provider,
     isMenuTransitioning,
+    isFullscreen,
     startNewOrResumedRun,
     completeMenuTransition,
     updateShellState,
     toggleMute,
+    toggleFullscreen,
     pauseRun,
     resumeRun,
     endRunWithSuddenDeath,

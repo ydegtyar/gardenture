@@ -3,6 +3,7 @@ import { POWER_UPS, STYLE_RANKS } from '../../content/data/catalog';
 import { getPowerUpDef } from '../../game/data/powerups';
 import { Simulation } from '../../sim/Simulation';
 import {
+  FullscreenSvgIcon,
   MuteSvgIcon,
   PauseSvgIcon,
   PowerUpAbilityIcon,
@@ -25,7 +26,9 @@ export function PlayingHudOverlay() {
     hud,
     rankAura,
     userMuted,
+    isFullscreen,
     toggleMute,
+    toggleFullscreen,
     pauseRun,
     openDebugMenu,
     startNewOrResumedRun,
@@ -33,6 +36,7 @@ export function PlayingHudOverlay() {
   } = useGameShell();
 
   const lastSlotTouchMsRef = React.useRef<Record<number, number>>({});
+  const lastFullscreenTouchMsRef = React.useRef<number>(-Infinity);
 
   if (shellState === 'title') return null;
 
@@ -220,10 +224,48 @@ export function PlayingHudOverlay() {
             </div>
           )}
 
-          <div className="flex items-end justify-end gap-2 w-full">
-            {/* Held One-Time Usable Items / Power-Up Slots [Q] and [E] */}
+          <div className="flex items-end justify-between gap-2 w-full">
+            {/* Bottom-Left: Fullscreen Mode Control [F] */}
+            <div className="flex items-center pointer-events-auto shrink-0">
+              <button
+                type="button"
+                tabIndex={-1}
+                data-testid="hud-fullscreen-button"
+                data-interactive="true"
+                aria-pressed={isFullscreen}
+                aria-label={isFullscreen ? 'Exit Fullscreen [F]' : 'Enter Fullscreen [F]'}
+                title={isFullscreen ? 'Exit Fullscreen [F]' : 'Enter Fullscreen [F]'}
+                onPointerDown={(e) => {
+                  if (e.pointerType === 'mouse' && e.button !== 0) return;
+                  e.stopPropagation();
+                  e.currentTarget.blur();
+                  lastFullscreenTouchMsRef.current = performance.now();
+                  toggleFullscreen();
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  e.currentTarget.blur();
+                  const now = performance.now();
+                  if (now - lastFullscreenTouchMsRef.current < 400) return;
+                  lastFullscreenTouchMsRef.current = now;
+                  toggleFullscreen();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.currentTarget.blur();
+                  const now = performance.now();
+                  if (now - lastFullscreenTouchMsRef.current < 400) return;
+                  toggleFullscreen();
+                }}
+                className="btn-herbarium-seal shrink-0 text-[#EDE6D0] touch-none select-none"
+              >
+                <FullscreenSvgIcon isFullscreen={isFullscreen} />
+              </button>
+            </div>
+
+            {/* Bottom-Right: Held One-Time Usable Items / Power-Up Slots [Q] and [E] */}
             <div
-              className="flex items-center gap-2 pointer-events-auto shrink-0 p-1.5 sm:p-2 rounded-2xl bg-[#2B1F2D]/90 border-2 border-[#2D1E2F] shadow-xl">
+              className="flex items-center gap-2 pointer-events-auto shrink-0 p-1.5 sm:p-2 rounded-2xl bg-[#2B1F2D]/90 border-2 border-[#2D1E2F] shadow-xl ml-auto">
               {[0, 1].map((slotIdx) => {
                 const pId = hud.heldPowerUps[slotIdx];
                 const pDef = pId ? POWER_UPS[pId] : null;
