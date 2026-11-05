@@ -3,7 +3,10 @@
 set -e
 
 if [ -f .env.local ]; then
-  export $(cat .env.local | grep -v '^#' | grep -E '^(FACEBOOK_APP_ID|FACEBOOK_APP_SECRET|FACEBOOK_ACCESS_TOKEN)=' | xargs 2>/dev/null || true)
+  VARS=$(cat .env.local | grep -v '^#' | grep -E '^(FACEBOOK_APP_ID|FACEBOOK_APP_SECRET|FACEBOOK_ACCESS_TOKEN)=' || true)
+  if [ -n "$VARS" ]; then
+    export $(echo "$VARS" | xargs)
+  fi
 fi
 
 APP_ID="${FACEBOOK_APP_ID:-1122546253826452}"
